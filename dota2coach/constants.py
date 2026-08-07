@@ -11,9 +11,34 @@ OpenDota отдаёт в матче числовые id (hero_id, game_mode, pat
 
 import json
 import pathlib
-from typing import Any, Dict, Optional
+import re
+from typing import Any, Dict, List, Optional
 
 import requests
+
+# Токен локализации Valve вида {s:bonus_rot_slow} с необязательным знаком и
+# прилипшей единицей измерения сразу после скобки ("%" или "s" = секунды).
+# Единица ловится только вплотную к "}", иначе съели бы 's' у следующего слова.
+_LOC_TOKEN = re.compile(r"[+-]?\{[sfvd]:[^}]*\}(?:%|s(?=\s|$))?")
+
+
+def strip_loc_tokens(text: str) -> str:
+    """Срезает неразрешённые токены локализации, оставляя читаемое название.
+
+    Значений талантов OpenDota не отдаёт (в constants/abilities у них есть
+    только dname с шаблоном), поэтому подставить число неоткуда. Вместо мусора
+    «+{s:bonus_rot_slow}% Rot Slow» отдаём чистое «Rot Slow».
+    """
+    if "{" not in text:
+        return text
+    cleaned = _LOC_TOKEN.sub(" ", text)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+    return cleaned.strip(" +-/,")
+
+
+def _prettify(internal: str) -> str:
+    """npc-имя как запасной вариант: pudge_flesh_heap -> Pudge Flesh Heap."""
+    return internal.replace("_", " ").title()
 
 
 class Constants:
@@ -40,8 +65,23 @@ class Constants:
     def ability_name(self, ability_id: Optional[int]) -> str:
         return f"ability_{ability_id}"
 
+    def is_talent(self, ability_id: Optional[int]) -> bool:
+        return False
+
     def item_name(self, key: Optional[str]) -> str:
         return (key or "").replace("item_", "")
+
+    def item_cost(self, key: Optional[str]) -> int:
+        return 0
+
+    def item_components(self, key: Optional[str]) -> List[str]:
+        return []
+
+    def item_is_consumable(self, key: Optional[str]) -> bool:
+        return False
+
+    def permanent_buff_name(self, buff_id: Optional[int]) -> str:
+        return f"buff#{buff_id}"
 
 
 class ConstantsRepo(Constants):
@@ -129,24 +169,66 @@ class ConstantsRepo(Constants):
                     return item["name"]
         return str(patch_id)
 
-    def ability_name(self, ability_id: Optional[int]) -> str:
+    def _ability_internal(self, ability_id: Optional[int]) -> Optional[str]:
         # ability_ids: {id -> internal_name}; abilities: {internal_name -> {dname}}
         ids = self._load("ability_ids")
-        internal = ids.get(str(ability_id)) if isinstance(ids, dict) else None
-        if internal:
-            abilities = self._load("abilities")
-            entry = abilities.get(internal) if isinstance(abilities, dict) else None
-            if entry and entry.get("dname"):
-                return entry["dname"]
+        return ids.get(str(ability_id)) if isinstance(ids, dict) else None
+
+    def ability_name(self, ability_id: Optional[int]) -> str:
+        internal = self._ability_internal(ability_id)
+        if not internal:
+            return f"ability_{ability_id}"
+        abilities = self._load("abilities")
+        entry = abilities.get(internal) if isinstance(abilities, dict) else None
+        dname = (entry or {}).get("dname")
+        if not dname:
             return internal
-        return f"ability_{ability_id}"
+        # У талантов dname — шаблон с {s:...}; значения в OpenDota отсутствуют.
+        return strip_loc_tokens(dname) or internal
+
+    def is_talent(self, ability_id: Optional[int]) -> bool:
+        return (self._ability_internal(ability_id) or "").startswith("special_bonus")
+
+    # --- предметы -------------------------------------------------------------
+
+    def _item_entry(self, key: Optional[str]) -> Dict[str, Any]:
+        if not key:
+            return {}
+        items = self._load("items")
+        if not isinstance(items, dict):
+            return {}
+        return items.get(key.replace("item_", "")) or {}
 
     def item_name(self, key: Optional[str]) -> str:
         if not key:
             return ""
         clean = key.replace("item_", "")
-        items = self._load("items")
-        entry = items.get(clean) if isinstance(items, dict) else None
+        return self._item_entry(clean).get("dname") or clean
+
+    def item_cost(self, key: Optional[str]) -> int:
+        return int(self._item_entry(key).get("cost") or 0)
+
+    def item_components(self, key: Optional[str]) -> List[str]:
+        comps = self._item_entry(key).get("components") or []
+        return [c for c in comps if c]  # в справочнике встречаются пустые строки
+
+    def item_is_consumable(self, key: Optional[str]) -> bool:
+        qual = self._item_entry(key).get("qual") or ""
+        return "consumable" in qual
+
+    # --- постоянные баффы -----------------------------------------------------
+
+    def permanent_buff_name(self, buff_id: Optional[int]) -> str:
+        """permanent_buffs: {id -> internal}; internal может быть и предметом, и способностью."""
+        buffs = self._load("permanent_buffs")
+        internal = buffs.get(str(buff_id)) if isinstance(buffs, dict) else None
+        if not internal:
+            return f"buff#{buff_id}"
+        item = self._item_entry(internal).get("dname")
+        if item:
+            return item
+        abilities = self._load("abilities")
+        entry = abilities.get(internal) if isinstance(abilities, dict) else None
         if entry and entry.get("dname"):
-            return entry["dname"]
-        return clean
+            return strip_loc_tokens(entry["dname"])
+        return _prettify(internal)

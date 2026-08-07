@@ -7,6 +7,8 @@
   3. Отдать нормализованный Match.
 """
 
+import json
+import pathlib
 import time
 from typing import Any, Dict, Optional
 
@@ -23,13 +25,16 @@ class OpenDotaSource(DataSource):
 
     def __init__(self, session: requests.Session, constants: Constants, rate_limiter,
                  api_key: Optional[str] = None,
-                 parse_timeout: float = 180.0, poll_interval: float = 6.0):
+                 parse_timeout: float = 180.0, poll_interval: float = 6.0,
+                 use_cache: bool = True, cache_dir: str = ".cache"):
         self._session = session
         self._constants = constants
         self._rate = rate_limiter
         self._api_key = api_key
         self._parse_timeout = parse_timeout
         self._poll_interval = poll_interval
+        self._use_cache = use_cache
+        self._cache_dir = pathlib.Path(cache_dir)
 
     # --- низкоуровневые HTTP-хелперы -----------------------------------------
 
@@ -75,9 +80,46 @@ class OpenDotaSource(DataSource):
         except ValueError:
             return None
 
+    # --- кэш сырого ответа ----------------------------------------------------
+
+    def _cache_path(self, match_id: int) -> pathlib.Path:
+        return self._cache_dir / f"match_{match_id}.json"
+
+    def _cached_match(self, match_id: int) -> Optional[Dict[str, Any]]:
+        """Сыгранный матч неизменен, поэтому распарсенный ответ кэшируем навсегда.
+
+        Это экономит запросы к API при повторных прогонах с другими --depth/--focus.
+        Нераспарсенные ответы не кэшируем — их ещё имеет смысл перезапросить.
+        """
+        if not self._use_cache:
+            return None
+        path = self._cache_path(match_id)
+        if not path.exists():
+            return None
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return raw if self._is_parsed(raw) else None
+
+    def _store_match(self, match_id: int, raw: Dict[str, Any]) -> None:
+        if not self._use_cache or not self._is_parsed(raw):
+            return
+        try:
+            self._cache_dir.mkdir(exist_ok=True)
+            self._cache_path(match_id).write_text(json.dumps(raw), encoding="utf-8")
+        except OSError:
+            pass  # кэш — оптимизация, его отсутствие не должно ломать разбор
+
     # --- публичный контракт ---------------------------------------------------
 
     def fetch_match(self, match_id: int) -> Match:
+        cached = self._cached_match(match_id)
+        if cached is not None:
+            print(f"      Беру матч {match_id} из локального кэша (.cache). "
+                  f"Свежие данные: --no-cache")
+            return normalize.from_opendota(cached, self._constants)
+
         raw = self._get(f"/matches/{match_id}")
         if raw is None or raw.get("match_id") is None:
             raise DataSourceError(f"Матч {match_id} не найден в OpenDota.")
@@ -91,6 +133,7 @@ class OpenDotaSource(DataSource):
                 print("      Внимание: парсинг не успел завершиться. Продолжаю с тем, "
                       "что есть (Тир 1/2 могут быть неполными).")
 
+        self._store_match(match_id, raw)
         return normalize.from_opendota(raw, self._constants)
 
     # --- парсинг-задача -------------------------------------------------------

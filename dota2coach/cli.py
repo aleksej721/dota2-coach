@@ -1,4 +1,4 @@
-"""CLI: `python -m dota2coach analyze <match_id> --me <account_id> [--depth quick|deep]`.
+"""CLI: `python -m dota2coach analyze <match_id> --me <account_id> [--depth] [--focus]`.
 
 Здесь собирается («провязывается») весь конвейер из конкретных реализаций.
 Меняешь источник данных — правишь одну строку сборки, остальное не трогаешь.
@@ -15,6 +15,7 @@ from .config import Config
 from .constants import ConstantsRepo
 from .features import FeatureExtractor
 from .pipeline import Pipeline
+from .policy import DEPTHS, FOCUSES, Policy
 from .ratelimit import RateLimiter
 from .sources.base import DataSourceError
 from .sources.opendota import OpenDotaSource
@@ -32,8 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--me", type=int, default=None, help="твой account_id (Steam32)")
     a.add_argument("--hero", type=str, default=None,
                    help="или имя твоего героя в матче (если не знаешь account_id)")
-    a.add_argument("--depth", choices=["quick", "deep"], default="quick",
-                   help="объём промпта: quick (по умолчанию) или deep")
+    a.add_argument("--depth", choices=list(DEPTHS), default="quick",
+                   help="объём промпта: quick (по умолчанию, только S-тир) или deep")
+    a.add_argument("--focus", choices=list(FOCUSES), default="full",
+                   help="под какой вопрос затачивать разбор (по умолчанию full)")
+    a.add_argument("--no-cache", action="store_true",
+                   help="не брать сырой ответ матча из .cache — сходить в API заново")
     return parser
 
 
@@ -50,18 +55,22 @@ def run_analyze(args: argparse.Namespace) -> int:
     rate = RateLimiter(min_interval=1.0)
 
     constants = ConstantsRepo(session, rate, api_key=config.api_key)
-    source = OpenDotaSource(session, constants, rate, api_key=config.api_key)
+    source = OpenDotaSource(session, constants, rate, api_key=config.api_key,
+                            use_cache=not args.no_cache)
     extractor = FeatureExtractor(constants)
     builder = BundleBuilder()
     pipeline = Pipeline(source, extractor, builder, out_dir="output")
+    policy = Policy(depth=args.depth, focus=args.focus)
 
     try:
-        path, text = pipeline.run(args.match_id, args.me, args.hero, args.depth)
+        path, text = pipeline.run(args.match_id, args.me, args.hero, policy)
     except DataSourceError as e:
         print(f"Не удалось: {e}", file=sys.stderr)
         return 1
 
-    print(f"\nГотово: промпт сохранён в {path}")
+    size_kb = len(text.encode("utf-8")) / 1024
+    print(f"\nГотово: промпт сохранён в {path} "
+          f"({size_kb:.1f} КБ, depth={args.depth}, focus={args.focus})")
     print("--- предпросмотр (первые строки) ---")
     print("\n".join(text.splitlines()[:12]))
     print("...\nСкопируй весь файл и вставь в ChatGPT/Claude.")

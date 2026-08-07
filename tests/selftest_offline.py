@@ -14,8 +14,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from dota2coach import normalize
 from dota2coach.bundle import BundleBuilder
-from dota2coach.constants import Constants  # заглушка: fallback-имена, без сети
+from dota2coach.constants import Constants, strip_loc_tokens  # заглушка: без сети
 from dota2coach.features import FeatureExtractor
+from dota2coach.policy import Policy
 
 
 def _bench(raw, pct):
@@ -59,6 +60,8 @@ def fake_raw():
     ally = player(1, 1, 1, 4000, kills=2, deaths=5, assists=9, obs_placed=12, sen_placed=8,
                   permanent_buffs=[{"permanent_buff": 5, "stack_count": 24}])
     enemy = player(128, 2, 3, 3500, kills=4, deaths=4, assists=3,
+                   # stack_count = 0 — это «есть аганим/шард», такие записи фильтруем
+                   permanent_buffs=[{"permanent_buff": 12, "stack_count": 0}],
                    kills_log=[{"time": 330, "key": "npc_dota_hero_5"}])  # «убил меня»
     return {
         "match_id": 8927853552, "duration": 2491, "game_mode": 22, "lobby_type": 7,
@@ -81,6 +84,65 @@ def fake_raw():
     }
 
 
+def check_loc_tokens():
+    """Токены локализации талантов должны срезаться, а живой текст — уцелеть."""
+    cases = {
+        "+{s:bonus_rot_slow}% Rot Slow": "Rot Slow",
+        "-{s:bonus_AbilityCooldown}s Meat Hook Cooldown": "Meat Hook Cooldown",
+        "{s:bonus_radius_explosion} AoE Laser": "AoE Laser",
+        "+8% Spell Lifesteal": "+8% Spell Lifesteal",   # значение есть — не трогаем
+        "+175 Health": "+175 Health",
+    }
+    for raw, expected in cases.items():
+        got = strip_loc_tokens(raw)
+        assert got == expected, f"{raw!r} -> {got!r}, ожидалось {expected!r}"
+    # Слово, начинающееся на 's', не должно потерять первую букву.
+    assert strip_loc_tokens("+{s:bonus_x} slow duration") == "slow duration"
+
+
+def check_draft_grouping(match):
+    """All Pick: если пики и баны сгруппированы, честно это признаём."""
+    assert match.draft_is_chronological is False, "пустой драфт не хронологичен"
+
+
+class ItemAwareConstants(Constants):
+    """Минимальный справочник предметов — чтобы проверить поглощение компонентов."""
+
+    _ITEMS = {
+        "boots":        {"cost": 500, "components": [], "consumable": False},
+        "gloves":       {"cost": 450, "components": [], "consumable": False},
+        "belt":         {"cost": 450, "components": [], "consumable": False},
+        "power_treads": {"cost": 1400, "components": ["boots", "gloves", "belt"],
+                         "consumable": False},
+        "tango":        {"cost": 90, "components": [], "consumable": True},
+    }
+
+    def item_cost(self, key):
+        return self._ITEMS.get(key, {}).get("cost", 0)
+
+    def item_components(self, key):
+        return list(self._ITEMS.get(key, {}).get("components", []))
+
+    def item_is_consumable(self, key):
+        return self._ITEMS.get(key, {}).get("consumable", False)
+
+
+def check_item_absorption():
+    """Компоненты, ушедшие в сборку, и расходники не должны попадать в тайминги."""
+    from dota2coach.model import Player
+
+    p = Player(account_id=None, player_slot=0, is_radiant=True, win=True,
+               hero_id=1, hero_name="test")
+    p.purchase_log = [
+        {"time": 0, "key": "tango"}, {"time": 60, "key": "boots"},
+        {"time": 120, "key": "gloves"}, {"time": 180, "key": "belt"},
+        {"time": 240, "key": "power_treads"}, {"time": 300, "key": "recipe_nothing"},
+    ]
+    rows = FeatureExtractor(ItemAwareConstants())._assembled_purchases(p, min_cost=1000)
+    assert [r["item"] for r in rows] == ["power_treads"], rows
+    assert rows[0]["time"] == "4:00", rows
+
+
 def main():
     constants = Constants()  # имена станут hero_5, ability_5001 и т.п. — это ок для теста
     match = normalize.from_opendota(fake_raw(), constants)
@@ -92,19 +154,47 @@ def main():
     assert me.lane_efficiency_pct == 88
     assert me.seconds_dead == 180
 
-    features = FeatureExtractor(constants).extract(match, me, depth="deep")
+    check_loc_tokens()
+    check_draft_grouping(match)
+    check_item_absorption()
+
+    extractor = FeatureExtractor(constants)
+    builder = BundleBuilder()
+
+    # quick: только S-тир — тяжёлые секции не должны появиться.
+    quick = Policy(depth="quick", focus="full")
+    quick_text = builder.build(extractor.extract(match, me, quick), quick)
+    assert "## УРОН ПО ГЕРОЯМ" not in quick_text
+    assert "## ПОСТОЯННЫЕ БАФФЫ" not in quick_text
+
+    # focus=fights поднимает тимфайты и урон даже в quick.
+    fights = Policy(depth="quick", focus="fights")
+    fights_text = builder.build(extractor.extract(match, me, fights), fights)
+    assert "## УРОН ПО ГЕРОЯМ" in fights_text
+    assert "замес" in fights_text  # ЗАДАЧА переехала под интент
+
+    deep = Policy(depth="deep", focus="full")
+    features = extractor.extract(match, me, deep)
     assert features.meta["result"] == "ПОБЕДА"
     assert len(features.scoreboard) == 3
     assert len(features.laning["cs_by_min"]) == 10
     assert len(features.objectives) == 3
-    assert any(b["buffs"] for b in features.buffs)  # у союзника есть стак
+    assert any(b["buffs"] for b in features.buffs)  # у союзника есть стак 24
+    assert all(x["stacks"] for b in features.buffs for x in b["buffs"])  # нулевых нет
 
-    text = BundleBuilder().build(features, depth="deep")
-    for marker in ["## СКОРБОРД", "## БЕНЧМАРКИ", "## НЕТВОРТ", "## РАСКАЧКА",
+    text = builder.build(features, deep)
+    for marker in ["## СКОРБОРД", "## БЕНЧМАРКИ", "## ЭКОНОМИКА", "## РАСКАЧКА",
                    "## ЛАЙНИНГ", "## ТИМФАЙТЫ", "## ПОСТОЯННЫЕ БАФФЫ"]:
         assert marker in text, f"нет секции {marker}"
+    assert "{s:" not in text, "в промпт утёк токен локализации"
+    # Заглушка Constants не знает имён баффов (buff#5), но фильтр по стакам работает:
+    # нулевой buff#12 у врага в промпт не попал.
+    assert "×24" in text and "buff#12" not in text
 
-    print("OK: расширенный офлайн-конвейер отработал. Промпт (--depth deep):\n")
+    assert len(quick_text) < len(text), "quick должен быть компактнее deep"
+
+    print(f"OK: офлайн-конвейер отработал. quick={len(quick_text)} симв., "
+          f"deep={len(text)} симв.\n")
     print(text)
 
 

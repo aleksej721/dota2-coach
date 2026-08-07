@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 from .bundle import BundleBuilder
 from .features import FeatureExtractor
 from .model import Match, Player
+from .policy import Policy
 from .sources.base import DataSource, DataSourceError
 
 
@@ -23,12 +24,12 @@ class Pipeline:
         self._out_dir = pathlib.Path(out_dir)
 
     def run(self, match_id: int, account_id: Optional[int], hero: Optional[str],
-            depth: str) -> Tuple[pathlib.Path, str]:
+            policy: Policy) -> Tuple[pathlib.Path, str]:
         match = self._source.fetch_match(match_id)
         me = self._find_me(match, account_id, hero)
 
-        features = self._extractor.extract(match, me, depth)
-        text = self._builder.build(features, depth)
+        features = self._extractor.extract(match, me, policy)
+        text = self._builder.build(features, policy)
 
         self._out_dir.mkdir(exist_ok=True)
         path = self._out_dir / f"{match_id}.txt"

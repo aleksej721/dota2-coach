@@ -62,6 +62,7 @@ def _player(p: Dict[str, Any], radiant_win: bool, constants: Constants) -> Playe
         hero_name=constants.hero_name(hero_id),
         personaname=p.get("personaname"),
         lane_role=p.get("lane_role"),
+        lane=p.get("lane"),
         is_roaming=bool(p.get("is_roaming")),
         lane_efficiency_pct=p.get("lane_efficiency_pct"),
         lane_pos=p.get("lane_pos") or {},
@@ -126,6 +127,7 @@ def _assign_positions(team: List[Player]) -> None:
         ps.sort(key=lambda pl: pl.net_worth, reverse=True)
         for i, p in enumerate(ps):
             is_core = (lane_name == "mid") or (i == 0 and lane_name in ("safe lane", "off lane"))
+            p.is_core = is_core
             p.position_label = _format_position(lane_name, is_core)
 
 
@@ -152,22 +154,62 @@ def _pick_ban(pb: Dict[str, Any], constants: Constants) -> PickBan:
     )
 
 
+def _team_name(team: Optional[int]) -> str:
+    """В чат-событиях OpenDota 2 = Radiant, 3 = Dire."""
+    return {2: "Radiant", 3: "Dire"}.get(team, "?")
+
+
+def _building_kind(key: str) -> str:
+    if "fort" in key:
+        return "ТРОН"
+    if "rax" in key:
+        return "казарма"
+    return "вышка"
+
+
 def _objective(o: Dict[str, Any], constants: Constants) -> Optional[Objective]:
+    """Событие -> одна читаемая строка.
+
+    Для строений важно назвать обе стороны явно: у OpenDota в `key` лежит
+    ВЛАДЕЛЕЦ упавшего здания, а в `unit` — кто его снёс. Раньше в промпт уходило
+    «Radiant: снесена вышка», что читается ровно наоборот.
+    """
     t = o.get("type", "")
     time = o.get("time", 0)
 
     if t == "CHAT_MESSAGE_FIRSTBLOOD":
         return Objective(time=time, type=t, label="первая кровь")
+
     if t == "building_kill":
         key = o.get("key", "") or ""
-        owner = "Dire" if "badguys" in key else ("Radiant" if "goodguys" in key else "?")
+        victim = "Radiant" if "goodguys" in key else ("Dire" if "badguys" in key else "?")
+        attacker = {"Radiant": "Dire", "Dire": "Radiant"}.get(victim, "?")
         short = key.replace("npc_dota_", "").replace("goodguys_", "").replace("badguys_", "")
-        kind = "казарма" if ("rax" in key or "melee" in key or "range" in key) else "вышка"
-        return Objective(time=time, type=t, label=f"{owner}: снесена {kind} ({short})")
+        kind = _building_kind(key)
+        unit = o.get("unit") or ""
+        by = (f" (снёс {constants.npc_to_hero(unit)})" if unit.startswith("npc_dota_hero_")
+              else " (снесли крипы)" if unit else "")
+        # Строения не помечаем рутиной: тайминг первой вышки — один из главных
+        # маркеров темпа игры, и «переломные моменты» разбираются именно по ним.
+        return Objective(time=time, type=t,
+                         label=f"{attacker} снесли: {kind} {victim} ({short}){by}")
+
     if t == "CHAT_MESSAGE_ROSHAN_KILL":
         team = o.get("team")
-        who = "Radiant" if team == 2 else ("Dire" if team == 3 else "?")
-        return Objective(time=time, type=t, label=f"{who} убил Рошана", team=team)
+        return Objective(time=time, type=t, team=team,
+                         label=f"{_team_name(team)} убили Рошана")
+
     if t == "CHAT_MESSAGE_AEGIS":
         return Objective(time=time, type=t, label="подобран Aegis")
+
+    if t == "CHAT_MESSAGE_MINIBOSS_KILL":
+        team = o.get("team")
+        return Objective(time=time, type=t, team=team,
+                         label=f"{_team_name(team)} убили Тормантора")
+
+    if t == "CHAT_MESSAGE_COURIER_LOST":
+        team = o.get("team")
+        return Objective(time=time, type=t, team=team, minor=True,
+                         label=f"потерян курьер ({_team_name(team)})")
+
     return None

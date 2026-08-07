@@ -21,6 +21,7 @@ class Objective:
     type: str
     label: str
     team: Optional[int] = None      # 2 = Radiant, 3 = Dire (где применимо)
+    minor: bool = False             # рутина (t1-вышки, курьер) — прячем в сводке
 
 
 @dataclass
@@ -45,8 +46,10 @@ class Player:
 
     # --- позиция / линия ---
     lane_role: Optional[int] = None
+    lane: Optional[int] = None          # физическая линия (1/2/3) — для поиска оппонентов
     is_roaming: bool = False
     position_label: str = ""
+    is_core: bool = False               # кор или саппорт (эвристика по линии + нетворту)
     lane_efficiency_pct: Optional[int] = None
     lane_pos: Dict[str, Any] = field(default_factory=dict)
 
@@ -134,3 +137,27 @@ class Match:
 
     def dire_players(self) -> List[Player]:
         return [p for p in self.players if not p.is_radiant]
+
+    def enemies_of(self, me: Player) -> List[Player]:
+        return [p for p in self.players if p.is_radiant != me.is_radiant]
+
+    def lane_opponents_of(self, me: Player) -> List[Player]:
+        """Соперники по линии: та же физическая линия, другая сторона."""
+        if me.lane is None:
+            return []
+        return [p for p in self.enemies_of(me) if p.lane == me.lane]
+
+    @property
+    def draft_is_chronological(self) -> bool:
+        """True, если picks_bans идут в реальном порядке драфта (пики и баны вперемешку).
+
+        В Captains Mode `order` — настоящая хронология. В all draft / all pick
+        OpenDota отдаёт сначала все пики, потом все баны, и восстановить истинный
+        порядок невозможно — врать об этом мы не будем.
+        """
+        kinds = [pb.is_pick for pb in sorted(self.picks_bans, key=lambda x: x.order)]
+        if not kinds:
+            return False
+        # Признак «сгруппировано»: сначала подряд все пики, потом подряд все баны.
+        grouped = (True in kinds) and (False in kinds) and kinds == sorted(kinds, reverse=True)
+        return not grouped
