@@ -1,0 +1,16 @@
+# --- Секреты ---
+.env
+
+# --- Выходные бандлы и кэш констант ---
+output/
+.cache/
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- IDE ---
+.idea/
+.vscode/
