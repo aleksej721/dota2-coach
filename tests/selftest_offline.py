@@ -154,6 +154,76 @@ def check_item_absorption():
     assert rows[0]["time"] == "4:00", rows
 
 
+class CostConstants(Constants):
+    """Справочник со стоимостями — для проверки детектора темпа сборки."""
+
+    _COST = {"boots": 500, "blade": 2000, "sange": 2000, "bkb": 4000}
+
+    def item_cost(self, key):
+        return self._COST.get(key, 0)
+
+
+def _build(*items):
+    """(ключ, секунды) -> запись сборки в том же виде, что отдаёт FeatureExtractor."""
+    from dota2coach.features import mmss
+    return [{"key": key, "t": t, "time": mmss(t), "item": key} for key, t in items]
+
+
+def check_item_lag():
+    """Предмет ловится по отставанию ОТ СОБСТВЕННОГО темпа, а не по абсолютному таймингу.
+
+    Это и есть ответ на «поздний BKB»: списка важных предметов нигде нет,
+    аномалия возникает из соотношения стоимости, дохода и остальной сборки.
+    """
+    from dota2coach.anomalies import AnomalyDetector
+    from dota2coach.model import Player
+
+    detector = AnomalyDetector(CostConstants())
+    me = Player(account_id=None, player_slot=0, is_radiant=True, win=False,
+                hero_id=1, hero_name="test")
+    me.gpm = 500
+
+    late = _build(("boots", 180), ("blade", 600), ("sange", 1020), ("bkb", 2400))
+    found = detector._item_lag(me, late)
+    assert len(found) == 1, [a.params for a in found]
+    assert found[0].params["item"] == "bkb" and found[0].axis == "build"
+    assert found[0].params["at"] == "40:00"
+
+    # Вся сборка, сдвинутая на 10 минут (типично для саппорта с вардами и выкупами),
+    # не должна порождать аномалию: медиана отставания съедает общий сдвиг.
+    shifted = _build(("boots", 780), ("blade", 1200), ("sange", 1620), ("bkb", 2000))
+    assert detector._item_lag(me, shifted) == [], "общий сдвиг сборки — не аномалия"
+
+    # Без GPM (нераспарсенный матч) детектор молчит, а не падает.
+    me.gpm = 0
+    assert detector._item_lag(me, late) == []
+
+
+def check_anomalies(match, me, extractor, builder, quick_text):
+    """Секция аномалий есть всегда, фокус её не приглушает, оценок в ней нет."""
+    quick = Policy(depth="quick", focus="full")
+    features = extractor.extract(match, me, quick)
+
+    kinds = {a.key for a in features.anomalies}
+    assert "anom.bench_high" in kinds, "перцентиль 91 должен считаться необычным"
+    assert "anom.kp_high" in kinds, "участие в убийствах 100% — необычно"
+    assert len(features.anomalies) <= 7, "секция не должна разрастаться"
+
+    assert "## СТАТИСТИЧЕСКИ НЕОБЫЧНОЕ В ДАННЫХ" in quick_text
+    assert "[файты]" in quick_text and "перцентиль" in quick_text
+    assert "сырьё для гипотез" in quick_text.lower(), "нет оговорки про сырьё"
+
+    # Фокус приглушает профильные секции, но не эту: гипотезы нужны всегда.
+    for focus in ("laning", "draft", "farm"):
+        p = Policy(depth="quick", focus=focus)
+        text = builder.build(extractor.extract(match, me, p), p)
+        assert "## СТАТИСТИЧЕСКИ НЕОБЫЧНОЕ В ДАННЫХ" in text, focus
+
+    # Скаффолд обязан заставить модель разобрать отклонения и продолжить диалог.
+    assert "Молча игнорировать отклонение нельзя" in quick_text
+    assert "НАЧАЛО разбора" in quick_text
+
+
 def check_scaffold(match, me, extractor, builder, quick_text):
     """Заметка игрока: свой блок, приоритет в правилах, раздел 0 в формате ответа."""
     noted = Policy(depth="quick", focus="full", note="  почему я слил лайн?  ",
@@ -172,7 +242,9 @@ def check_scaffold(match, me, extractor, builder, quick_text):
 
     # Guardrails и структура ответа обязаны быть в промпте всегда.
     for marker in ["## КАК ГОТОВИТЬ РАЗБОР", "ЗАПРЕЩЕНЫ общие советы",
-                   "### 1. Вердикт", "### 3. Главный leak", "### 6. Куда копать дальше"]:
+                   "### 1. Вердикт", "### 3. Главный leak",
+                   "### 6. Гипотезы: почему матч закончился так",
+                   "### 7. Вопросы ко мне"]:
         assert marker in quick_text, f"нет блока {marker}"
     assert "### 0." not in quick_text, "без заметки раздела 0 быть не должно"
 
@@ -304,6 +376,8 @@ def main():
     assert "## УРОН ПО ГЕРОЯМ" in fights_text
     assert "замес" in fights_text
 
+    check_item_lag()
+    check_anomalies(match, me, extractor, builder, quick_text)
     check_scaffold(match, me, extractor, builder, quick_text)
     check_models(match, me, extractor, builder)
     check_languages(match, me, extractor, builder)

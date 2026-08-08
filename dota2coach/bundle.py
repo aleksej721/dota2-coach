@@ -13,6 +13,7 @@
 from typing import Any, Dict, List, Optional
 
 from . import i18n, scaffold
+from .anomalies import Anomaly
 from .features import Features
 from .policy import EXPANDED, Policy
 from .render import Group, Section, profile, renderer_for
@@ -32,6 +33,8 @@ class BundleBuilder:
         data.add(s("sec.meta"), self._meta(features.meta, policy, s))
         if features.role_impact:
             data.add(s("sec.role_impact"), self._role_impact(features.role_impact, s))
+        if policy.shows("anomalies"):
+            data.add(s("sec.anomalies"), self._anomalies(features.anomalies, s))
         if features.draft:
             data.add(s("sec.draft"), self._draft(features.draft, s))
         data.add(s("sec.scoreboard"), self._scoreboard(features.scoreboard, s))
@@ -132,6 +135,27 @@ class BundleBuilder:
                 continue
             listed = ", ".join(f"{x['time']} {x['item']}" for x in timings)
             out.append(s(f"role.{key}", items=listed))
+        return out
+
+    def _anomalies(self, rows: List[Anomaly], s: i18n.Strings) -> List[str]:
+        """Отклонения списком, каждое — с осью гипотезы в квадратных скобках.
+
+        Пустой список тоже печатаем: «ничего необычного» — это факт, и без него
+        модель начнёт додумывать аномалии, которых в данных нет.
+        """
+        if not rows:
+            return [s("anom.intro"), f"  {s('anom.none')}"]
+
+        out = [s("anom.intro")]
+        for a in rows:
+            params = dict(a.params)
+            # Метрики бенчмарков подписываются общим словарём bench.*: иначе
+            # одна и та же метрика называлась бы в двух секциях по-разному.
+            for src, dst in (("metric_key", "metric"), ("high_key", "high_metric"),
+                             ("low_key", "low_metric")):
+                if src in params:
+                    params[dst] = s(f"bench.{params.pop(src)}")
+            out.append(f"  - [{s('anom.axis.' + a.axis)}] " + s(a.key, **params))
         return out
 
     def _meta(self, m: Dict[str, Any], policy: Policy, s: i18n.Strings) -> List[str]:

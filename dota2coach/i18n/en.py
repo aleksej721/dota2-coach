@@ -56,6 +56,55 @@ PROMPT = {
     "role.key_items": "Key power-spike items: {items}",
     "role.utility_items": "Team/utility items: {items}",
 
+    "sec.anomalies": "STATISTICALLY UNUSUAL IN THE DATA",
+    "anom.intro":
+        "Deviations found by automatically comparing this match against hero percentiles, "
+        "against my own build pace and against the other players. This is RAW MATERIAL for "
+        "hypotheses, not conclusions: each deviation may have several explanations, "
+        "including a harmless one. In square brackets — the axis it belongs to.",
+    "anom.none":
+        "— (no notable deviations found; build hypotheses from the match data above and do "
+        "not invent anomalies that are not listed here)",
+    "anom.axis.draft": "draft",
+    "anom.axis.build": "build",
+    "anom.axis.farm": "farm",
+    "anom.axis.fights": "fights",
+    "anom.axis.position": "positioning",
+    "anom.axis.lane": "lane",
+    "anom.item_lag":
+        "{item} completed at {at} — roughly {excess} min later than my income ({gpm} GPM) "
+        "and the pace of the rest of my build imply (about {expected} was expected). The "
+        "comparison is against my own build, so consumables and wards do not skew it.",
+    "anom.bench_low": "{metric}: percentile {pct} — bottom of the distribution for this hero.",
+    "anom.bench_high": "{metric}: percentile {pct} — top of the distribution for this hero.",
+    "anom.bench_spread":
+        "Gap between metrics: {high_metric} is at percentile {high}, while {low_metric} is "
+        "only at {low}. One direction is pulled much further than the other.",
+    "anom.farm_stall":
+        "Income dip over m{start}–m{end}: about {rate} gold per minute against my match "
+        "average of {average}.",
+    "anom.death_cluster":
+        "{count} of my {total} deaths fall inside {start}–{end} — that is one episode, not "
+        "scattered trades.",
+    "anom.dead_share":
+        "Time spent dead: {dead} — {pct}% of match duration, against {typical} for a "
+        "typical player in this match.",
+    "anom.lane_gap_behind":
+        "Lane efficiency {mine}% against {theirs}% for my lane opponents — {gap} points "
+        "behind.",
+    "anom.lane_gap_ahead":
+        "Lane efficiency {mine}% against {theirs}% for my lane opponents — {gap} points "
+        "ahead.",
+    "anom.kp_low":
+        "Kill participation {pct}% ({kills}+{assists} of {team_kills} team kills) — low: a "
+        "significant part of the fights happened without me.",
+    "anom.kp_high":
+        "Kill participation {pct}% ({kills}+{assists} of {team_kills} team kills) — nearly "
+        "every team fight involved me.",
+    "anom.gold_collapse":
+        "Fastest swing of the lead: between m{start} and m{end} my team lost {gold} gold of "
+        "relative advantage.",
+
     "sec.draft": "DRAFT",
     "draft.no_stages":
         "OpenDota does not expose draft stages (picks/bans) for this mode. Final line-ups:",
@@ -236,6 +285,17 @@ PROMPT = {
         "Player's level: {level}. Calibrate the advice to it — suggest what is realistically "
         "executable at that level, and if you recommend something above it, explain why it "
         "matters and where to start.",
+    "method.anomalies":
+        "The \"STATISTICALLY UNUSUAL IN THE DATA\" block already lists the deviations. Work "
+        "through each one: either explain it with an in-game cause, or honestly dismiss it "
+        "if the match context makes it normal (for example, the role or the flow of the "
+        "game). Silently ignoring a deviation is not allowed. Do not invent deviations that "
+        "are not listed there.",
+    "method.dialogue":
+        "This is the START of the analysis, not a final verdict. Do not present conclusions "
+        "as settled: finish with 2–3 competing hypotheses and 2–3 questions for me (the "
+        "\"Hypotheses\" and \"Questions for me\" sections), so the analysis can be narrowed "
+        "down in the next message.",
     "method.language": "Answer in {language}.",
     "method.note_priority":
         "The player has a specific question (the \"PLAYER'S MAIN QUESTION\" block). It is the "
@@ -329,11 +389,22 @@ PROMPT = {
         "2–4 measurable hard-support actions: a stack/ward timing, participation, healing, "
         "control or a defensive item. Each needs a number/timing from this match. Do not "
         "set CS/GPM targets or demand fewer deaths without context.",
-    "format.s6.title": "6. Where to dig deeper",
+    "format.s6.title": "6. Hypotheses: why the match ended this way",
     "format.s6.body":
-        "2–3 questions the player can send you next to go deeper. Phrase them from the "
-        "player's point of view and tie them to this match — for example: \"Break down the "
-        "fight at 39:00 where I died first\".",
+        "2–3 COMPETING explanations of the outcome, drawn from different areas: draft, "
+        "build and timings, key fights, farm, positioning. Each needs: (a) evidence from "
+        "the data — a number or a timing, preferably tied to the deviations block; (b) what "
+        "would confirm or refute it; (c) how confident you are. The hypotheses must differ "
+        "in substance, not be restatements of one idea. If the data clearly points at one "
+        "cause, say so — but still name what would refute it.",
+    "format.s7.title": "7. Questions for me",
+    "format.s7.body":
+        "2–3 short diagnostic questions whose answers would narrow the analysis down. Ask "
+        "about what is NOT in the data: intent, the plan for the game, communication, what "
+        "was visible on screen. For example: \"did the game go wrong in a fight or already "
+        "in the draft?\", \"is there a moment you are unsure about yourself?\", \"did you "
+        "have the enemy carry in sight before that 28:00 engage?\". Do not ask about things "
+        "already answered by the numbers above.",
 }
 
 UI = {

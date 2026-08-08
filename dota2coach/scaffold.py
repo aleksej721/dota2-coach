@@ -20,7 +20,11 @@ from .policy import Policy
 
 # Разделы ответа в фиксированном порядке. Ключ 0 добавляется только тогда,
 # когда у игрока есть свой вопрос: без него нумерация начинается с вердикта.
-_FORMAT_SECTIONS = ("s1", "s2", "s3", "s4", "s5", "s6")
+#
+# s6 (гипотезы) и s7 (вопросы игроку) закрывают ответ намеренно: разбор — это
+# начало разговора, а не финальный вердикт. Модель обязана оставить на столе
+# несколько версий и спросить то, чего в данных нет.
+_FORMAT_SECTIONS = ("s1", "s2", "s3", "s4", "s5", "s6", "s7")
 
 
 def method_lines(policy: Policy, s: Strings) -> List[str]:
@@ -34,6 +38,10 @@ def method_lines(policy: Policy, s: Strings) -> List[str]:
         rules.append(s(f"method.role.{policy.role}"))
     rules.append(s("method.evidence"))
     rules.append(s("method.no_generic"))
+    # Идут вместе: без разбора аномалий гипотезы вырождаются в общие места,
+    # а без диалогового правила модель выдаёт «финальный вердикт» и замолкает.
+    rules.append(s("method.anomalies"))
+    rules.append(s("method.dialogue"))
     rules.append(s("method.impact_first"))
     rules.append(s("method.explain_why"))
     rules.append(s("method.balance"))

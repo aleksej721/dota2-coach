@@ -57,6 +57,10 @@ HIDDEN, SUMMARY, EXPANDED, FULL_LOG = 0, 1, 2, 3
 # Базовый уровень секции: (quick, deep).
 _BASE: Dict[str, Tuple[int, int]] = {
     "meta":       (SUMMARY, SUMMARY),
+    # Отклонения в данных. Секция короткая (не больше семи строк), но именно из
+    # неё модель строит гипотезы, поэтому фокус её не приглушает никогда:
+    # в _FOCUS_OVERRIDES она сознательно не упомянута.
+    "anomalies":  (SUMMARY, SUMMARY),
     "draft":      (SUMMARY, EXPANDED),
     "scoreboard": (SUMMARY, SUMMARY),
     "benchmarks": (SUMMARY, EXPANDED),

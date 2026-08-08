@@ -15,6 +15,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+from .anomalies import Anomaly, AnomalyDetector
 from .constants import Constants
 from .model import Match, Player
 from .policy import EXPANDED, FULL_LOG, ROLES, Policy
@@ -80,6 +81,8 @@ class Features:
     objectives: List[Dict[str, Any]] = field(default_factory=list)
     damage: List[Dict[str, Any]] = field(default_factory=list)
     role_impact: Dict[str, Any] = field(default_factory=dict)
+    # Статистические отклонения — сырьё для гипотез модели, см. anomalies.py.
+    anomalies: List[Anomaly] = field(default_factory=list)
     # Оговорки, которые зависят от того, что мы отфильтровали или чего нет в
     # источнике. Хранятся как (ключ i18n, параметры) — текст соберёт bundle
     # на языке промпта. Печатаются в секции «ОГРАНИЧЕНИЯ ДАННЫХ».
@@ -101,11 +104,18 @@ def _at(arr: List[int], idx: int) -> Optional[int]:
 class FeatureExtractor:
     def __init__(self, constants: Constants):
         self._c = constants
+        self._anomalies = AnomalyDetector(constants)
 
     def extract(self, match: Match, me: Player, policy: Policy) -> Features:
         f = Features()
         f.meta = self._meta(match, me, policy)
         f.scoreboard = [self._score_row(p, me) for p in match.players]
+
+        if policy.shows("anomalies"):
+            # min_cost=0: детектору нужна вся сборка, иначе накопленная
+            # стоимость поедет и «ожидаемый» тайминг станет фикцией.
+            f.anomalies = self._anomalies.detect(
+                match, me, self._assembled_purchases(me, min_cost=0))
 
         if policy.shows("role_impact"):
             f.role_impact = self._role_impact(match, me, policy)
@@ -346,7 +356,10 @@ class FeatureExtractor:
                 continue
             if key not in ALWAYS_KEY_ITEMS and self._c.item_cost(key) < min_cost:
                 continue
-            out.append({"time": mmss(t), "item": self._c.item_name(key)})
+            # `t` и `key` нужны детектору аномалий: он считает темп сборки в
+            # секундах и берёт стоимость по ключу. Печать использует `time`/`item`.
+            out.append({"time": mmss(t), "t": t, "key": key,
+                        "item": self._c.item_name(key)})
         return out
 
     def _full_purchases(self, p: Player) -> List[Dict[str, Any]]:
