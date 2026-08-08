@@ -620,6 +620,7 @@ UI = {
     "group.profile": "Player and sample",
     "advanced.toggle": "Advanced settings",
     "advanced.summary": "role, focus, depth, model, window, question",
+    "advanced.summary.profile": "hero, position, model, question, level",
 
     "field.matches": "How many recent matches",
     "field.matches.ph": "10",

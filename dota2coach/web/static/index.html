@@ -848,7 +848,7 @@ pre#promptText::-webkit-scrollbar-thumb {
           <path d="M9 6l6 6-6 6"/>
         </svg>
         <span data-i18n="advanced.toggle"></span>
-        <span class="adv-summary" data-i18n="advanced.summary"></span>
+        <span class="adv-summary" id="advSummary"></span>
       </button>
       <div class="adv-body" id="advBody">
         <div class="adv-inner">
@@ -1108,6 +1108,10 @@ pre#promptText::-webkit-scrollbar-thumb {
     }
     $("groupBasicsText").textContent =
       t(mode === "profile" ? "group.profile" : "group.player");
+    // Перечень в свёрнутом виде должен называть поля ТЕКУЩЕГО режима: в профиле
+    // нет ни фокуса, ни глубины, ни промежутка.
+    $("advSummary").textContent =
+      t(mode === "profile" ? "advanced.summary.profile" : "advanced.summary");
     $("footCmd").textContent = mode === "profile"
       ? "python -m dota2coach profile <account_id> -n 10"
       : "python -m dota2coach analyze <match_id> --me <account_id>";

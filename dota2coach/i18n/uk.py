@@ -611,6 +611,7 @@ UI = {
     "group.profile": "Гравець і вибірка",
     "advanced.toggle": "Розширені налаштування",
     "advanced.summary": "роль, фокус, глибина, модель, промежок, питання",
+    "advanced.summary.profile": "герой, позиція, модель, питання, рівень",
 
     "field.matches": "Скільки останніх матчів",
     "field.matches.ph": "10",
