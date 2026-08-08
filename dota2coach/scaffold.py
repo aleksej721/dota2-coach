@@ -57,18 +57,64 @@ def method_lines(policy: Policy, s: Strings) -> List[str]:
     return out
 
 
+# Разделы ответа для профиля. Другие, чем у одного матча: там разбирают эпизод,
+# здесь — привычку, и «разбор по стадиям одного матча» смысла не имеет.
+_PROFILE_SECTIONS = ("p1", "p2", "p3", "p4", "p5", "p6", "p7")
+
+
+def _sections(keys: List[str], prefix: str, policy: Policy, s: Strings) -> List[str]:
+    out = [s(f"{prefix}.intro"), ""]
+    for key in keys:
+        out.append(f"### {s(f'{prefix}.{key}.title')}")
+        role_key = f"{prefix}.{key}.body.role.{policy.role}"
+        out.append(s(role_key) if policy.has_role and s.has(role_key)
+                   else s(f"{prefix}.{key}.body"))
+        out.append("")
+    return out[:-1]  # лишняя пустая строка в конце документа не нужна
+
+
 def format_lines(policy: Policy, s: Strings) -> List[str]:
     """Структура ответа: заголовок раздела + что в нём должно быть."""
-    out = [s("format.intro"), ""]
-
     keys = list(_FORMAT_SECTIONS)
     if policy.has_note:
         keys.insert(0, "s0")
+    return _sections(keys, "format", policy, s)
 
-    for key in keys:
-        out.append(f"### {s(f'format.{key}.title')}")
-        role_key = f"format.{key}.body.role.{policy.role}"
-        out.append(s(role_key) if policy.has_role and s.has(role_key)
-                   else s(f"format.{key}.body"))
-        out.append("")
-    return out[:-1]  # лишняя пустая строка в конце документа не нужна
+
+def profile_method_lines(policy: Policy, matches: int, s: Strings) -> List[str]:
+    """Правила для кросс-матчевого разбора.
+
+    Общие с одиночным разбором правила переиспользуются как есть; добавляются
+    три, специфичные именно для профиля: разбирать повторяющееся, помнить про
+    размер выборки и не притворяться, что полные данные матчей под рукой.
+    """
+    rules: List[str] = []
+
+    if policy.has_note:
+        rules.append(s("method.note_priority"))
+    if policy.has_role:
+        rules.append(s(f"method.role.{policy.role}"))
+    rules.append(s("profile.method.repeating"))
+    rules.append(s("profile.method.sample", matches=matches))
+    rules.append(s("profile.method.no_raw"))
+    rules.append(s("method.evidence"))
+    rules.append(s("method.no_generic"))
+    rules.append(s("method.dialogue"))
+    rules.append(s("method.impact_first"))
+    rules.append(s("method.explain_why"))
+    rules.append(s("method.balance"))
+    rules.append(s("method.no_invention"))
+    if policy.mmr:
+        rules.append(s("method.calibrate", level=policy.mmr))
+    rules.append(s("method.language", language=s("answer_language")))
+
+    out = [s("profile.method.intro", matches=matches)]
+    out += [f"{i}. {rule}" for i, rule in enumerate(rules, 1)]
+    return out
+
+
+def profile_format_lines(policy: Policy, s: Strings) -> List[str]:
+    keys = list(_PROFILE_SECTIONS)
+    if policy.has_note:
+        keys.insert(0, "p0")
+    return _sections(keys, "profile.format", policy, s)

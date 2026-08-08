@@ -224,6 +224,128 @@ def check_anomalies(match, me, extractor, builder, quick_text):
     assert "НАЧАЛО разбора" in quick_text
 
 
+def profile_raw(match_id, gpm, gold_adv, hero_id=5, win=True, deaths=3, bench=None):
+    """Синтетический матч для профиля: меняем ровно то, что проверяем."""
+    raw = fake_raw()
+    raw["match_id"] = match_id
+    raw["radiant_gold_adv"] = gold_adv
+    raw["radiant_xp_adv"] = gold_adv
+    raw["radiant_win"] = win
+    me = raw["players"][0]
+    me["account_id"] = 777
+    me["hero_id"] = hero_id
+    me["gold_per_min"] = gpm
+    me["deaths"] = deaths
+    if bench is not None:
+        me["benchmarks"] = bench
+    return raw
+
+
+def check_profile(constants):
+    """Кросс-матчевая выжимка: агрегаты вместо данных, паттерны вместо случайностей."""
+    from dota2coach.anomalies import AnomalyDetector
+    from dota2coach.bundle import ProfileBundleBuilder
+    from dota2coach.profile import (MAX_MATCHES, MIN_MATCHES, ProfileAggregator,
+                                    ProfileFeatures)
+
+    extractor = FeatureExtractor(constants)
+    aggregator = ProfileAggregator(AnomalyDetector(constants), extractor)
+
+    # Три матча: у двух перцентиль GPM внизу распределения, у одного наверху.
+    low = {"gold_per_min": _bench(200, 0.08), "xp_per_min": _bench(300, 0.10)}
+    high = {"gold_per_min": _bench(700, 0.95), "xp_per_min": _bench(800, 0.92)}
+    # Индекс = минута. Перевес ровно растёт до 25-й минуты, затем рушится —
+    # именно это профиль по стадиям и обязан увидеть.
+    ramp = [m * 400 for m in range(26)] + [10000 - (m + 1) * 1500 for m in range(10)]
+    raws = [
+        profile_raw(101, 300, ramp, win=False, deaths=9, bench=low),
+        profile_raw(102, 320, ramp, win=False, deaths=7, bench=low),
+        profile_raw(103, 700, ramp, win=True, deaths=2, bench=high, hero_id=7),
+    ]
+    pairs = []
+    for raw in raws:
+        match = normalize.from_opendota(raw, constants)
+        pairs.append((match, next(p for p in match.players if p.account_id == 777)))
+
+    f = aggregator.aggregate(777, pairs, requested=5, hero_filter=None, role_filter=None)
+
+    assert f.analyzed == 3 and f.requested == 5
+    assert f.averages["winrate"] == 33
+    assert f.averages["deaths"] == 6.0
+    assert f.averages["deaths_max"] == 9, "худший матч нужен как контекст к среднему"
+    assert len(f.digests) == 3 and f.digests[0].match_id == 101
+    assert [h["hero"] for h in f.heroes][0] != "", "состав по героям не собрался"
+
+    # Паттерн: низкий перцентиль встретился в 2 из 3 матчей (порог — 40%).
+    keys = {p["key"]: p for p in f.patterns}
+    assert "anom.bench_low" in keys, keys
+    assert keys["anom.bench_low"]["count"] == 2
+    assert keys["anom.bench_low"]["examples"], "паттерн без примеров — это ярлык"
+    # А высокий — только в одном, и паттерном не считается.
+    assert "anom.bench_high" not in keys, "единичное отклонение не паттерн"
+
+    # Тренд: направление объявляем только при заметной разнице половин выборки.
+    gpm_trend = next(t for t in f.trends if t["metric"] == "gold_per_min")
+    assert gpm_trend["low"] == 8 and gpm_trend["high"] == 95
+    assert gpm_trend["direction"] == "flat", "на трёх матчах динамику не объявляем"
+
+    # Стадии: перевес растёт до 25 мин и рушится после — это должно быть видно.
+    stages = f.stages
+    assert stages["coverage"] == 3 and stages["thin"] is False
+    weak = {(w["start"], w["end"]) for w in stages["weak"]}
+    assert (25, 30) in weak or (30, 35) in weak, stages["rows"]
+    assert stages["strong"]["change"] > 0
+
+    text = ProfileBundleBuilder().build(f, Policy(lang="ru"))
+    for marker in ["## ВЫБОРКА", "## СРЕДНИЕ ПО ВЫБОРКЕ", "## ПОВТОРЯЮЩИЕСЯ ОТКЛОНЕНИЯ",
+                   "## ПРОФИЛЬ ПО СТАДИЯМ ИГРЫ", "## МАТЧИ ВЫБОРКИ",
+                   "### 3. Главный повторяющийся leak", "### 7. Вопросы ко мне"]:
+        assert marker in text, f"нет блока {marker}"
+    assert "перцентиль в низу распределения" in text, "паттерн без подписи нечитаем"
+    assert "АГРЕГАТ по 3 матчам" in text, "нет оговорки про отсутствие полных данных"
+    assert "Разбирай ПОВТОРЯЮЩЕЕСЯ" in text
+    # Полных данных матчей в промпте быть не должно — это весь смысл режима.
+    for leaked in ["## ЛАЙНИНГ", "## ТИМФАЙТЫ", "## РАСКАЧКА", "## СКОРБОРД"]:
+        assert leaked not in text, f"в профиль утекли полные данные: {leaked}"
+
+    # Заметка игрока сохраняет приоритет и здесь.
+    noted = Policy(lang="ru", note="почему я стабильно сливаю лейт?")
+    noted_text = ProfileBundleBuilder().build(f, noted)
+    assert "### 0. Ответ на главный запрос" in noted_text
+    assert noted_text.index("ГЛАВНЫЙ ЗАПРОС ИГРОКА") < noted_text.index("## ФОРМАТ ОТВЕТА")
+
+    # Один матч — это не профиль: паттернов не бывает по определению.
+    single = aggregator.aggregate(777, pairs[:1], requested=1)
+    assert single.patterns == []
+
+    for lang, marker in (("en", "## SAMPLE AVERAGES"), ("uk", "## СЕРЕДНІ ПО ВИБІРЦІ")):
+        assert marker in ProfileBundleBuilder().build(f, Policy(lang=lang)), lang
+
+    assert (MIN_MATCHES, MAX_MATCHES) == (2, 20)
+
+
+def check_thin_stages(constants):
+    """Если поминутные ряды есть у одного матча — «систематики» быть не может."""
+    from dota2coach.anomalies import AnomalyDetector
+    from dota2coach.bundle import ProfileBundleBuilder
+    from dota2coach.profile import ProfileAggregator
+
+    aggregator = ProfileAggregator(AnomalyDetector(constants), FeatureExtractor(constants))
+    ramp = [0, 500, 1000, -4000]
+    raws = [profile_raw(201, 300, ramp), profile_raw(202, 300, [])]
+    pairs = []
+    for raw in raws:
+        match = normalize.from_opendota(raw, constants)
+        pairs.append((match, next(p for p in match.players if p.account_id == 777)))
+
+    f = aggregator.aggregate(777, pairs, requested=2)
+    assert f.stages["thin"] is True and f.stages["weak"] == []
+
+    text = ProfileBundleBuilder().build(f, Policy(lang="ru"))
+    assert "этого мало, чтобы говорить о систематике" in text
+    assert "Систематически проседающие отрезки" not in text
+
+
 def check_window(match, me, extractor, builder):
     """Окно даёт максимум внутри и сжимает всё остальное."""
     from dota2coach.cli import parse_window
@@ -436,6 +558,8 @@ def main():
     check_item_lag()
     check_anomalies(match, me, extractor, builder, quick_text)
     check_window(match, me, extractor, builder)
+    check_profile(constants)
+    check_thin_stages(constants)
     check_scaffold(match, me, extractor, builder, quick_text)
     check_models(match, me, extractor, builder)
     check_languages(match, me, extractor, builder)

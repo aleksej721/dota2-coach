@@ -17,11 +17,13 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from .. import i18n
-from ..core import build_pipeline, generate_prompt
+from ..core import build_pipeline, generate_profile_prompt, generate_prompt
 from ..policy import DEPTHS, FOCUSES, ROLES, ROLE_FOCUSES, Policy
+from ..profile import DEFAULT_MATCHES, MAX_MATCHES, MIN_MATCHES
 from ..render import MODELS, PROFILES, resolve_depth
-from ..sources.base import (KIND_NETWORK, KIND_NOT_FOUND, KIND_PLAYER_NOT_FOUND,
-                            KIND_RATE_LIMITED, KIND_UNAVAILABLE, DataSourceError)
+from ..sources.base import (KIND_HERO_UNKNOWN, KIND_NETWORK, KIND_NO_MATCHES,
+                            KIND_NOT_FOUND, KIND_PLAYER_NOT_FOUND, KIND_RATE_LIMITED,
+                            KIND_UNAVAILABLE, DataSourceError)
 
 STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
@@ -51,6 +53,8 @@ assert set(get_args(Lang)) == set(i18n.LANGUAGES)
 STATUS_BY_KIND = {
     KIND_NOT_FOUND: 404,
     KIND_PLAYER_NOT_FOUND: 400,
+    KIND_NO_MATCHES: 404,
+    KIND_HERO_UNKNOWN: 400,
     KIND_RATE_LIMITED: 429,
     KIND_NETWORK: 502,
     KIND_UNAVAILABLE: 502,
@@ -65,13 +69,24 @@ _pipeline_lock = threading.Lock()
 _pipeline = None
 
 
-def _generate_blocking(match_id, account_id, hero, policy):
+def _shared_pipeline():
     global _pipeline
+    if _pipeline is None:
+        # out_dir не используется: веб в output/ не пишет, файл отдаёт браузер.
+        _pipeline = build_pipeline()
+    return _pipeline
+
+
+def _generate_blocking(match_id, account_id, hero, policy):
     with _pipeline_lock:
-        if _pipeline is None:
-            # out_dir не используется: веб в output/ не пишет, файл отдаёт браузер.
-            _pipeline = build_pipeline()
-        return generate_prompt(match_id, account_id, hero, policy, pipeline=_pipeline)
+        return generate_prompt(match_id, account_id, hero, policy,
+                               pipeline=_shared_pipeline())
+
+
+def _profile_blocking(account_id, matches, hero, role, policy):
+    with _pipeline_lock:
+        return generate_profile_prompt(account_id, matches, hero, role, policy,
+                                       pipeline=_shared_pipeline())
 
 
 class AnalyzeRequest(BaseModel):
@@ -186,4 +201,78 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         window=f"{policy.window[0]}–{policy.window[1]}" if policy.has_window else None,
         # Текст предупреждения собирает страница: он тоже локализован.
         warning="unparsed" if not result.parsed else None,
+    )
+
+
+class ProfileRequest(BaseModel):
+    account_id: int = Field(..., gt=0, description="твой account_id (Steam32)")
+    matches: int = Field(DEFAULT_MATCHES, ge=MIN_MATCHES, le=MAX_MATCHES,
+                         description="сколько последних матчей агрегировать")
+    hero: Optional[str] = Field(None, description="фильтр: только матчи на этом герое")
+    role: Optional[Role] = Field(None, description="фильтр: только эта позиция 1–5")
+    model: Model = "chatgpt"
+    lang: Lang = "ru"
+    note: Optional[str] = Field(None, description="твой вопрос — станет главным приоритетом")
+    mmr: Optional[str] = Field(None, description="MMR или бракет для калибровки советов")
+
+
+class ProfileResponse(BaseModel):
+    prompt: str
+    filename: str
+    size_bytes: int
+    account_id: int
+    analyzed: int
+    requested: int
+    unparsed: int
+    model: str
+    lang: str
+    has_note: bool
+    has_mmr: bool
+    role: Optional[str]
+    warning: Optional[str] = None
+
+
+# Профиль тянет матчи по одному через общий rate-limiter (~1 запрос/сек), поэтому
+# ждать приходится дольше одиночного разбора: своё окно таймаута.
+PROFILE_TIMEOUT_SEC = 420.0
+
+
+@app.post("/api/profile", response_model=ProfileResponse)
+async def profile(req: ProfileRequest) -> ProfileResponse:
+    policy = Policy(model=req.model, lang=req.lang, mmr=req.mmr, note=req.note)
+
+    try:
+        result = await asyncio.wait_for(
+            run_in_threadpool(_profile_blocking, req.account_id, req.matches,
+                              (req.hero or "").strip() or None, req.role, policy),
+            timeout=PROFILE_TIMEOUT_SEC,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(504, {"kind": "profile_timeout", "message": ""})
+    except DataSourceError as e:
+        raise HTTPException(STATUS_BY_KIND.get(e.kind, 502),
+                            {"kind": e.kind, "message": str(e)})
+
+    # Одно предупреждение, а не два: неполнота данных важнее недобора выборки,
+    # и два баннера подряд читаются как «всё сломалось».
+    warning = None
+    if result.unparsed:
+        warning = "profile_unparsed"
+    elif result.analyzed < result.requested:
+        warning = "profile_short"
+
+    return ProfileResponse(
+        prompt=result.text,
+        filename=result.filename,
+        size_bytes=result.size_bytes,
+        account_id=result.account_id,
+        analyzed=result.analyzed,
+        requested=result.requested,
+        unparsed=result.unparsed,
+        model=policy.model,
+        lang=policy.lang,
+        has_note=policy.has_note,
+        has_mmr=bool(policy.mmr),
+        role=req.role,
+        warning=warning,
     )

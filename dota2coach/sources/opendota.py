@@ -10,15 +10,15 @@
 import json
 import pathlib
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
 from .. import normalize
 from ..constants import Constants
 from ..model import Match
-from .base import (KIND_NETWORK, KIND_NOT_FOUND, KIND_RATE_LIMITED, KIND_UNAVAILABLE,
-                   DataSource, DataSourceError)
+from .base import (KIND_NETWORK, KIND_NO_MATCHES, KIND_NOT_FOUND, KIND_RATE_LIMITED,
+                   KIND_UNAVAILABLE, DataSource, DataSourceError)
 
 
 class OpenDotaSource(DataSource):
@@ -45,10 +45,11 @@ class OpenDotaSource(DataSource):
             params["api_key"] = self._api_key
         return params
 
-    def _get(self, path: str) -> Any:
+    def _get(self, path: str, query: Optional[Dict[str, Any]] = None) -> Any:
         self._rate.acquire()  # вежливость к API перед каждым запросом
         try:
-            resp = self._session.get(f"{self.BASE}{path}", params=self._params(), timeout=30)
+            resp = self._session.get(f"{self.BASE}{path}", params=self._params(query),
+                                     timeout=30)
         except requests.RequestException as e:
             raise DataSourceError(f"Сетевая ошибка при GET {path}: {e}", KIND_NETWORK)
 
@@ -118,7 +119,41 @@ class OpenDotaSource(DataSource):
 
     # --- публичный контракт ---------------------------------------------------
 
-    def fetch_match(self, match_id: int) -> Match:
+    def fetch_player_matches(self, account_id: int, limit: int,
+                             hero_id: Optional[int] = None,
+                             lane_role: Optional[int] = None) -> List[int]:
+        """Один запрос к /players/{id}/matches — фильтры отдаём серверу.
+
+        Фильтровать на своей стороне было бы дороже: пришлось бы тянуть длинную
+        историю и выбрасывать почти всё, а лимит запросов у OpenDota общий.
+        """
+        query: Dict[str, Any] = {"limit": limit, "project": "hero_id"}
+        if hero_id is not None:
+            query["hero_id"] = hero_id
+        if lane_role is not None:
+            query["lane_role"] = lane_role
+
+        try:
+            rows = self._get(f"/players/{account_id}/matches", query)
+        except DataSourceError as e:
+            if e.kind == KIND_NOT_FOUND:
+                raise DataSourceError(
+                    f"Игрок {account_id} не найден в OpenDota. Проверь account_id "
+                    f"(Steam32) — он виден в адресе профиля на Dotabuff или OpenDota.",
+                    KIND_NOT_FOUND)
+            raise
+
+        ids = [r.get("match_id") for r in (rows or []) if isinstance(r, dict)]
+        ids = [int(m) for m in ids if m]
+        if not ids:
+            raise DataSourceError(
+                f"У игрока {account_id} не нашлось матчей под заданные фильтры. "
+                f"Ослабь фильтр по герою или позиции — или проверь, что матчи игрока "
+                f"открыты в настройках Dota 2 («Раскрывать данные о матчах»).",
+                KIND_NO_MATCHES)
+        return ids
+
+    def fetch_match(self, match_id: int, allow_parse: bool = True) -> Match:
         cached = self._cached_match(match_id)
         if cached is not None:
             print(f"      Беру матч {match_id} из локального кэша (.cache). "
@@ -137,7 +172,7 @@ class OpenDotaSource(DataSource):
         if raw is None or raw.get("match_id") is None:
             raise not_found
 
-        if not self._is_parsed(raw):
+        if not self._is_parsed(raw) and allow_parse:
             print(f"      Матч ещё не распарсен OpenDota — запрашиваю парсинг "
                   f"(это может занять до {int(self._parse_timeout)} c)...")
             self._request_parse_and_wait(match_id)

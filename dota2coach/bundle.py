@@ -10,13 +10,16 @@
 Своих текстов у модуля нет: каждая подпись приходит из словаря по ключу.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from . import i18n, scaffold
 from .anomalies import Anomaly
 from .features import Features
 from .policy import EXPANDED, Policy
 from .render import Group, Section, profile, renderer_for
+
+if TYPE_CHECKING:  # только для аннотаций: profile импортирует features, не bundle
+    from .profile import MatchDigest, ProfileFeatures
 
 
 def _signed(value: Any) -> str:
@@ -193,6 +196,18 @@ class BundleBuilder:
             out += self._objectives(w["objectives"], s)
         return out
 
+    @staticmethod
+    def anomaly_text(key: str, params: Dict[str, Any], s: i18n.Strings) -> str:
+        """Текст одного отклонения. Публичный: тем же кодом печатает профиль."""
+        params = dict(params)
+        # Метрики бенчмарков подписываются общим словарём bench.*: иначе одна и
+        # та же метрика называлась бы в двух секциях по-разному.
+        for src, dst in (("metric_key", "metric"), ("high_key", "high_metric"),
+                         ("low_key", "low_metric")):
+            if src in params:
+                params[dst] = s(f"bench.{params.pop(src)}")
+        return s(key, **params)
+
     def _anomalies(self, rows: List[Anomaly], s: i18n.Strings) -> List[str]:
         """Отклонения списком, каждое — с осью гипотезы в квадратных скобках.
 
@@ -204,14 +219,8 @@ class BundleBuilder:
 
         out = [s("anom.intro")]
         for a in rows:
-            params = dict(a.params)
-            # Метрики бенчмарков подписываются общим словарём bench.*: иначе
-            # одна и та же метрика называлась бы в двух секциях по-разному.
-            for src, dst in (("metric_key", "metric"), ("high_key", "high_metric"),
-                             ("low_key", "low_metric")):
-                if src in params:
-                    params[dst] = s(f"bench.{params.pop(src)}")
-            out.append(f"  - [{s('anom.axis.' + a.axis)}] " + s(a.key, **params))
+            out.append(f"  - [{s('anom.axis.' + a.axis)}] "
+                       + self.anomaly_text(a.key, a.params, s))
         return out
 
     def _meta(self, m: Dict[str, Any], policy: Policy, s: i18n.Strings) -> List[str]:
@@ -460,3 +469,165 @@ class BundleBuilder:
             return [line.strip() for line in body]
         rule = "=" * 74
         return [rule, *body, rule]
+
+
+class ProfileBundleBuilder:
+    """ProfileFeatures -> текст мульти-матчевого промпта.
+
+    Отдельный класс, а не режим BundleBuilder: секции здесь другие (средние,
+    тренды, паттерны, стадии), и попытка обслужить оба случая одним набором
+    методов быстро превратилась бы в ветвления «если профиль» на каждом шаге.
+
+    Общее переиспользуется: упаковка под модель (render), словари (i18n), текст
+    отклонений (BundleBuilder.anomaly_text) и правило «своих текстов у модуля нет».
+    """
+
+    def build(self, features: "ProfileFeatures", policy: Policy) -> str:
+        s = i18n.load(policy.lang)
+
+        data = Group("profile_data")
+        data.add(s("sec.profile_meta"), self._meta(features, policy, s))
+        data.add(s("sec.profile_averages"), self._averages(features, s))
+        if features.trends:
+            data.add(s("sec.profile_trends"), self._trends(features.trends, s))
+        data.add(s("sec.profile_patterns"), self._patterns(features.patterns, s))
+        if features.stages:
+            data.add(s("sec.profile_stages"), self._stages(features.stages, s))
+        if features.heroes:
+            data.add(s("sec.profile_heroes"), self._heroes(features.heroes, s))
+        data.add(s("sec.profile_matches"), self._matches(features.digests, s))
+
+        groups = [Group("role", [Section(None, self._role(features, policy, s))]), data]
+
+        limits = Group("data_limitations")
+        limits.add(s("sec.limits"), [s(key, **params) for key, params in features.caveats])
+        groups.append(limits)
+
+        if policy.has_note:
+            note = Group("player_question")
+            note.add(s("sec.note"), BundleBuilder._note(policy))
+            groups.append(note)
+
+        method = Group("method")
+        method.add(s("sec.method"),
+                   scaffold.profile_method_lines(policy, features.analyzed, s))
+        groups.append(method)
+
+        answer = Group("output_format")
+        answer.add(s("sec.format"), scaffold.profile_format_lines(policy, s))
+        groups.append(answer)
+
+        body = renderer_for(policy.model).document(groups)
+        return f"{s('profile.header.title')}\n\n{body}"
+
+    # --- секции ---------------------------------------------------------------
+
+    def _role(self, features: "ProfileFeatures", policy: Policy,
+              s: i18n.Strings) -> List[str]:
+        out = [s("profile.header.role", matches=features.analyzed)]
+        if policy.has_role:
+            out.append(s("header.role_profile", role=s(f"role.{policy.role}.name"),
+                         source=s(f"role.source.{policy.role_source}")))
+        if policy.has_note:
+            out.append(s("header.note_pointer"))
+        return out
+
+    def _meta(self, f: "ProfileFeatures", policy: Policy, s: i18n.Strings) -> List[str]:
+        out = [s("profile.meta.line", account_id=f.account_id, analyzed=f.analyzed,
+                 requested=f.requested)]
+        filters = []
+        if f.hero_filter:
+            filters.append(s("profile.meta.filter_hero", hero=f.hero_filter))
+        if f.role_filter:
+            filters.append(s("profile.meta.filter_role",
+                             role=s(f"role.{f.role_filter}.name")))
+        out.append(s("profile.meta.filters",
+                     filters="; ".join(filters) if filters else s("profile.meta.no_filters")))
+        out.append(s("meta.export", depth=policy.depth, focus=policy.focus,
+                     model=profile(policy.model).label))
+        if policy.mmr:
+            out.append(s("meta.level", mmr=policy.mmr))
+        return out
+
+    def _averages(self, f: "ProfileFeatures", s: i18n.Strings) -> List[str]:
+        a = f.averages
+        dash = s("dash")
+        out = [
+            s("profile.avg.result", wins=a["wins"], losses=a["losses"],
+              winrate=a["winrate"], duration=a["duration"]),
+            s("profile.avg.econ", gpm=a["gpm"] or dash, xpm=a["xpm"] or dash,
+              cs10=a["cs10"] if a["cs10"] is not None else dash,
+              nw=a["net_worth"] or dash),
+            s("profile.avg.fight", kills=a["kills"], deaths=a["deaths"],
+              assists=a["assists"], kp=a["kill_participation"],
+              worst=a["deaths_max"] if a["deaths_max"] is not None else dash),
+        ]
+        if a["lane_eff"] is not None:
+            out.append(s("profile.avg.lane", eff=a["lane_eff"]))
+        return out
+
+    def _trends(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        out = [s("profile.trends.note")]
+        for r in rows:
+            out.append("  " + s("profile.trends.row",
+                                metric=s(f"bench.{r['metric']}"), avg=r["avg"],
+                                low=r["low"], high=r["high"], samples=r["samples"],
+                                direction=s(f"profile.trend.{r['direction']}",
+                                            delta=r["delta"])))
+        return out
+
+    def _patterns(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        if not rows:
+            return [s("profile.patterns.note"), f"  {s('profile.patterns.none')}"]
+
+        out = [s("profile.patterns.note")]
+        for r in rows:
+            # Короткая подпись обязательна: без неё строка начинается со счётчика
+            # («в 5 из 5 матчей»), и что именно повторилось, читателю неясно.
+            out.append("  - [{axis}] {label} — {head}".format(
+                axis=s("anom.axis." + r["axis"]),
+                label=s("anom.short." + r["key"].split(".", 1)[1]),
+                head=s("profile.patterns.row", count=r["count"], total=r["total"],
+                       share=r["share"])))
+            for example in r["examples"]:
+                out.append("      " + s("profile.patterns.example",
+                                        text=BundleBuilder.anomaly_text(r["key"],
+                                                                        example, s)))
+        return out
+
+    def _stages(self, st: Dict[str, Any], s: i18n.Strings) -> List[str]:
+        out = [s("profile.stages.note", step=st["step"])]
+        for r in st["rows"]:
+            out.append("  " + s("profile.stages.row", start=r["start"], end=r["end"],
+                                change=_signed(r["change"]), samples=r["samples"]))
+        if st.get("thin"):
+            # Поминутных данных хватило на один матч — это не система, и делать
+            # вид, что «стабильно проседаешь тут», было бы прямым вымыслом.
+            out.append(s("profile.stages.thin", coverage=st["coverage"]))
+            return out
+        if st["weak"]:
+            listed = ", ".join(f"{r['start']}–{r['end']}" for r in st["weak"])
+            out.append(s("profile.stages.weak", stages=listed))
+        else:
+            out.append(s("profile.stages.no_weak"))
+        if st["strong"]:
+            out.append(s("profile.stages.strong", start=st["strong"]["start"],
+                         end=st["strong"]["end"], change=_signed(st["strong"]["change"])))
+        return out
+
+    def _heroes(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        listed = ", ".join(s("profile.heroes.row", hero=r["hero"], games=r["games"],
+                             wins=r["wins"]) for r in rows)
+        return [s("profile.heroes.note"), f"  {listed}"]
+
+    def _matches(self, digests: List["MatchDigest"], s: i18n.Strings) -> List[str]:
+        out = [s("profile.matches.note"), s("profile.matches.columns")]
+        for d in digests:
+            axes = ", ".join(s("anom.axis." + a) for a in d.axes) or s("dash")
+            out.append("  " + s("profile.matches.row",
+                                match_id=d.match_id, hero=d.hero,
+                                result=s("meta.win" if d.win else "meta.lose"),
+                                duration=d.duration, kda=d.kda, gpm=d.gpm,
+                                cs10=d.cs10 if d.cs10 is not None else s("dash"),
+                                kp=d.kill_participation, axes=axes))
+        return out

@@ -50,6 +50,10 @@ class Constants:
     def hero_npc(self, hero_id: Optional[int]) -> Optional[str]:
         return None
 
+    def hero_id_by_name(self, name: Optional[str]) -> Optional[int]:
+        """Имя героя -> id. Нужен режиму профиля: OpenDota фильтрует по id."""
+        return None
+
     def npc_to_hero(self, npc_name: Optional[str]) -> str:
         return (npc_name or "").replace("npc_dota_hero_", "") or "unknown"
 
@@ -134,6 +138,32 @@ class ConstantsRepo(Constants):
         heroes = self._load("heroes")
         entry = heroes.get(str(hero_id)) if isinstance(heroes, dict) else None
         return entry.get("name") if entry else None
+
+    def hero_id_by_name(self, name: Optional[str]) -> Optional[int]:
+        """Терпимо к вводу: «pl», «phantom lancer», «Phantom_Lancer» найдут одного героя.
+
+        Сначала точное совпадение, потом подстрока — и только если она однозначна.
+        «Phantom» отдаст None (Phantom Lancer и Phantom Assassin), и вызывающий код
+        честно попросит уточнить, вместо того чтобы молча взять первого.
+        """
+        needle = " ".join((name or "").replace("_", " ").split()).lower()
+        if not needle:
+            return None
+
+        heroes = self._load("heroes")
+        if not isinstance(heroes, dict):
+            return None
+
+        names = {}
+        for key, entry in heroes.items():
+            localized = (entry.get("localized_name") or "").lower()
+            if localized:
+                names[localized] = int(key)
+
+        if needle in names:
+            return names[needle]
+        hits = {hero_id for label, hero_id in names.items() if needle in label}
+        return hits.pop() if len(hits) == 1 else None
 
     def npc_to_hero(self, npc_name: Optional[str]) -> str:
         if not npc_name:

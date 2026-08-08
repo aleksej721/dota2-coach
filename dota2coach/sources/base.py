@@ -10,6 +10,7 @@
 """
 
 from abc import ABC, abstractmethod
+from typing import List, Optional
 
 from ..model import Match
 
@@ -20,6 +21,8 @@ KIND_PLAYER_NOT_FOUND = "player_not_found"  # матч есть, но не по�
 KIND_RATE_LIMITED = "rate_limited"    # 429
 KIND_NETWORK = "network"              # сеть не отвечает
 KIND_UNAVAILABLE = "unavailable"      # 5xx или мусор вместо JSON
+KIND_NO_MATCHES = "no_matches"        # у игрока нет матчей под заданные фильтры
+KIND_HERO_UNKNOWN = "hero_unknown"    # имя героя не опознано или неоднозначно
 KIND_UNKNOWN = "unknown"
 
 
@@ -33,6 +36,19 @@ class DataSourceError(Exception):
 
 class DataSource(ABC):
     @abstractmethod
-    def fetch_match(self, match_id: int) -> Match:
-        """Возвращает нормализованный Match или бросает DataSourceError."""
+    def fetch_match(self, match_id: int, allow_parse: bool = True) -> Match:
+        """Возвращает нормализованный Match или бросает DataSourceError.
+
+        allow_parse=False запрещает заказывать парсинг нераспарсенного матча.
+        Нужен режиму профиля: там матчей десяток, и ожидание парсинга каждого
+        превратило бы запрос из минутного в получасовой. Лучше собрать профиль
+        по тому, что готово, и честно сказать, сколько матчей оказалось неполными.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def fetch_player_matches(self, account_id: int, limit: int,
+                             hero_id: Optional[int] = None,
+                             lane_role: Optional[int] = None) -> List[int]:
+        """ID последних матчей игрока под заданными фильтрами, свежие первыми."""
         raise NotImplementedError

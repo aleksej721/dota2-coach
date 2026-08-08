@@ -5,12 +5,14 @@ core.build_pipeline() — там же, откуда его берёт веб-и�
 """
 
 import argparse
+import pathlib
 import sys
 from typing import Optional, Sequence, Tuple
 
-from .core import build_pipeline
+from .core import build_pipeline, generate_profile_prompt
 from .i18n import DEFAULT_LANG, LANGUAGES
 from .policy import DEPTHS, FOCUSES, ROLES, Policy
+from .profile import DEFAULT_MATCHES, MAX_MATCHES, MIN_MATCHES
 from .render import DEFAULT_MODEL, MODELS, resolve_depth
 from .sources.base import DataSourceError
 
@@ -51,6 +53,26 @@ def build_parser() -> argparse.ArgumentParser:
                         "а остальной матч сжат до сводки")
     a.add_argument("--no-cache", action="store_true",
                    help="не брать сырой ответ матча из .cache — сходить в API заново")
+
+    p = sub.add_parser("profile", help="разобрать последние N матчей игрока (кросс-матч)")
+    p.add_argument("account_id", type=int, help="твой account_id (Steam32)")
+    p.add_argument("-n", "--matches", type=int, default=DEFAULT_MATCHES,
+                   help=f"сколько последних матчей взять "
+                        f"({MIN_MATCHES}–{MAX_MATCHES}, по умолчанию {DEFAULT_MATCHES})")
+    p.add_argument("--hero", type=str, default=None,
+                   help="фильтр: только матчи на этом герое")
+    p.add_argument("--role", choices=list(ROLES), default=None,
+                   help="фильтр: только матчи на этой позиции 1–5")
+    p.add_argument("--model", choices=list(MODELS), default=DEFAULT_MODEL,
+                   help="под какую LLM упаковать промпт")
+    p.add_argument("--lang", choices=list(LANGUAGES), default=DEFAULT_LANG,
+                   help="язык промпта")
+    p.add_argument("--mmr", metavar="УРОВЕНЬ", default=None,
+                   help="твой MMR или бракет для калибровки советов")
+    p.add_argument("--note", "--ask", dest="note", metavar="ТЕКСТ", default=None,
+                   help="твой вопрос к разбору профиля — станет главным приоритетом")
+    p.add_argument("--no-cache", action="store_true",
+                   help="не брать матчи из .cache — сходить в API заново")
 
     s = sub.add_parser("serve", help="поднять локальный веб-интерфейс")
     s.add_argument("--host", default="127.0.0.1", help="по умолчанию 127.0.0.1")
@@ -115,6 +137,39 @@ def run_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_profile(args: argparse.Namespace) -> int:
+    pipeline = build_pipeline(use_cache=not args.no_cache, out_dir="output")
+    policy = Policy(model=args.model, lang=args.lang, mmr=args.mmr, note=args.note)
+
+    def progress(index: int, total: int, match_id: int) -> None:
+        print(f"      [{index}/{total}] тяну матч {match_id}…")
+
+    try:
+        result = generate_profile_prompt(args.account_id, args.matches, args.hero,
+                                         args.role, policy, pipeline=pipeline,
+                                         progress=progress)
+    except DataSourceError as e:
+        print(f"Не удалось: {e}", file=sys.stderr)
+        return 1
+
+    out_dir = pathlib.Path("output")
+    out_dir.mkdir(exist_ok=True)
+    path = out_dir / result.filename
+    path.write_text(result.text, encoding="utf-8")
+
+    print(f"\nГотово: промпт по профилю сохранён в {path} "
+          f"({result.size_bytes / 1024:.1f} КБ, матчей {result.analyzed}"
+          f"/{result.requested}, model={policy.model}, lang={policy.lang})")
+    if result.unparsed:
+        print(f"Без полного парсинга: {result.unparsed} матчей — их данные неполные.")
+    if policy.has_note:
+        print(f"Главный запрос игрока: «{policy.note_inline}»")
+    print("--- предпросмотр (первые строки) ---")
+    print("\n".join(result.text.splitlines()[:12]))
+    print("...\nСкопируй весь файл и вставь в ChatGPT/Claude.")
+    return 0
+
+
 def run_serve(args: argparse.Namespace) -> int:
     # Импорт внутри функции: без веб-зависимостей CLI обязан работать как раньше.
     try:
@@ -132,6 +187,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "analyze":
         return run_analyze(args)
+    if args.command == "profile":
+        return run_profile(args)
     if args.command == "serve":
         return run_serve(args)
     parser.print_help()

@@ -78,6 +78,157 @@ PROMPT = {
     "role.key_items": "Key power-spike items: {items}",
     "role.utility_items": "Team/utility items: {items}",
 
+    "profile.header.title": "=== DOTA 2 PLAYER PROFILE ANALYSIS REQUEST ===",
+    "profile.header.role":
+        "You are an experienced personal Dota 2 coach. Below is an AGGREGATED digest of my "
+        "{matches} most recent matches: averages, trends, repeating deviations and a "
+        "one-line summary per match. Full match data is deliberately NOT here. Your job is "
+        "to find what REPEATS, not to break down a single game. Rely only on these facts.",
+
+    "sec.profile_meta": "SAMPLE",
+    "profile.meta.line":
+        "Player {account_id} | matches analyzed: {analyzed} of {requested} requested",
+    "profile.meta.filters": "Filters: {filters}",
+    "profile.meta.no_filters": "none (most recent matches as they are)",
+    "profile.meta.filter_hero": "hero — {hero}",
+    "profile.meta.filter_role": "position — {role}",
+
+    "sec.profile_averages": "SAMPLE AVERAGES",
+    "profile.avg.result":
+        "Result: {wins} wins / {losses} losses ({winrate}% win rate), average duration "
+        "{duration}",
+    "profile.avg.econ": "Economy: GPM {gpm} | XPM {xpm} | CS@10 {cs10} | net worth {nw}",
+    "profile.avg.fight":
+        "Fights: KDA {kills}/{deaths}/{assists} | kill participation {kp}% | worst match by "
+        "deaths: {worst}",
+    "profile.avg.lane": "Average lane efficiency: {eff}%",
+
+    "sec.profile_trends": "PERCENTILE TRENDS (compared to typical results on these heroes)",
+    "profile.trends.note":
+        "Average percentile across the sample, its spread and the direction (recent matches "
+        "against older ones). Per-match percentiles are not listed: on a sample this size "
+        "the dynamics matter, not individual points.",
+    "profile.trends.row":
+        "{metric}: {avg} on average (from {low} to {high}, sample {samples}) — {direction}",
+    "profile.trend.up": "{delta} points higher in recent matches",
+    "profile.trend.down": "{delta} points lower in recent matches",
+    "profile.trend.flat": "no pronounced dynamics",
+
+    "sec.profile_patterns": "REPEATING DEVIATIONS",
+    "profile.patterns.note":
+        "Deviations found in individual matches that repeated across a significant share of "
+        "the sample. One-off deviations are excluded — they are noise, not a habit. This is "
+        "the main material for the analysis: what repeats is what can be fixed.",
+    "profile.patterns.none":
+        "— (no deviation repeated across a significant share of matches; look for causes in "
+        "the averages and stages below, but do not invent a pattern where there is none)",
+    "profile.patterns.row": "in {count} of {total} matches ({share}%)",
+    "profile.patterns.example": "e.g.: {text}",
+
+    "sec.profile_stages": "PROFILE BY GAME STAGE",
+    "profile.stages.note":
+        "Average CHANGE in my team's gold advantage per {step} min, averaged across the "
+        "sample (>0 — we gain on that stretch, <0 — we lose). The change is used rather than "
+        "the level: the level carries over from earlier stages and would blur the picture.",
+    "profile.stages.row": "{start}–{end} min: {change} gold (sample {samples})",
+    "profile.stages.thin":
+        "Per-minute series exist for only {coverage} match(es) in the sample — too few "
+        "to speak of a system. Read the table above as a single observation rather than "
+        "a regularity, and do not conclude \"I consistently sag here\" from it.",
+    "profile.stages.weak": "Systematically sagging stretches: {stages} min.",
+    "profile.stages.no_weak":
+        "No stretch loses the advantage systematically — look for causes outside the stages.",
+    "profile.stages.strong": "Strongest stretch: {start}–{end} min ({change} gold).",
+
+    "sec.profile_heroes": "SAMPLE COMPOSITION BY HERO",
+    "profile.heroes.note":
+        "Without this the averages cannot be read honestly: different heroes have different "
+        "norms.",
+    "profile.heroes.row": "{hero} ×{games} (wins {wins})",
+
+    "sec.profile_matches": "MATCHES IN THE SAMPLE (one line each)",
+    "profile.matches.note":
+        "Most recent first. One line per match — enough to point at a specific game; full "
+        "data for it is not here.",
+    "profile.matches.columns":
+        "  match_id | hero | result | duration | K/D/A | GPM | CS@10 | participation | deviation axes",
+    "profile.matches.row":
+        "{match_id} | {hero} | {result} | {duration} | {kda} | {gpm} | {cs10} | {kp}% | {axes}",
+
+    "caveat.profile_aggregated":
+        "- This is an AGGREGATE over {analyzed} matches, not full data. Per-minute series, "
+        "fight logs and item timings are not here. If a conclusion needs a specific match, "
+        "name its match_id and say it should be analyzed separately.",
+    "caveat.profile_short":
+        "- {requested} matches were requested, {analyzed} were analyzed: some matches are "
+        "unavailable (private profile, expired replay or a filter mismatch).",
+    "caveat.profile_unparsed":
+        "- Matches without full parsing: {count}. They have no percentiles, per-minute "
+        "series or timings, so they contribute only partially to averages and trends.",
+    "caveat.profile_mixed_roles":
+        "- Positions in the sample: {count}. The averages mix different duties — keep that "
+        "in mind and do not compare core and support metrics directly.",
+    "caveat.profile_patches":
+        "- The sample spans several patches ({patches}). Some differences may come from "
+        "balance changes rather than from play.",
+
+    "profile.method.intro":
+        "Rules for analysing the profile ({matches} matches), all mandatory:",
+    "profile.method.repeating":
+        "Analyse what REPEATS, not an individual match. A single event is not a pattern, "
+        "however striking it is. Lean primarily on the repeating-deviations block and on the "
+        "game stages.",
+    "profile.method.sample":
+        "The sample is {matches} matches. That is small for statistics: do not present an "
+        "observation as a law. If a conclusion rests on two or three matches, say so plainly "
+        "and suggest how many games are needed to verify it.",
+    "profile.method.no_raw":
+        "Full match data is not in this prompt. Do not invent timings, per-minute values or "
+        "fight details: there is nowhere here to get them. If they are needed — name the "
+        "match_id and ask for that match to be analyzed separately.",
+
+    "profile.format.intro": "Follow this order and these section headings:",
+    "profile.format.p0.title": "0. Answer to the main request",
+    "profile.format.p0.body":
+        "A direct answer to the player's question from the sample data. If the aggregates "
+        "are not enough for a full answer, say what exactly is missing and which match to "
+        "analyze separately.",
+    "profile.format.p1.title": "1. Portrait of the player from this sample",
+    "profile.format.p1.body":
+        "3–4 lines of connected prose: what kind of player these matches show, and the ONE "
+        "main thing that holds them back most often. No bullet list.",
+    "profile.format.p2.title": "2. What works consistently",
+    "profile.format.p2.body":
+        "1–2 strengths visible across the sample rather than in a single match — with "
+        "numbers. The player must know what to keep doing.",
+    "profile.format.p3.title": "3. The main repeating leak",
+    "profile.format.p3.body":
+        "One most expensive habit. Mandatory: in how many matches it appeared, numbers from "
+        "the deviations block, and the mechanism — why it costs so much. Do not dump "
+        "everything here: there is one leak.",
+    "profile.format.p4.title": "4. Where the game breaks in time",
+    "profile.format.p4.body":
+        "Analysis by stage: on which stretches the advantage is lost systematically and what "
+        "happens in the game at that time. If no stretch sags — say so and explain where the "
+        "games are lost instead.",
+    "profile.format.p5.title": "5. Plan for the next matches",
+    "profile.format.p5.body":
+        "2–4 measurable goals with checkable numbers and how many matches are needed to see "
+        "a shift. Bad: \"play more actively\". Good: \"CS@10 ≥ 45 in three matches in a "
+        "row\". The goals must hit the leak from section 3, not be a generic list.",
+    "profile.format.p6.title": "6. Hypotheses: what is behind these patterns",
+    "profile.format.p6.body":
+        "2–3 COMPETING explanations for the repeating problems, from different areas: hero "
+        "choice and draft, build habits, behaviour in fights, farm time management, "
+        "positioning. For each: evidence from the sample, what would confirm or refute it, "
+        "and how confident you are.",
+    "profile.format.p7.title": "7. Questions for me",
+    "profile.format.p7.body":
+        "2–3 short diagnostic questions that would narrow things down: about intent, the "
+        "plan for the game, party composition, a change of role or patch — that is, about "
+        "what is NOT in the aggregates. You may also ask for a specific match_id from the "
+        "sample to be analyzed, explaining why that one.",
+
     "sec.anomalies": "STATISTICALLY UNUSUAL IN THE DATA",
     "anom.intro":
         "Deviations found by automatically comparing this match against hero percentiles, "
@@ -87,6 +238,18 @@ PROMPT = {
     "anom.none":
         "— (no notable deviations found; build hypotheses from the match data above and do "
         "not invent anomalies that are not listed here)",
+    "anom.short.item_lag": "item lags behind the build pace",
+    "anom.short.bench_low": "percentile at the bottom of the distribution",
+    "anom.short.bench_high": "percentile at the top of the distribution",
+    "anom.short.bench_spread": "gap between metrics",
+    "anom.short.farm_stall": "income dip",
+    "anom.short.death_cluster": "deaths bunched into one episode",
+    "anom.short.dead_share": "a lot of time spent dead",
+    "anom.short.lane_gap_behind": "behind in the lane",
+    "anom.short.lane_gap_ahead": "ahead in the lane",
+    "anom.short.kp_low": "low kill participation",
+    "anom.short.kp_high": "high kill participation",
+    "anom.short.gold_collapse": "fast swing of the lead",
     "anom.axis.draft": "draft",
     "anom.axis.build": "build",
     "anom.axis.farm": "farm",
