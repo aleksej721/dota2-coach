@@ -4,7 +4,18 @@
 но экспортируем отобранное. Отбор задаётся двумя ручками:
 
   --depth quick|deep                     сколько подробностей вообще
-  --focus full|laning|fights|farm|draft  под какой вопрос заточен разбор
+  --focus full|laning|fights|farm|draft|vision|tempo|initiation|enable
+                                             под какой вопрос заточен разбор
+  --role 1|2|3|4|5                         как оценивать выбранного игрока
+
+Здесь же лежат параметры, которые объём не меняют, но определяют, как промпт
+подан модели: --note (вопрос игрока), --mmr (уровень для калибровки советов),
+--model (упаковка, см. render.py) и --lang (язык промпта, см. i18n). Все они
+живут в одном объекте, потому что все приходят от пользователя и вместе едут
+через конвейер.
+
+Заметка объёма промпта не меняет — она меняет ПРИОРИТЕТ: если она задана,
+разбор начинается с неё, а базовые разделы становятся дополнением.
 
 Каждая секция получает УРОВЕНЬ ДЕТАЛИЗАЦИИ 0..3:
 
@@ -17,11 +28,29 @@ FeatureExtractor смотрит на уровень, чтобы не счита�
 чтобы не печатать лишнего. Больше нигде решений «показывать/не показывать» нет.
 """
 
-from dataclasses import dataclass
-from typing import Dict, Tuple
+from dataclasses import dataclass, field, replace
+from typing import Dict, Optional, Tuple
+
+from .i18n import DEFAULT_LANG, LANGUAGES
+from .render import DEFAULT_MODEL, MODELS
 
 DEPTHS = ("quick", "deep")
-FOCUSES = ("full", "laning", "fights", "farm", "draft")
+ROLES = ("1", "2", "3", "4", "5")
+FOCUSES = (
+    "full", "laning", "fights", "farm", "draft",
+    "vision", "tempo", "initiation", "enable",
+)
+
+# UI показывает только осмысленные для выбранной позиции основные фокусы.
+# CLI намеренно принимает любые комбинации: это сохраняет обратную совместимость
+# и не мешает опытному пользователю запросить нестандартный срез.
+ROLE_FOCUSES: Dict[str, Tuple[str, ...]] = {
+    "1": ("full", "farm", "fights", "laning", "draft"),
+    "2": ("full", "tempo", "laning", "fights", "draft"),
+    "3": ("full", "initiation", "fights", "laning", "draft"),
+    "4": ("full", "enable", "vision", "tempo", "fights", "laning", "draft"),
+    "5": ("full", "enable", "vision", "fights", "laning", "draft"),
+}
 
 HIDDEN, SUMMARY, EXPANDED, FULL_LOG = 0, 1, 2, 3
 
@@ -40,6 +69,9 @@ _BASE: Dict[str, Tuple[int, int]] = {
     "teamfights": (SUMMARY, EXPANDED),
     "damage":     (HIDDEN,  SUMMARY),
     "objectives": (SUMMARY, EXPANDED),
+    # Компактный профиль только моего игрока. Содержание зависит от позиции,
+    # поэтому даже summary здесь полезнее универсальной таблицы.
+    "role_impact": (SUMMARY, SUMMARY),
 }
 
 # Фокус переопределяет уровень АБСОЛЮТНО: он не только поднимает профильные
@@ -65,62 +97,96 @@ _FOCUS_OVERRIDES: Dict[str, Dict[str, int]] = {
         "teamfights": SUMMARY, "damage": HIDDEN, "buffs": HIDDEN,
         "objectives": HIDDEN,
     },
+    "vision": {
+        "role_impact": EXPANDED, "combat": EXPANDED, "items": SUMMARY,
+        "teamfights": SUMMARY, "benchmarks": SUMMARY, "laning": HIDDEN,
+        "networth": HIDDEN, "damage": HIDDEN, "buffs": HIDDEN,
+        "objectives": SUMMARY,
+    },
+    "tempo": {
+        "role_impact": EXPANDED, "laning": EXPANDED, "combat": EXPANDED,
+        "teamfights": EXPANDED, "objectives": EXPANDED, "items": SUMMARY,
+        "networth": SUMMARY, "damage": HIDDEN, "buffs": HIDDEN,
+    },
+    "initiation": {
+        "role_impact": EXPANDED, "teamfights": EXPANDED, "combat": EXPANDED,
+        "damage": SUMMARY, "items": SUMMARY, "objectives": SUMMARY,
+        "networth": HIDDEN, "laning": SUMMARY, "buffs": SUMMARY,
+    },
+    "enable": {
+        "role_impact": EXPANDED, "combat": EXPANDED, "items": EXPANDED,
+        "teamfights": EXPANDED, "objectives": SUMMARY, "laning": SUMMARY,
+        "benchmarks": SUMMARY, "networth": HIDDEN, "damage": HIDDEN,
+        "buffs": HIDDEN,
+    },
 }
-
-# Вопросы в финальной секции ЗАДАЧА — тоже часть интента.
-_TASKS: Dict[str, Tuple[str, ...]] = {
-    "full": (
-        "Оцени мою фазу лайнинга 0–10 (CS, лайн-эффективность, размены, тайминги).",
-        "Разбери мой мид-/лейт-гейм по нетворт-кривой, таймингам предметов и тимфайтам: "
-        "где я усиливал команду, где проседал.",
-        "Сопоставь мои бенчмарки с типичными — что заметно ниже/выше нормы.",
-        "Назови 2–3 переломных момента матча по объективам и балансу команд.",
-        "Дай 3 конкретных совета на следующие игры на этом герое/позиции.",
-    ),
-    "laning": (
-        "Разбери мою линию 0–10: динамика добиваний/денаев по минутам, лайн-эффективность "
-        "против соперников по линии, размены (киллы/смерти).",
-        "Где именно я терял CS и почему это видно по данным.",
-        "Как мой выход с линии (нетворт и предметы к 10-й минуте) повлиял на дальнейшую игру.",
-        "Дай 3 конкретных совета по лайн-стадии на этом герое/позиции.",
-    ),
-    "fights": (
-        "Разбери мою игру в замесах: в каких боях мой вклад по урону был решающим, "
-        "а где я отсутствовал или умирал первым.",
-        "Сопоставь исходы боёв с балансом команд — какие бои переломили матч.",
-        "Оцени мои смерти: были ли они разменом или чистой потерей.",
-        "Дай 3 конкретных совета по позиционированию и таймингу входа в бой.",
-    ),
-    "farm": (
-        "Оцени мою скорость фарма: нетворт-кривая, GPM/добивания против бенчмарков, "
-        "стаки лагерей и добитые нейтралы.",
-        "Разбери тайминги ключевых предметов — не поздние ли они для этого героя.",
-        "Найди промежутки, где кривая нетворта плоская, и предположи, чем они заняты.",
-        "Дай 3 конкретных совета по фарм-паттерну и порядку сборки.",
-    ),
-    "draft": (
-        "Оцени драфт: сильные и слабые места обоих составов, кто кого контрит.",
-        "Как мой герой вписан в состав и против чего ему тяжело.",
-        "Какой план на игру давал этот драфт и совпал ли он с тем, что видно по данным матча.",
-        "Дай 3 конкретных совета по выбору героя и стиля игры в подобных драфтах.",
-    ),
-}
-
 
 @dataclass(frozen=True)
 class Policy:
     depth: str = "quick"
     focus: str = "full"
+    # Свободный вопрос игрока. Если задан — он становится главным приоритетом
+    # разбора, а базовые разделы уходят на второй план (см. scaffold.py).
+    note: Optional[str] = None
+    # Под какую LLM упаковываем промпт (см. render.py). Данные не меняет.
+    model: str = DEFAULT_MODEL
+    # Язык промпта: и подписи, и инструкция модели отвечать на нём (см. i18n).
+    lang: str = DEFAULT_LANG
+    # Уровень игрока (MMR или бракет) — если задан, модель калибрует советы.
+    mmr: Optional[str] = None
+    # Явная позиция игрока. None означает «использовать эвристику матча».
+    role: Optional[str] = None
+    # Внутреннее происхождение роли после Pipeline.resolve_role(); не является
+    # пользовательским флагом и не участвует в сравнении Policy.
+    role_source: str = field(default="auto", repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.depth not in DEPTHS:
             raise ValueError(f"depth должен быть одним из {DEPTHS}, получено {self.depth!r}")
         if self.focus not in FOCUSES:
             raise ValueError(f"focus должен быть одним из {FOCUSES}, получено {self.focus!r}")
+        if self.role is not None and self.role not in ROLES:
+            raise ValueError(f"role должен быть одним из {ROLES}, получено {self.role!r}")
+        if self.model not in MODELS:
+            raise ValueError(f"model должен быть одним из {MODELS}, получено {self.model!r}")
+        # Незнакомый язык не роняет разбор — молча откатываемся на язык по умолчанию.
+        if self.lang not in LANGUAGES:
+            object.__setattr__(self, "lang", DEFAULT_LANG)
+        # Пустая строка или одни пробелы — это отсутствие значения, а не значение.
+        object.__setattr__(self, "note", (self.note or "").strip() or None)
+        object.__setattr__(self, "mmr", " ".join((self.mmr or "").split()) or None)
+        if self.role is not None and self.role_source == "auto":
+            object.__setattr__(self, "role_source", "selected")
 
     @property
     def deep(self) -> bool:
         return self.depth == "deep"
+
+    @property
+    def has_note(self) -> bool:
+        return self.note is not None
+
+    @property
+    def note_inline(self) -> str:
+        """Заметка в одну строку — чтобы вставлять её в кавычках внутрь предложения."""
+        return " ".join((self.note or "").split())
+
+    def resolve_role(self, inferred: str) -> "Policy":
+        """Возвращает Policy с эффективной ролью, не меняя исходный объект.
+
+        Пользовательский --role всегда побеждает. Эвристику принимаем только
+        если она уверенно дала позицию 1–5; расплывчатые core/support оставляем
+        без ложной точности.
+        """
+        if self.role is not None:
+            return self
+        if inferred in ROLES:
+            return replace(self, role=inferred, role_source="heuristic")
+        return self
+
+    @property
+    def has_role(self) -> bool:
+        return self.role in ROLES
 
     def level(self, section: str) -> int:
         override = _FOCUS_OVERRIDES[self.focus].get(section)
@@ -134,6 +200,3 @@ class Policy:
 
     def at_least(self, section: str, level: int) -> bool:
         return self.level(section) >= level
-
-    def tasks(self) -> Tuple[str, ...]:
-        return _TASKS[self.focus]

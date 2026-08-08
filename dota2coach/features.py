@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .constants import Constants
 from .model import Match, Player
-from .policy import EXPANDED, FULL_LOG, Policy
+from .policy import EXPANDED, FULL_LOG, ROLES, Policy
 
 LANE_WINDOW_SEC = 600      # окно лайнинга 0..10 мин
 TIMELINE_STEP_MIN = 5      # шаг прореживания поминутных рядов
@@ -29,16 +29,38 @@ KEY_ITEM_COST = 1000       # мои ключевые предметы
 MAJOR_ITEM_COST = 2000     # крупные предметы остальных игроков
 ALWAYS_KEY_ITEMS = {"aghanims_shard"}  # дешевле порога, но всегда меняет игру
 
-# Метрики бенчмарков OpenDota -> человекочитаемая подпись.
-_BENCH_LABELS = {
-    "gold_per_min": "GPM",
-    "xp_per_min": "XPM",
-    "kills_per_min": "киллы/мин",
-    "last_hits_per_min": "добивания/мин",
-    "hero_damage_per_min": "урон по героям/мин",
-    "hero_healing_per_min": "лечение/мин",
-    "tower_damage": "урон по строениям",
-    "stuns_per_min": "стан/мин",
+# Метрики бенчмарков OpenDota в порядке вывода. Подписи берутся из i18n
+# по ключу bench.<метрика> — здесь только выбор и порядок.
+_BENCH_METRICS = (
+    "gold_per_min", "xp_per_min", "kills_per_min", "last_hits_per_min",
+    "hero_damage_per_min", "hero_healing_per_min", "tower_damage", "stuns_per_min",
+)
+
+# Один и тот же percentile имеет разный смысл для разных обязанностей. Здесь
+# задаём не оценку, а порядок и состав доказательств, доступных модели.
+_ROLE_BENCH_METRICS = {
+    "1": ("gold_per_min", "last_hits_per_min", "hero_damage_per_min",
+          "tower_damage", "xp_per_min"),
+    "2": ("xp_per_min", "kills_per_min", "hero_damage_per_min",
+          "gold_per_min", "stuns_per_min"),
+    "3": ("stuns_per_min", "hero_damage_per_min", "tower_damage",
+          "xp_per_min", "hero_healing_per_min"),
+    "4": ("kills_per_min", "stuns_per_min", "hero_healing_per_min",
+          "xp_per_min", "hero_damage_per_min"),
+    "5": ("hero_healing_per_min", "stuns_per_min", "kills_per_min",
+          "xp_per_min", "hero_damage_per_min"),
+}
+
+# Purchase log не содержит семантических тегов. Маленький явный набор позволяет
+# поднять именно командные/защитные тайминги, не называя любой дорогой предмет
+# «utility». Счётчики поставленных вардов идут отдельно и сюда не попадают.
+_UTILITY_ITEMS = {
+    "arcane_boots", "tranquil_boots", "mekansm", "guardian_greaves",
+    "force_staff", "glimmer_cape", "ghost", "euls", "cyclone",
+    "lotus_orb", "pipe", "crimson_guard", "holy_locket", "solar_crest",
+    "pavise", "drum_of_endurance", "boots_of_bearing", "urn_of_shadows",
+    "spirit_vessel", "aether_lens", "blink", "aeon_disk", "rod_of_atos",
+    "sheepstick", "orchid", "bloodthorn",
 }
 
 
@@ -57,9 +79,11 @@ class Features:
     teamfights: List[Dict[str, Any]] = field(default_factory=list)
     objectives: List[Dict[str, Any]] = field(default_factory=list)
     damage: List[Dict[str, Any]] = field(default_factory=list)
+    role_impact: Dict[str, Any] = field(default_factory=dict)
     # Оговорки, которые зависят от того, что мы отфильтровали или чего нет в
-    # источнике. Собираются по ходу извлечения и печатаются в «ОГРАНИЧЕНИЯ ДАННЫХ».
-    caveats: List[str] = field(default_factory=list)
+    # источнике. Хранятся как (ключ i18n, параметры) — текст соберёт bundle
+    # на языке промпта. Печатаются в секции «ОГРАНИЧЕНИЯ ДАННЫХ».
+    caveats: List[Tuple[str, Dict[str, Any]]] = field(default_factory=list)
 
 
 def mmss(seconds: Optional[int]) -> str:
@@ -80,8 +104,13 @@ class FeatureExtractor:
 
     def extract(self, match: Match, me: Player, policy: Policy) -> Features:
         f = Features()
-        f.meta = self._meta(match, me)
+        f.meta = self._meta(match, me, policy)
         f.scoreboard = [self._score_row(p, me) for p in match.players]
+
+        if policy.shows("role_impact"):
+            f.role_impact = self._role_impact(match, me, policy)
+            if policy.role in ("4", "5"):
+                f.caveats.append(("caveat.saves_unavailable", {}))
 
         if policy.shows("draft"):
             f.draft = self._draft(match, me, policy, f.caveats)
@@ -110,7 +139,9 @@ class FeatureExtractor:
     # --- общие помощники ------------------------------------------------------
 
     def _tag(self, p: Player, me: Player) -> str:
-        who = "★Я " if p is me else ""
+        # Маркер без букв: метка «я» не должна переводиться вместе с языком промпта,
+        # иначе она разъедется с легендой в шапке.
+        who = "★ " if p is me else ""
         side = "R" if p.is_radiant else "D"
         return f"{who}[{side}] {p.hero_name}"
 
@@ -125,50 +156,62 @@ class FeatureExtractor:
             return list(match.players)
         return [me]
 
+    @staticmethod
+    def _effective_role(me: Player, policy: Policy) -> str:
+        return policy.role if policy.role in ROLES else me.position_key
+
+    def _position_key(self, p: Player, me: Player, policy: Policy) -> str:
+        """Явный --role относится только к ★, не меняя модель матча."""
+        return self._effective_role(me, policy) if p is me else p.position_key
+
     # --- META -----------------------------------------------------------------
 
-    def _meta(self, match: Match, me: Player) -> Dict[str, Any]:
+    def _meta(self, match: Match, me: Player, policy: Policy) -> Dict[str, Any]:
         return {
             "match_id": match.match_id,
             "patch": match.patch,
             "mode": match.game_mode,
             "lobby": match.lobby_type,
             "duration": mmss(match.duration),
-            "result": "ПОБЕДА" if me.win else "ПОРАЖЕНИЕ",
+            "win": me.win,
             "my_side": "Radiant" if me.is_radiant else "Dire",
             "winner": "Radiant" if match.radiant_win else "Dire",
-            "me": f"{me.hero_name} | {me.position_label} | ур.{me.level} | "
-                  f"KDA {me.kills}/{me.deaths}/{me.assists}",
+            "hero": me.hero_name,
+            "position_key": self._effective_role(me, policy),
+            "role_source": policy.role_source,
+            "lane_key": me.lane_key,
+            "level": me.level,
+            "kills": me.kills,
+            "deaths": me.deaths,
+            "assists": me.assists,
             "parsed": match.parsed,
         }
 
     # --- DRAFT ----------------------------------------------------------------
 
     def _draft(self, match: Match, me: Player, policy: Policy,
-               caveats: List[str]) -> Dict[str, Any]:
+               caveats: List[Tuple[str, Dict[str, Any]]]) -> Dict[str, Any]:
         ordered = sorted(match.picks_bans, key=lambda x: x.order)
-        rows = [{"order": pb.order, "kind": "пик" if pb.is_pick else "БАН",
+        rows = [{"order": pb.order, "is_pick": pb.is_pick,
                  "side": pb.side, "hero": pb.hero_name} for pb in ordered]
 
         chronological = match.draft_is_chronological
         if rows and not chronological:
-            caveats.append(
-                "- Режим «{mode}»: OpenDota отдаёт пики и баны отдельными группами, "
-                "а не в истинном порядке драфта. В секции ДРАФТ они так и показаны — "
-                "не делай выводов о том, что за чем шло.".format(mode=match.game_mode)
-            )
+            caveats.append(("caveat.draft_grouped", {"mode": match.game_mode}))
 
         return {
             "mode": match.game_mode,
             "chronological": chronological,
             "rows": rows,
-            "picks": [r for r in rows if r["kind"] == "пик"],
-            "bans": [r for r in rows if r["kind"] == "БАН"],
-            "radiant": [{"hero": p.hero_name, "pos": p.position_label}
-                        for p in match.radiant_players()],
-            "dire": [{"hero": p.hero_name, "pos": p.position_label}
-                     for p in match.dire_players()],
+            "picks": [r for r in rows if r["is_pick"]],
+            "bans": [r for r in rows if not r["is_pick"]],
+            "radiant": [self._roster_row(p, me, policy) for p in match.radiant_players()],
+            "dire": [self._roster_row(p, me, policy) for p in match.dire_players()],
         }
+
+    def _roster_row(self, p: Player, me: Player, policy: Policy) -> Dict[str, Any]:
+        return {"hero": p.hero_name, "position_key": self._position_key(p, me, policy),
+                "lane_key": p.lane_key}
 
     # --- SCOREBOARD -----------------------------------------------------------
 
@@ -190,14 +233,18 @@ class FeatureExtractor:
 
     def _benchmarks(self, match: Match, me: Player, policy: Policy) -> List[Dict[str, Any]]:
         out = []
+        metrics = _ROLE_BENCH_METRICS.get(self._effective_role(me, policy), _BENCH_METRICS)
         for p in self._audience(match, me, policy, "benchmarks"):
             rows = []
-            for key, label in _BENCH_LABELS.items():
-                b = p.benchmarks.get(key)
+            # Ролевой фильтр относится только к ★. В deep профили остальных
+            # остаются универсальными, иначе выбранная роль исказила бы их данные.
+            selected = metrics if p is me else _BENCH_METRICS
+            for metric in selected:
+                b = p.benchmarks.get(metric)
                 if isinstance(b, dict) and b.get("raw") is not None:
                     pct = b.get("pct")
-                    pct_txt = f"перцентиль {round(pct * 100)}" if pct is not None else "?"
-                    rows.append({"metric": label, "raw": round(b["raw"], 1), "pct": pct_txt})
+                    rows.append({"metric": metric, "raw": round(b["raw"], 1),
+                                 "pct": round(pct * 100) if pct is not None else None})
             out.append({"who": self._tag(p, me), "rows": rows})
         return out
 
@@ -228,10 +275,8 @@ class FeatureExtractor:
         for m, v in enumerate(gold_adv):
             cur = (v > 0) - (v < 0)
             if cur and prev_sign and cur != prev_sign:
-                swings.append({
-                    "m": m, "gold": v,
-                    "text": "моя команда вышла вперёд" if cur > 0 else "перевес ушёл к соперникам",
-                })
+                swings.append({"m": m, "gold": v,
+                               "key": "nw.swing_ahead" if cur > 0 else "nw.swing_behind"})
             if cur:
                 prev_sign = cur
         return swings
@@ -243,7 +288,7 @@ class FeatureExtractor:
                           + ([minutes - 1] if minutes else [])))
 
         team = [{"m": m, "gold": _at(gold_adv, m), "xp": _at(xp_adv, m)} for m in idxs]
-        swings = self._swings(gold_adv)
+        swings: List[Dict[str, Any]] = self._swings(gold_adv)
         if len(swings) > MAX_SWINGS:  # оставляем самые крупные перевороты
             swings = sorted(sorted(swings, key=lambda s: abs(s["gold"]),
                                    reverse=True)[:MAX_SWINGS], key=lambda s: s["m"])
@@ -265,16 +310,8 @@ class FeatureExtractor:
                    "series": [{"m": m, "nw": _at(p.gold_t, m)} for m in idxs]}
                   for p in shown]
 
-        return {
-            "step": TIMELINE_STEP_MIN,
-            "team": team,
-            "swings": swings,
-            "peak": peak,
-            "curves": curves,
-            "note": f"Точки — каждые {TIMELINE_STEP_MIN} мин плюс последняя минута; "
-                    "переломы перечислены отдельно. Гранулярность источника — "
-                    "1 точка/мин (максимум OpenDota).",
-        }
+        return {"step": TIMELINE_STEP_MIN, "team": team, "swings": swings,
+                "peak": peak, "curves": curves}
 
     # --- ITEMS ----------------------------------------------------------------
 
@@ -317,48 +354,41 @@ class FeatureExtractor:
                 for e in p.purchase_log]
 
     def _items(self, match: Match, me: Player, policy: Policy,
-               caveats: List[str]) -> List[Dict[str, Any]]:
+               caveats: List[Tuple[str, Dict[str, Any]]]) -> List[Dict[str, Any]]:
         full_log = policy.at_least("items", FULL_LOG)
         audience = self._audience(match, me, policy, "items")
 
         out = []
         for p in audience:
             if full_log and p is me:
-                timings, kind = self._full_purchases(p), "полный лог покупок"
+                timings, kind = self._full_purchases(p), "full"
             elif p is me:
-                timings, kind = self._assembled_purchases(p, KEY_ITEM_COST), "ключевые"
+                timings, kind = self._assembled_purchases(p, KEY_ITEM_COST), "key"
             else:
-                timings, kind = self._assembled_purchases(p, MAJOR_ITEM_COST), "крупные"
+                timings, kind = self._assembled_purchases(p, MAJOR_ITEM_COST), "major"
             out.append({"who": self._tag(p, me), "kind": kind, "timings": timings})
 
         if not full_log:
-            caveats.append(
-                f"- Предметы: только собранные (мои — от {KEY_ITEM_COST} золота, чужие — "
-                f"от {MAJOR_ITEM_COST}); компоненты, расходники и варды скрыты."
-            )
+            caveats.append(("caveat.items_filtered",
+                            {"mine": KEY_ITEM_COST, "others": MAJOR_ITEM_COST}))
         return out
 
     # --- ABILITY BUILD --------------------------------------------------------
 
     def _ability_row(self, p: Player, me: Player) -> Dict[str, Any]:
-        build = []
-        for i, aid in enumerate(p.ability_upgrades):
-            name = self._c.ability_name(aid)
-            build.append({"n": i + 1,
-                          "ability": f"талант: {name}" if self._c.is_talent(aid) else name})
+        build = [{"n": i + 1, "name": self._c.ability_name(aid),
+                  "talent": self._c.is_talent(aid)}
+                 for i, aid in enumerate(p.ability_upgrades)]
         return {"who": self._tag(p, me), "build": build}
 
     def _abilities(self, match: Match, me: Player, policy: Policy,
-                   caveats: List[str]) -> List[Dict[str, Any]]:
+                   caveats: List[Tuple[str, Dict[str, Any]]]) -> List[Dict[str, Any]]:
         if policy.at_least("abilities", EXPANDED):
             shown = list(match.players)
         else:
             shown = [me] + match.lane_opponents_of(me)
 
-        caveats.append(
-            "- Раскачка: #N — это порядок прокачки, а НЕ уровень героя (времени "
-            "источник не даёт). Числовых значений талантов в OpenDota нет — только названия."
-        )
+        caveats.append(("caveat.abilities_order", {}))
         return [self._ability_row(p, me) for p in shown]
 
     # --- LANING 0..10 ---------------------------------------------------------
@@ -380,8 +410,8 @@ class FeatureExtractor:
                         my_deaths.append({"time": mmss(e.get("time")), "killer": opp.hero_name})
             my_deaths.sort(key=lambda d: d["time"])
 
-        opponents = [{"who": self._tag(p, me), "pos": p.position_label,
-                      "eff_pct": p.lane_efficiency_pct,
+        opponents = [{"who": self._tag(p, me), "position_key": p.position_key,
+                      "lane_key": p.lane_key, "eff_pct": p.lane_efficiency_pct,
                       "cs_by_min": [{"min": m, "lh": _at(p.lh_t, m), "dn": _at(p.dn_t, m)}
                                     for m in range(1, 11)]}
                      for p in match.lane_opponents_of(me)]
@@ -391,7 +421,8 @@ class FeatureExtractor:
                     for m in range(1, 11)] if detailed else [])
 
         return {
-            "me_lane": me.position_label,
+            "position_key": self._effective_role(me, policy),
+            "lane_key": me.lane_key,
             "me_eff_pct": me.lane_efficiency_pct,
             "cs_by_min": cs,
             "my_gold_xp": gold_xp,
@@ -402,6 +433,114 @@ class FeatureExtractor:
             "lane_efficiency_all": [{"who": self._tag(p, me), "eff_pct": p.lane_efficiency_pct}
                                     for p in match.players if p.lane_efficiency_pct is not None],
         }
+
+    # --- ROLE IMPACT ---------------------------------------------------------
+
+    def _utility_purchases(self, p: Player) -> List[Dict[str, Any]]:
+        """Тайминги командных предметов без расходников и компонентов."""
+        seen = set()
+        out = []
+        for event in p.purchase_log:
+            key = event.get("key")
+            if key not in _UTILITY_ITEMS or key in seen:
+                continue
+            seen.add(key)
+            out.append({"time": mmss(event.get("time")), "item": self._c.item_name(key)})
+        return out
+
+    def _death_times(self, match: Match, me: Player) -> List[int]:
+        my_npc = self._c.hero_npc(me.hero_id)
+        if not my_npc:
+            return []
+        times = [
+            int(event.get("time") or 0)
+            for opponent in match.enemies_of(me)
+            for event in opponent.kills_log
+            if event.get("key") == my_npc
+        ]
+        return sorted(t for t in times if t >= 0)
+
+    @staticmethod
+    def _fight_context(match: Match, me: Player) -> Tuple[int, int]:
+        idx = match.players.index(me)
+        involved = deaths = 0
+        for fight in match.teamfights:
+            players = fight.get("players") or []
+            mine = players[idx] if idx < len(players) else {}
+            mine_deaths = mine.get("deaths") or 0
+            if mine_deaths or mine.get("damage") or mine.get("healing"):
+                involved += 1
+            deaths += mine_deaths
+        return involved, deaths
+
+    def _role_impact(self, match: Match, me: Player, policy: Policy) -> Dict[str, Any]:
+        role = self._effective_role(me, policy)
+        team = match.radiant_players() if me.is_radiant else match.dire_players()
+        team_kills = sum(p.kills for p in team)
+        # В неполностью распарсенных/синтетических данных K+A иногда расходится
+        # с суммой team kills. Процент не должен становиться физически невозможным.
+        participation = min(
+            100,
+            round(100 * (me.kills + me.assists) / team_kills) if team_kills else 0,
+        )
+        death_times = self._death_times(match, me)
+        involved, fight_deaths = self._fight_context(match, me)
+        early_kills = sorted(
+            int(e.get("time") or 0) for e in me.kills_log
+            if 0 <= int(e.get("time") or 0) <= 15 * 60
+        )
+
+        common = {
+            "role": role,
+            "role_source": policy.role_source,
+            "kill_participation": participation,
+            "assists": me.assists,
+            "deaths": me.deaths,
+            "fight_involvement": involved,
+            "fight_deaths": fight_deaths,
+        }
+        metrics_by_role = {
+            "1": [
+                ("cs10", _at(me.lh_t, 10)), ("gpm", me.gpm),
+                ("networth", me.net_worth), ("hero_damage", me.hero_damage),
+                ("kill_participation", participation),
+            ],
+            "2": [
+                ("xpm", me.xpm), ("runes", me.rune_pickups),
+                ("early_kills", len(early_kills)), ("kill_participation", participation),
+                ("hero_damage", me.hero_damage),
+            ],
+            "3": [
+                ("damage_taken", me.damage_taken_total), ("stuns", round(me.stuns, 1)),
+                ("kill_participation", participation), ("fight_involvement", involved),
+                ("fight_deaths", fight_deaths),
+            ],
+            "4": [
+                ("assists", me.assists), ("kill_participation", participation),
+                ("camps_stacked", me.camps_stacked), ("creeps_stacked", me.creeps_stacked),
+                ("runes", me.rune_pickups), ("wards", f"{me.obs_placed}/{me.sen_placed}"),
+                ("dewards", me.observer_kills + me.sentry_kills), ("stuns", round(me.stuns, 1)),
+            ],
+            "5": [
+                ("assists", me.assists), ("kill_participation", participation),
+                ("wards", f"{me.obs_placed}/{me.sen_placed}"),
+                ("dewards", me.observer_kills + me.sentry_kills),
+                ("camps_stacked", me.camps_stacked), ("creeps_stacked", me.creeps_stacked),
+                ("healing", me.hero_healing), ("stuns", round(me.stuns, 1)),
+                ("fight_deaths", fight_deaths),
+            ],
+        }
+        common.update({
+            "metrics": [{"key": key, "value": value}
+                        for key, value in metrics_by_role.get(role, [])],
+            "early_kill_times": [mmss(t) for t in early_kills],
+            "late_death_times": [mmss(t) for t in death_times if t >= 40 * 60],
+            "key_items": self._assembled_purchases(me, KEY_ITEM_COST)
+                         if role in ("1", "2") else [],
+            "utility_items": self._utility_purchases(me)
+                             if role in ("3", "4", "5") else [],
+        })
+        return common
 
     # --- COMBAT / ECON --------------------------------------------------------
 
@@ -417,10 +556,12 @@ class FeatureExtractor:
             "sen": p.sen_placed,
             "buybacks": p.buyback_count,
             "time_dead": mmss(p.seconds_dead),
+            # Ключи канонические — подписи подставит i18n по kills.<ключ>.
             "kills_by_type": {
-                "нейтралы": p.neutral_kills, "древние": p.ancient_kills,
-                "башни": p.tower_kills, "рошан": p.roshan_kills,
-                "курьер": p.courier_kills, "обсы": p.observer_kills, "сентри": p.sentry_kills,
+                "neutrals": p.neutral_kills, "ancients": p.ancient_kills,
+                "towers": p.tower_kills, "roshan": p.roshan_kills,
+                "courier": p.courier_kills, "observers": p.observer_kills,
+                "sentries": p.sentry_kills,
             },
             "extra": {},
         }
@@ -501,11 +642,11 @@ class FeatureExtractor:
             my_losses, enemy_losses = ((dire_deaths, rad_deaths) if not me.is_radiant
                                        else (rad_deaths, dire_deaths))
             if my_losses < enemy_losses:
-                verdict = "выиграла моя команда"
+                verdict = "tf.win"
             elif my_losses > enemy_losses:
-                verdict = "выиграли соперники"
+                verdict = "tf.lose"
             else:
-                verdict = "равный размен"
+                verdict = "tf.even"
 
             mine = tf_players[my_idx] if my_idx < len(tf_players) else {}
             killed = [self._c.npc_to_hero(k) for k, v in (mine.get("killed") or {}).items()
@@ -515,7 +656,8 @@ class FeatureExtractor:
                 "start": mmss(tf.get("start")),
                 "end": mmss(tf.get("end")),
                 "deaths": tf.get("deaths"),
-                "score": f"потери: мы {my_losses} / они {enemy_losses}",
+                "my_losses": my_losses,
+                "enemy_losses": enemy_losses,
                 "verdict": verdict,
                 "fallen": fallen,
                 "me": {
@@ -533,7 +675,7 @@ class FeatureExtractor:
     # --- OBJECTIVES -----------------------------------------------------------
 
     def _objectives(self, match: Match, policy: Policy) -> List[Dict[str, Any]]:
-        rows = [{"time": mmss(o.time), "event": o.label, "minor": o.minor}
+        rows = [{"time": mmss(o.time), "kind": o.kind, "params": o.params, "minor": o.minor}
                 for o in match.objectives]
         if policy.at_least("objectives", EXPANDED):
             return rows

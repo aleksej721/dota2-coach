@@ -12,11 +12,12 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from dota2coach import normalize
+from dota2coach import i18n, normalize
 from dota2coach.bundle import BundleBuilder
 from dota2coach.constants import Constants, strip_loc_tokens  # заглушка: без сети
 from dota2coach.features import FeatureExtractor
-from dota2coach.policy import Policy
+from dota2coach.policy import FOCUSES, ROLES, ROLE_FOCUSES, Policy
+from dota2coach.render import resolve_depth
 
 
 def _bench(raw, pct):
@@ -33,7 +34,9 @@ def player(slot, hero_id, lane_role, nw, **extra):
         "xp_t": [0, 250, 600, 1100, 1600, 2200, 2800, 3500, 4300, 5200, 6100],
         "lh_t": [0, 4, 10, 18, 27, 36, 45, 55, 66, 78, 90],
         "dn_t": [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11],
-        "purchase_log": [{"time": 356, "key": "phase_boots"}, {"time": 805, "key": "echo_sabre"}],
+        "purchase_log": [{"time": 356, "key": "phase_boots"},
+                         {"time": 805, "key": "echo_sabre"},
+                         {"time": 1200, "key": "glimmer_cape"}],
         "ability_upgrades_arr": [5001, 5002, 5001, 5003, 5001, 5004],
         "permanent_buffs": [], "kills_log": [], "kill_streaks": {"3": 1}, "multi_kills": {"2": 1},
         "stuns": 12.5, "max_hero_hit": {"value": 848, "key": "npc_dota_hero_lion"},
@@ -62,7 +65,8 @@ def fake_raw():
     enemy = player(128, 2, 3, 3500, kills=4, deaths=4, assists=3,
                    # stack_count = 0 — это «есть аганим/шард», такие записи фильтруем
                    permanent_buffs=[{"permanent_buff": 12, "stack_count": 0}],
-                   kills_log=[{"time": 330, "key": "npc_dota_hero_5"}])  # «убил меня»
+                   kills_log=[{"time": 330, "key": "npc_dota_hero_5"},
+                              {"time": 2450, "key": "npc_dota_hero_5"}])  # включая late death
     return {
         "match_id": 8927853552, "duration": 2491, "game_mode": 22, "lobby_type": 7,
         "patch": 57, "version": 22, "region": 3, "radiant_win": True,
@@ -127,6 +131,13 @@ class ItemAwareConstants(Constants):
         return self._ITEMS.get(key, {}).get("consumable", False)
 
 
+class OfflineConstants(Constants):
+    """Заглушка с обратимым npc-именем героя для проверки таймингов смертей."""
+
+    def hero_npc(self, hero_id):
+        return f"npc_dota_hero_{hero_id}" if hero_id else None
+
+
 def check_item_absorption():
     """Компоненты, ушедшие в сборку, и расходники не должны попадать в тайминги."""
     from dota2coach.model import Player
@@ -143,13 +154,133 @@ def check_item_absorption():
     assert rows[0]["time"] == "4:00", rows
 
 
+def check_scaffold(match, me, extractor, builder, quick_text):
+    """Заметка игрока: свой блок, приоритет в правилах, раздел 0 в формате ответа."""
+    noted = Policy(depth="quick", focus="full", note="  почему я слил лайн?  ",
+                   mmr="Legend 3500")
+    assert noted.note == "почему я слил лайн?", "заметка должна обрезаться по краям"
+    text = builder.build(extractor.extract(match, me, noted), noted)
+
+    assert "## ГЛАВНЫЙ ЗАПРОС ИГРОКА" in text
+    assert text.index("## ГЛАВНЫЙ ЗАПРОС ИГРОКА") < text.index("## ФОРМАТ ОТВЕТА")
+    assert "### 0. Ответ на главный запрос" in text
+    assert "главный приоритет" in text
+    assert "Legend 3500" in text, "уровень игрока не доехал до калибровки"
+    assert "ВАЖНО:" in text.split("## МЕТА")[0], "нет указателя в шапке"
+    # Заметка не должна стоять в одном ряду с генеричными вопросами.
+    assert "1. почему я слил лайн?" not in text
+
+    # Guardrails и структура ответа обязаны быть в промпте всегда.
+    for marker in ["## КАК ГОТОВИТЬ РАЗБОР", "ЗАПРЕЩЕНЫ общие советы",
+                   "### 1. Вердикт", "### 3. Главный leak", "### 6. Куда копать дальше"]:
+        assert marker in quick_text, f"нет блока {marker}"
+    assert "### 0." not in quick_text, "без заметки раздела 0 быть не должно"
+
+    # Пустая заметка = отсутствие заметки, поведение не меняется.
+    blank = Policy(depth="quick", focus="full", note="   ")
+    assert blank.has_note is False
+    assert builder.build(extractor.extract(match, me, blank), blank) == quick_text
+
+
+def check_models(match, me, extractor, builder):
+    """Упаковка меняется, содержание — нет."""
+    md = Policy(depth="quick", model="chatgpt")
+    xml = Policy(depth="quick", model="claude")
+    md_text = builder.build(extractor.extract(match, me, md), md)
+    xml_text = builder.build(extractor.extract(match, me, xml), xml)
+
+    for tag in ["<role>", "</role>", "<match_data>", "</match_data>",
+                "<method>", "<output_format>", "<data_limitations>"]:
+        assert tag in xml_text, f"нет тега {tag}"
+    assert "<role>" not in md_text, "markdown-версия не должна содержать теги"
+    # Данные внутри тегов те же: сверяем строку скорборда.
+    row = [ln for ln in md_text.splitlines() if ln.startswith("  ★ ")][0]
+    assert row in xml_text, "данные разъехались между упаковками"
+
+    assert resolve_depth(None, "claude") == "deep"
+    assert resolve_depth(None, "chatgpt") == "quick"
+    assert resolve_depth("quick", "claude") == "quick", "явный --depth должен побеждать"
+
+
+def check_languages(match, me, extractor, builder):
+    """Язык переключает весь промпт, а не только инструкцию."""
+    assert i18n.missing_keys() == {}, "переводы разъехались, см. i18n.missing_keys()"
+
+    for lang, marker, answer in (("ru", "## МЕТА", "Отвечай на русском языке."),
+                                 ("en", "## META", "Answer in English."),
+                                 ("uk", "## МЕТА", "Відповідай українській мовою.")):
+        p = Policy(depth="quick", lang=lang)
+        text = builder.build(extractor.extract(match, me, p), p)
+        assert marker in text, f"{lang}: нет секции {marker}"
+        assert answer in text, f"{lang}: нет инструкции про язык ответа"
+        assert "[" + "sec.meta" + "?]" not in text, f"{lang}: непереведённый ключ"
+
+    en = Policy(depth="deep", lang="en")
+    en_text = builder.build(extractor.extract(match, me, en), en)
+    for russian in ["Матч ", "погибли", "нейтралы", "поз. 1 — carry"]:
+        assert russian not in en_text, f"в английский промпт утекло: {russian}"
+
+
+def check_roles_and_focuses(match, me, extractor, builder):
+    """Роль меняет и доказательства, и методику, не мутируя Match."""
+    assert ROLES == ("1", "2", "3", "4", "5")
+    assert {"vision", "tempo", "initiation", "enable"} <= set(FOCUSES)
+    assert "farm" not in ROLE_FOCUSES["4"] and "farm" not in ROLE_FOCUSES["5"]
+
+    original_position = me.position_key
+    carry = Policy(depth="quick", focus="full", role="1")
+    support = Policy(depth="quick", focus="enable", role="5")
+    carry_features = extractor.extract(match, me, carry)
+    support_features = extractor.extract(match, me, support)
+    carry_text = builder.build(carry_features, carry)
+    support_text = builder.build(support_features, support)
+
+    assert me.position_key == original_position == "2", "override не должен мутировать Match"
+    assert carry_features.meta["position_key"] == "1"
+    assert support_features.meta["position_key"] == "5"
+
+    carry_metrics = {x["key"] for x in carry_features.role_impact["metrics"]}
+    support_metrics = {x["key"] for x in support_features.role_impact["metrics"]}
+    assert {"cs10", "gpm", "networth"} <= carry_metrics
+    assert not {"cs10", "gpm", "networth"} & support_metrics
+    assert {"wards", "assists", "camps_stacked", "healing"} <= support_metrics
+
+    assert "Оценивай игрока как Pos 1 Carry" in carry_text
+    assert "Смерти после 40:00" in carry_text and "40:50" in carry_text
+    assert "Оценивай игрока как Pos 5 Hard Support" in support_text
+    assert "Фарм нерелевантен" in support_text
+    assert "CS@10 ≥" not in support_text
+    assert "Glimmer Cape" in support_text or "glimmer_cape" in support_text
+    assert "не даёт надёжного счётчика сейвов" in support_text
+
+    # У ★ support-бенчмарки не поднимают last hits/GPM как критерий успеха.
+    own_bench = {x["metric"] for x in support_features.benchmarks[0]["rows"]}
+    assert "last_hits_per_min" not in own_bench and "gold_per_min" not in own_bench
+
+    auto = Policy().resolve_role("2")
+    assert auto.role == "2" and auto.role_source == "heuristic"
+    selected = Policy(role="5").resolve_role("2")
+    assert selected.role == "5" and selected.role_source == "selected"
+
+    for focus in ("vision", "tempo", "initiation", "enable"):
+        p = Policy(depth="quick", focus=focus, role="4")
+        text = builder.build(extractor.extract(match, me, p), p)
+        assert f"focus={focus}" in text
+
+    for lang, marker in (("ru", "Pos 3 Offlane"), ("en", "Evaluate the player as Pos 3"),
+                         ("uk", "Оцінюй гравця як Pos 3")):
+        p = Policy(depth="quick", role="3", lang=lang)
+        text = builder.build(extractor.extract(match, me, p), p)
+        assert marker in text, f"{lang}: role scaffold не локализован"
+
+
 def main():
-    constants = Constants()  # имена станут hero_5, ability_5001 и т.п. — это ок для теста
+    constants = OfflineConstants()  # имена станут hero_5, ability_5001 и т.п. — это ок
     match = normalize.from_opendota(fake_raw(), constants)
 
     assert match.parsed is True
     me = next(p for p in match.players if p.player_slot == 0)
-    assert "mid" in me.position_label
+    assert (me.position_key, me.lane_key) == ("2", "mid")
     assert me.win is True
     assert me.lane_efficiency_pct == 88
     assert me.seconds_dead == 180
@@ -167,15 +298,20 @@ def main():
     assert "## УРОН ПО ГЕРОЯМ" not in quick_text
     assert "## ПОСТОЯННЫЕ БАФФЫ" not in quick_text
 
-    # focus=fights поднимает тимфайты и урон даже в quick.
+    # focus=fights поднимает тимфайты и урон даже в quick и меняет акцент методики.
     fights = Policy(depth="quick", focus="fights")
     fights_text = builder.build(extractor.extract(match, me, fights), fights)
     assert "## УРОН ПО ГЕРОЯМ" in fights_text
-    assert "замес" in fights_text  # ЗАДАЧА переехала под интент
+    assert "замес" in fights_text
+
+    check_scaffold(match, me, extractor, builder, quick_text)
+    check_models(match, me, extractor, builder)
+    check_languages(match, me, extractor, builder)
+    check_roles_and_focuses(match, me, extractor, builder)
 
     deep = Policy(depth="deep", focus="full")
     features = extractor.extract(match, me, deep)
-    assert features.meta["result"] == "ПОБЕДА"
+    assert features.meta["win"] is True
     assert len(features.scoreboard) == 3
     assert len(features.laning["cs_by_min"]) == 10
     assert len(features.objectives) == 3

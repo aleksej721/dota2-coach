@@ -16,12 +16,17 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class Objective:
-    """Событие-объектив: башня, Рошан, первая кровь и т.п."""
+    """Событие-объектив: башня, Рошан, первая кровь и т.п.
+
+    Готового текста здесь нет: normalize отдаёт `kind` и параметры, а фразу
+    собирает bundle на языке промпта. Иначе подписи были бы намертво русскими.
+    """
     time: int
     type: str
-    label: str
+    kind: str                       # firstblood | building | roshan | aegis | tormentor | courier
+    params: Dict[str, Any] = field(default_factory=dict)
     team: Optional[int] = None      # 2 = Radiant, 3 = Dire (где применимо)
-    minor: bool = False             # рутина (t1-вышки, курьер) — прячем в сводке
+    minor: bool = False             # рутина (курьер) — прячем в сводке
 
 
 @dataclass
@@ -48,7 +53,10 @@ class Player:
     lane_role: Optional[int] = None
     lane: Optional[int] = None          # физическая линия (1/2/3) — для поиска оппонентов
     is_roaming: bool = False
-    position_label: str = ""
+    # Позиция как ключ ("1".."5" либо "core"/"support") плюс ключ линии:
+    # текст собирается на языке промпта, см. bundle._position().
+    position_key: str = "core"
+    lane_key: str = "unknown"
     is_core: bool = False               # кор или саппорт (эвристика по линии + нетворту)
     lane_efficiency_pct: Optional[int] = None
     lane_pos: Dict[str, Any] = field(default_factory=dict)

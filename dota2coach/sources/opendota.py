@@ -17,7 +17,8 @@ import requests
 from .. import normalize
 from ..constants import Constants
 from ..model import Match
-from .base import DataSource, DataSourceError
+from .base import (KIND_NETWORK, KIND_NOT_FOUND, KIND_RATE_LIMITED, KIND_UNAVAILABLE,
+                   DataSource, DataSourceError)
 
 
 class OpenDotaSource(DataSource):
@@ -49,32 +50,36 @@ class OpenDotaSource(DataSource):
         try:
             resp = self._session.get(f"{self.BASE}{path}", params=self._params(), timeout=30)
         except requests.RequestException as e:
-            raise DataSourceError(f"Сетевая ошибка при GET {path}: {e}")
+            raise DataSourceError(f"Сетевая ошибка при GET {path}: {e}", KIND_NETWORK)
 
         if resp.status_code == 404:
-            raise DataSourceError(f"OpenDota: ресурс не найден (404) для {path}.")
+            raise DataSourceError(f"OpenDota: ресурс не найден (404) для {path}.",
+                                  KIND_NOT_FOUND)
         if resp.status_code == 429:
             raise DataSourceError(
                 "OpenDota: превышен лимит запросов (429). Подожди минуту или задай "
-                "OPENDOTA_API_KEY для более высоких лимитов.")
+                "OPENDOTA_API_KEY для более высоких лимитов.", KIND_RATE_LIMITED)
         if resp.status_code >= 500:
             raise DataSourceError(f"OpenDota временно недоступна (HTTP {resp.status_code}). "
-                                  f"Попробуй ещё раз чуть позже.")
+                                  f"Попробуй ещё раз чуть позже.", KIND_UNAVAILABLE)
         if resp.status_code != 200:
-            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} для {path}.")
+            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} для {path}.",
+                                  KIND_UNAVAILABLE)
         try:
             return resp.json()
         except ValueError:
-            raise DataSourceError(f"OpenDota вернула не-JSON ответ для {path}.")
+            raise DataSourceError(f"OpenDota вернула не-JSON ответ для {path}.",
+                                  KIND_UNAVAILABLE)
 
     def _post(self, path: str) -> Any:
         self._rate.acquire()
         try:
             resp = self._session.post(f"{self.BASE}{path}", params=self._params(), timeout=30)
         except requests.RequestException as e:
-            raise DataSourceError(f"Сетевая ошибка при POST {path}: {e}")
+            raise DataSourceError(f"Сетевая ошибка при POST {path}: {e}", KIND_NETWORK)
         if resp.status_code not in (200, 201):
-            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} для POST {path}.")
+            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} для POST {path}.",
+                                  KIND_UNAVAILABLE)
         try:
             return resp.json()
         except ValueError:
@@ -120,9 +125,17 @@ class OpenDotaSource(DataSource):
                   f"Свежие данные: --no-cache")
             return normalize.from_opendota(cached, self._constants)
 
-        raw = self._get(f"/matches/{match_id}")
+        not_found = DataSourceError(
+            f"Матч {match_id} не найден в OpenDota. Проверь ID — он должен быть "
+            f"из истории матчей, а не ID лобби или профиля.", KIND_NOT_FOUND)
+        try:
+            raw = self._get(f"/matches/{match_id}")
+        except DataSourceError as e:
+            # У _get сообщение техническое («ресурс не найден для /matches/1»),
+            # а пользователю нужно понятное — путь к эндпоинту ему ни о чём не говорит.
+            raise not_found if e.kind == KIND_NOT_FOUND else e
         if raw is None or raw.get("match_id") is None:
-            raise DataSourceError(f"Матч {match_id} не найден в OpenDota.")
+            raise not_found
 
         if not self._is_parsed(raw):
             print(f"      Матч ещё не распарсен OpenDota — запрашиваю парсинг "

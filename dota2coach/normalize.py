@@ -12,7 +12,8 @@ from typing import Any, Dict, List, Optional
 from .constants import Constants
 from .model import Match, Objective, PickBan, Player
 
-_LANE_NAMES = {1: "safe lane", 2: "mid", 3: "off lane", 4: "jungle"}
+# lane_role из OpenDota -> наш ключ линии (текст подставит i18n).
+_LANE_KEYS = {1: "safe", 2: "mid", 3: "off", 4: "jungle"}
 
 
 def from_opendota(raw: Dict[str, Any], constants: Constants) -> Match:
@@ -112,37 +113,36 @@ def _player(p: Dict[str, Any], radiant_win: bool, constants: Constants) -> Playe
     )
 
 
-def _lane_name(p: Player) -> str:
+def _lane_key(p: Player) -> str:
     if p.is_roaming:
         return "roaming"
-    return _LANE_NAMES.get(p.lane_role, "unknown")
+    return _LANE_KEYS.get(p.lane_role, "unknown")
 
 
 def _assign_positions(team: List[Player]) -> None:
     """Грубая эвристика позиций 1..5 (линия + ранг по нетворту)."""
     lanes: Dict[str, List[Player]] = {}
     for p in team:
-        lanes.setdefault(_lane_name(p), []).append(p)
-    for lane_name, ps in lanes.items():
+        lanes.setdefault(_lane_key(p), []).append(p)
+    for lane_key, ps in lanes.items():
         ps.sort(key=lambda pl: pl.net_worth, reverse=True)
         for i, p in enumerate(ps):
-            is_core = (lane_name == "mid") or (i == 0 and lane_name in ("safe lane", "off lane"))
+            is_core = (lane_key == "mid") or (i == 0 and lane_key in ("safe", "off"))
             p.is_core = is_core
-            p.position_label = _format_position(lane_name, is_core)
+            p.lane_key = lane_key
+            p.position_key = _position_key(lane_key, is_core)
 
 
-def _format_position(lane_name: str, is_core: bool) -> str:
-    pos_map = {
-        ("mid", True): "поз. 2 — mid",
-        ("safe lane", True): "поз. 1 — carry (safe lane)",
-        ("safe lane", False): "поз. 5 — hard support (safe lane)",
-        ("off lane", True): "поз. 3 — offlane",
-        ("off lane", False): "поз. 4 — support (off lane)",
+def _position_key(lane_key: str, is_core: bool) -> str:
+    """Классическая нумерация 1..5; всё нестандартное — просто кор/саппорт."""
+    numbered = {
+        ("mid", True): "2",
+        ("safe", True): "1",
+        ("safe", False): "5",
+        ("off", True): "3",
+        ("off", False): "4",
     }
-    if (lane_name, is_core) in pos_map:
-        return pos_map[(lane_name, is_core)]
-    role = "core" if is_core else "support"
-    return f"{role} ({lane_name})"
+    return numbered.get((lane_key, is_core), "core" if is_core else "support")
 
 
 def _pick_ban(pb: Dict[str, Any], constants: Constants) -> PickBan:
@@ -155,20 +155,20 @@ def _pick_ban(pb: Dict[str, Any], constants: Constants) -> PickBan:
 
 
 def _team_name(team: Optional[int]) -> str:
-    """В чат-событиях OpenDota 2 = Radiant, 3 = Dire."""
+    """В чат-событиях OpenDota 2 = Radiant, 3 = Dire. Стороны — имена собственные."""
     return {2: "Radiant", 3: "Dire"}.get(team, "?")
 
 
 def _building_kind(key: str) -> str:
     if "fort" in key:
-        return "ТРОН"
+        return "throne"
     if "rax" in key:
-        return "казарма"
-    return "вышка"
+        return "rax"
+    return "tower"
 
 
 def _objective(o: Dict[str, Any], constants: Constants) -> Optional[Objective]:
-    """Событие -> одна читаемая строка.
+    """Событие -> вид события плюс параметры. Фразу соберёт bundle.
 
     Для строений важно назвать обе стороны явно: у OpenDota в `key` лежит
     ВЛАДЕЛЕЦ упавшего здания, а в `unit` — кто его снёс. Раньше в промпт уходило
@@ -178,38 +178,40 @@ def _objective(o: Dict[str, Any], constants: Constants) -> Optional[Objective]:
     time = o.get("time", 0)
 
     if t == "CHAT_MESSAGE_FIRSTBLOOD":
-        return Objective(time=time, type=t, label="первая кровь")
+        return Objective(time=time, type=t, kind="firstblood")
 
     if t == "building_kill":
         key = o.get("key", "") or ""
         victim = "Radiant" if "goodguys" in key else ("Dire" if "badguys" in key else "?")
         attacker = {"Radiant": "Dire", "Dire": "Radiant"}.get(victim, "?")
-        short = key.replace("npc_dota_", "").replace("goodguys_", "").replace("badguys_", "")
-        kind = _building_kind(key)
         unit = o.get("unit") or ""
-        by = (f" (снёс {constants.npc_to_hero(unit)})" if unit.startswith("npc_dota_hero_")
-              else " (снесли крипы)" if unit else "")
         # Строения не помечаем рутиной: тайминг первой вышки — один из главных
         # маркеров темпа игры, и «переломные моменты» разбираются именно по ним.
-        return Objective(time=time, type=t,
-                         label=f"{attacker} снесли: {kind} {victim} ({short}){by}")
+        return Objective(time=time, type=t, kind="building", params={
+            "attacker": attacker,
+            "victim": victim,
+            "building": _building_kind(key),
+            "short": key.replace("npc_dota_", "").replace("goodguys_", "").replace("badguys_", ""),
+            "hero": constants.npc_to_hero(unit) if unit.startswith("npc_dota_hero_") else None,
+            "by_creeps": bool(unit) and not unit.startswith("npc_dota_hero_"),
+        })
 
     if t == "CHAT_MESSAGE_ROSHAN_KILL":
         team = o.get("team")
-        return Objective(time=time, type=t, team=team,
-                         label=f"{_team_name(team)} убили Рошана")
+        return Objective(time=time, type=t, team=team, kind="roshan",
+                         params={"team": _team_name(team)})
 
     if t == "CHAT_MESSAGE_AEGIS":
-        return Objective(time=time, type=t, label="подобран Aegis")
+        return Objective(time=time, type=t, kind="aegis")
 
     if t == "CHAT_MESSAGE_MINIBOSS_KILL":
         team = o.get("team")
-        return Objective(time=time, type=t, team=team,
-                         label=f"{_team_name(team)} убили Тормантора")
+        return Objective(time=time, type=t, team=team, kind="tormentor",
+                         params={"team": _team_name(team)})
 
     if t == "CHAT_MESSAGE_COURIER_LOST":
         team = o.get("team")
-        return Objective(time=time, type=t, team=team, minor=True,
-                         label=f"потерян курьер ({_team_name(team)})")
+        return Objective(time=time, type=t, team=team, kind="courier", minor=True,
+                         params={"team": _team_name(team)})
 
     return None

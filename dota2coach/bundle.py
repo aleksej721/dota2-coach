@@ -1,21 +1,24 @@
-"""BundleBuilder — превращает Features в текстовый промпт для LLM.
+"""BundleBuilder — превращает Features в текстовый промпт.
 
-Секции идут от общего к частному: мета -> драфт -> скорборд -> бенчмарки ->
-нетворт -> предметы -> раскачка -> лайнинг -> бой -> баффы -> тимфайты ->
-урон -> объективы -> ограничения -> задача.
+Разделение обязанностей:
+  * Policy   — какие данные показать (тиры, глубина, фокус);
+  * i18n     — на каком языке их подписать;
+  * scaffold — по какой методике модель должна готовить разбор;
+  * render   — во что это упаковать (markdown или XML-теги под Claude);
+  * bundle   — собрать всё вместе, ничего не решая самостоятельно.
 
-Что именно и с какой детализацией печатается, решает Policy (см. policy.py):
-builder только форматирует то, что ему дали, и нигде не принимает решений
-«показывать/не показывать» сам.
+Своих текстов у модуля нет: каждая подпись приходит из словаря по ключу.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+from . import i18n, scaffold
 from .features import Features
 from .policy import EXPANDED, Policy
+from .render import Group, Section, profile, renderer_for
 
 
-def _fmt_signed(value: Any) -> str:
+def _signed(value: Any) -> str:
     if value is None:
         return "?"
     return f"+{value}" if value > 0 else str(value)
@@ -23,277 +26,355 @@ def _fmt_signed(value: Any) -> str:
 
 class BundleBuilder:
     def build(self, features: Features, policy: Policy) -> str:
-        L: List[str] = []
-        L += self._header()
-        L += self._meta(features.meta, policy)
+        s = i18n.load(policy.lang)
+
+        data = Group("match_data")
+        data.add(s("sec.meta"), self._meta(features.meta, policy, s))
+        if features.role_impact:
+            data.add(s("sec.role_impact"), self._role_impact(features.role_impact, s))
         if features.draft:
-            L += self._draft(features.draft, policy)
-        L += self._scoreboard(features.scoreboard)
+            data.add(s("sec.draft"), self._draft(features.draft, s))
+        data.add(s("sec.scoreboard"), self._scoreboard(features.scoreboard, s))
         if features.benchmarks:
-            L += self._benchmarks(features.benchmarks, policy)
+            data.add(s("sec.benchmarks"), self._benchmarks(features.benchmarks, policy, s))
         if features.networth:
-            L += self._networth(features.networth)
+            data.add(s("sec.networth"), self._networth(features.networth, s))
         if features.items:
-            L += self._items(features.items)
+            data.add(s("sec.items"), self._items(features.items, s))
         if features.abilities:
-            L += self._abilities(features.abilities)
+            data.add(s("sec.abilities"), self._abilities(features.abilities, s))
         if features.laning:
-            L += self._laning(features.laning)
+            data.add(s("sec.laning"), self._laning(features.laning, s))
         if features.combat:
-            L += self._combat(features.combat)
+            data.add(s("sec.combat"), self._combat(features.combat, s))
         if features.buffs:
-            L += self._buffs(features.buffs)
+            data.add(s("sec.buffs"), self._buffs(features.buffs, s))
         if features.teamfights:
-            L += self._teamfights(features.teamfights, policy)
+            data.add(s("sec.teamfights"), self._teamfights(features.teamfights, policy, s))
         if features.damage:
-            L += self._damage(features.damage)
+            data.add(s("sec.damage"), self._damage(features.damage))
         if features.objectives:
-            L += self._objectives(features.objectives)
-        L += self._limitations(features)
-        L += self._task(policy)
-        return "\n".join(L) + "\n"
+            data.add(s("sec.objectives"), self._objectives(features.objectives, s))
+
+        groups = [Group("role", [Section(None, self._role(policy, s))]), data]
+
+        limits = Group("data_limitations")
+        limits.add(s("sec.limits"), self._limitations(features, s))
+        groups.append(limits)
+
+        if policy.has_note:
+            note = Group("player_question")
+            note.add(s("sec.note"), self._note(policy))
+            groups.append(note)
+
+        method = Group("method")
+        method.add(s("sec.method"), scaffold.method_lines(policy, s))
+        groups.append(method)
+
+        answer = Group("output_format")
+        answer.add(s("sec.format"), scaffold.format_lines(policy, s))
+        groups.append(answer)
+
+        body = renderer_for(policy.model).document(groups)
+        return f"{s('header.title')}\n\n{body}"
+
+    # --- общие помощники ------------------------------------------------------
+
+    @staticmethod
+    def _position(s: i18n.Strings, position_key: str, lane_key: str) -> str:
+        if position_key in ("1", "2", "3", "4", "5"):
+            return s(f"pos.{position_key}")
+        return s(f"pos.{position_key}", lane=s(f"lane.{lane_key}"))
 
     # --- секции ---------------------------------------------------------------
 
-    def _header(self) -> List[str]:
-        return [
-            "=== ЗАПРОС НА РАЗБОР МАТЧА DOTA 2 ===",
-            "",
-            "Ты — опытный персональный тренер по Dota 2. Ниже — структурированные ФАКТЫ "
-            "одного моего матча из OpenDota (мой игрок помечен ★Я; [R]=Radiant, [D]=Dire). "
-            "Разбери мою игру. Опирайся ТОЛЬКО на эти факты; если данных не хватает — так "
-            "и скажи, не выдумывай.",
-            "",
-        ]
-
-    def _meta(self, m: Dict[str, Any], policy: Policy) -> List[str]:
-        return [
-            "## МЕТА",
-            f"Матч {m['match_id']} | патч {m['patch']} | {m['mode']} / {m['lobby']} | "
-            f"длительность {m['duration']}",
-            f"Результат: {m['result']} (моя сторона — {m['my_side']}, победила — {m['winner']})",
-            f"Я: {m['me']}",
-            f"Режим экспорта: depth={policy.depth}, focus={policy.focus}",
-            "",
-        ]
-
-    def _draft(self, d: Dict[str, Any], policy: Policy) -> List[str]:
-        out = ["## ДРАФТ"]
-        if not d["rows"]:
-            out.append("Стадии драфта (пики/баны) OpenDota для этого режима не отдаёт. "
-                       "Ниже — итоговые составы:")
-        elif d["chronological"]:
-            out.append(f"Порядок драфта ({d['mode']}), хронологический:")
-            for r in d["rows"]:
-                out.append(f"  #{r['order']:>2} {r['side']:<7} {r['kind']:<3} {r['hero']}")
-        else:
-            out.append(f"Драфт ({d['mode']}). Источник отдаёт пики и баны отдельными "
-                       "группами — истинный порядок между ними неизвестен.")
-            out.append("  Баны: " + (", ".join(f"{r['side'][0]}:{r['hero']}"
-                                               for r in d["bans"]) or "—"))
-            out.append("  Пики: " + (", ".join(f"{r['side'][0]}:{r['hero']}"
-                                               for r in d["picks"]) or "—"))
-        out.append("Radiant:")
-        out += [f"  - {p['hero']} | {p['pos']}" for p in d["radiant"]]
-        out.append("Dire:")
-        out += [f"  - {p['hero']} | {p['pos']}" for p in d["dire"]]
-        out.append("")
+    def _role(self, policy: Policy, s: i18n.Strings) -> List[str]:
+        out = [s("header.role")]
+        if policy.has_role:
+            source = s(f"role.source.{policy.role_source}")
+            out.append(s("header.role_profile", role=s(f"role.{policy.role}.name"),
+                         source=source))
+        if policy.has_note:
+            # Указатель в самом начале: у игрока есть конкретный вопрос, он ниже.
+            # Сам текст вопроса не дублируем, чтобы не размывать приоритет.
+            out.append(s("header.note_pointer"))
         return out
 
-    def _scoreboard(self, rows: List[Dict[str, Any]]) -> List[str]:
-        out = ["## СКОРБОРД (итог)",
-               "герой | ур | K/D/A | LH/DN | GPM/XPM | нетворт | урон-героям | урон-строениям | "
-               "лечение | получено урона"]
+    def _role_impact(self, r: Dict[str, Any], s: i18n.Strings) -> List[str]:
+        role = r["role"]
+        out = [
+            s("role.impact.header", role=s(f"role.{role}.name"),
+              source=s(f"role.source.{r['role_source']}")),
+        ]
+        metrics = []
+        for metric in r["metrics"]:
+            key, value = metric["key"], metric["value"]
+            if value is None:
+                value = "?"
+            elif key == "kill_participation":
+                value = f"{value}%"
+            elif key == "stuns":
+                value = s("role.metric.seconds", value=value)
+            metrics.append(f"{s(f'role.metric.{key}')} {value}")
+        if metrics:
+            out.append("  " + " | ".join(metrics))
+
+        if role == "1":
+            late = ", ".join(r["late_death_times"]) or s("dash")
+            out.append(s("role.late_deaths", times=late))
+        if role == "2":
+            early = ", ".join(r["early_kill_times"]) or s("dash")
+            out.append(s("role.early_kills", times=early))
+
+        for key, timings in (("key_items", r["key_items"]),
+                             ("utility_items", r["utility_items"])):
+            if not timings:
+                continue
+            listed = ", ".join(f"{x['time']} {x['item']}" for x in timings)
+            out.append(s(f"role.{key}", items=listed))
+        return out
+
+    def _meta(self, m: Dict[str, Any], policy: Policy, s: i18n.Strings) -> List[str]:
+        out = [
+            s("meta.line", match_id=m["match_id"], patch=m["patch"], mode=m["mode"],
+              lobby=m["lobby"], duration=m["duration"]),
+            s("meta.result", result=s("meta.win" if m["win"] else "meta.lose"),
+              side=m["my_side"], winner=m["winner"]),
+            s("meta.me", hero=m["hero"],
+              position=self._position(s, m["position_key"], m["lane_key"]),
+              level=m["level"], k=m["kills"], d=m["deaths"], a=m["assists"]),
+            s("meta.export", depth=policy.depth, focus=policy.focus,
+              model=profile(policy.model).label),
+        ]
+        if policy.mmr:
+            out.append(s("meta.level", mmr=policy.mmr))
+        return out
+
+    def _draft(self, d: Dict[str, Any], s: i18n.Strings) -> List[str]:
+        out: List[str] = []
+        if not d["rows"]:
+            out.append(s("draft.no_stages"))
+        elif d["chronological"]:
+            out.append(s("draft.chronological", mode=d["mode"]))
+            for r in d["rows"]:
+                kind = s("draft.pick" if r["is_pick"] else "draft.ban")
+                out.append(f"  #{r['order']:>2} {r['side']:<7} {kind:<3} {r['hero']}")
+        else:
+            out.append(s("draft.grouped", mode=d["mode"]))
+            for label, rows in ((s("draft.bans"), d["bans"]), (s("draft.picks"), d["picks"])):
+                listed = ", ".join(f"{r['side'][0]}:{r['hero']}" for r in rows) or s("dash")
+                out.append(f"  {label}: {listed}")
+
+        for side, rows in (("Radiant", d["radiant"]), ("Dire", d["dire"])):
+            out.append(f"{side}:")
+            out += [f"  - {p['hero']} | {self._position(s, p['position_key'], p['lane_key'])}"
+                    for p in rows]
+        return out
+
+    def _scoreboard(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        out = [s("scoreboard.columns")]
         for r in rows:
             out.append(f"  {r['who']} | {r['lvl']} | {r['kda']} | {r['lh_dn']} | {r['gpm_xpm']} | "
                        f"{r['nw']} | {r['hd']} | {r['td']} | {r['heal']} | {r['dt']}")
-        out.append("")
         return out
 
-    def _benchmarks(self, rows: List[Dict[str, Any]], policy: Policy) -> List[str]:
-        out = ["## БЕНЧМАРКИ (сравнение с типичными на этом герое; перцентиль 0–100)"]
+    def _benchmarks(self, rows: List[Dict[str, Any]], policy: Policy,
+                    s: i18n.Strings) -> List[str]:
+        out = []
         for r in rows:
             if not r["rows"]:
                 continue
-            metrics = "; ".join(f"{x['metric']} {x['raw']} ({x['pct']})" for x in r["rows"])
+            metrics = "; ".join(
+                "{label} {raw} ({pct})".format(
+                    label=s(f"bench.{x['metric']}"), raw=x["raw"],
+                    pct=s("bench.percentile", pct=x["pct"]) if x["pct"] is not None else "?")
+                for x in r["rows"])
             out.append(f"  {r['who']}: {metrics}")
         if not policy.at_least("benchmarks", EXPANDED):
-            out.append("  (бенчмарки остальных игроков — в режиме --depth deep)")
-        out.append("")
+            out.append(f"  {s('bench.more')}")
         return out
 
-    def _networth(self, nw: Dict[str, Any]) -> List[str]:
-        out = ["## ЭКОНОМИКА: ПЕРЕВЕС КОМАНД И КРИВЫЕ НЕТВОРТА", nw["note"], ""]
-
-        out.append("Перевес моей команды (>0 — впереди мы), золото / опыт:")
+    def _networth(self, nw: Dict[str, Any], s: i18n.Strings) -> List[str]:
+        out = [s("nw.note", step=nw["step"]), "", s("nw.team")]
         for t in nw["team"]:
-            out.append(f"  m{t['m']:>2}: золото {_fmt_signed(t['gold'])}, "
-                       f"опыт {_fmt_signed(t['xp'])}")
+            row = s("nw.row", gold=_signed(t["gold"]), xp=_signed(t["xp"]))
+            out.append(f"  m{t['m']:>2}: {row}")
 
-        out.append("Переломы (минуты, где перевес по золоту менял знак):")
-        out += [f"  m{s['m']}: {s['text']} ({_fmt_signed(s['gold'])} золота)"
-                for s in nw["swings"]] or ["  — (перевес не менял знак)"]
+        out.append(s("nw.swings"))
+        out += [f"  " + s("nw.swing_row", m=x["m"], text=s(x["key"]), gold=_signed(x["gold"]))
+                for x in nw["swings"]] or [f"  {s('nw.no_swings')}"]
 
         if nw.get("peak"):
             best, worst = nw["peak"]["best"], nw["peak"]["worst"]
-            out.append(f"Максимум: {_fmt_signed(best['gold'])} на m{best['m']}; "
-                       f"минимум: {_fmt_signed(worst['gold'])} на m{worst['m']}")
+            out.append(s("nw.peak", best=_signed(best["gold"]), best_m=best["m"],
+                         worst=_signed(worst["gold"]), worst_m=worst["m"]))
 
-        out.append("")
-        out.append("Кривые нетворта:")
+        out += ["", s("nw.curves")]
         for c in nw["curves"]:
-            series = ", ".join(f"m{s['m']}={s['nw']}" for s in c["series"] if s["nw"] is not None)
+            series = ", ".join(f"m{p['m']}={p['nw']}" for p in c["series"] if p["nw"] is not None)
             out.append(f"  {c['who']}: {series}")
-        out.append("")
         return out
 
-    def _items(self, rows: List[Dict[str, Any]]) -> List[str]:
-        out = ["## ПРЕДМЕТЫ И ТАЙМИНГИ (собранные предметы; компоненты и расходники скрыты)"]
+    def _items(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        out = []
         for r in rows:
-            timings = ", ".join(f"{t['time']} {t['item']}" for t in r["timings"]) or "—"
-            out.append(f"  {r['who']} [{r['kind']}]: {timings}")
-        out.append("")
+            timings = ", ".join(f"{t['time']} {t['item']}" for t in r["timings"]) or s("dash")
+            out.append(f"  {r['who']} [{s('items.kind.' + r['kind'])}]: {timings}")
         return out
 
-    def _abilities(self, rows: List[Dict[str, Any]]) -> List[str]:
-        out = ["## РАСКАЧКА СПОСОБНОСТЕЙ (#N — порядок прокачки, не уровень героя)"]
+    def _abilities(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        out = []
         for r in rows:
-            build = ", ".join(f"#{b['n']} {b['ability']}" for b in r["build"]) or "—"
+            build = ", ".join(
+                "#{n} {name}".format(
+                    n=b["n"],
+                    name=s("abilities.talent", name=b["name"]) if b["talent"] else b["name"])
+                for b in r["build"]) or s("dash")
             out.append(f"  {r['who']}: {build}")
-        out.append("")
         return out
 
-    def _laning(self, ln: Dict[str, Any]) -> List[str]:
-        out = ["## ЛАЙНИНГ 0–10",
-               f"Моя линия/роль: {ln['me_lane']} | лайн-эффективность: "
-               f"{ln['me_eff_pct'] if ln['me_eff_pct'] is not None else '?'}%"]
+    def _laning(self, ln: Dict[str, Any], s: i18n.Strings) -> List[str]:
+        eff = ln["me_eff_pct"] if ln["me_eff_pct"] is not None else "?"
+        out = [s("laning.me", position=self._position(s, ln["position_key"], ln["lane_key"]),
+                 eff=eff)]
 
-        out.append("Мои добивания/денаи по минутам:")
+        out.append(s("laning.cs"))
         out.append("  " + ", ".join(f"m{c['min']}:{c['lh']}/{c['dn']}" for c in ln["cs_by_min"]))
 
         if ln["my_gold_xp"]:
-            out.append("Мои золото/опыт по минутам:")
+            out.append(s("laning.gold_xp"))
             out.append("  " + ", ".join(f"m{c['min']}:{c['gold']}g/{c['xp']}xp"
                                         for c in ln["my_gold_xp"]))
 
         if ln["opponents"]:
-            out.append("Соперники по моей линии:")
+            out.append(s("laning.opponents"))
             for o in ln["opponents"]:
-                line = (f"  {o['who']} | {o['pos']} | лайн-эффективность "
-                        f"{o['eff_pct'] if o['eff_pct'] is not None else '?'}%")
+                line = "  " + s("laning.opponent", who=o["who"],
+                                position=self._position(s, o["position_key"], o["lane_key"]),
+                                eff=o["eff_pct"] if o["eff_pct"] is not None else "?")
                 if ln["detailed"]:
-                    line += "\n    добивания/денаи: " + ", ".join(
+                    line += "\n    " + s("laning.opponent_cs") + ", ".join(
                         f"m{c['min']}:{c['lh']}/{c['dn']}" for c in o["cs_by_min"])
                 out.append(line)
 
-        out.append("Мои киллы в лайнинге:")
-        out += [f"  {k['time']} убил {k['victim']}" for k in ln["my_kills"]] or ["  —"]
-        out.append("Мои смерти в лайнинге:")
-        out += [f"  {d['time']} погиб от {d['killer']}" for d in ln["my_deaths"]] or ["  —"]
+        out.append(s("laning.my_kills"))
+        out += [f"  " + s("laning.killed", time=k["time"], victim=k["victim"])
+                for k in ln["my_kills"]] or [f"  {s('dash')}"]
+        out.append(s("laning.my_deaths"))
+        out += [f"  " + s("laning.died", time=d["time"], killer=d["killer"])
+                for d in ln["my_deaths"]] or [f"  {s('dash')}"]
 
         if ln["lane_efficiency_all"]:
-            out.append("Лайн-эффективность всех (для сравнения линий):")
+            out.append(s("laning.eff_all"))
             out.append("  " + ", ".join(f"{e['who']}={e['eff_pct']}%"
                                         for e in ln["lane_efficiency_all"]))
-        out.append("")
         return out
 
-    def _combat(self, rows: List[Dict[str, Any]]) -> List[str]:
-        out = ["## БОЙ И ЭКОНОМИКА (доп. счётчики)"]
+    def _combat(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        out = []
         for r in rows:
-            kt = ", ".join(f"{name}:{val}" for name, val in r["kills_by_type"].items() if val)
-            line = (f"  {r['who']}: серия {r['best_streak']}, мультикилл x{r['best_multikill']}, "
-                    f"стан {r['stuns_sec']}с, стак лагерей {r['camps_stacked']}, "
-                    f"руны {r['runes']}, варды {r['obs']}обс/{r['sen']}сен, "
-                    f"выкупы {r['buybacks']}, мёртв {r['time_dead']}")
-            if kt:
-                line += f" | добито: {kt}"
+            line = "  {who}: {body}".format(who=r["who"], body=s(
+                "combat.row", streak=r["best_streak"], multi=r["best_multikill"],
+                stuns=r["stuns_sec"], camps=r["camps_stacked"], runes=r["runes"],
+                obs=r["obs"], sen=r["sen"], buybacks=r["buybacks"], dead=r["time_dead"]))
+
+            killed = ", ".join(f"{s('kills.' + name)}:{val}"
+                               for name, val in r["kills_by_type"].items() if val)
+            if killed:
+                line += " | " + s("combat.killed", items=killed)
+
             extra = r.get("extra") or {}
             if extra:
-                bits = [f"APM {extra['apm']}", f"пинги {extra['pings']}"]
+                bits = [s("combat.apm", apm=extra["apm"]), s("combat.pings", pings=extra["pings"])]
                 if extra.get("max_hero_hit"):
-                    bits.append(f"max_hero_hit (крупнейший одиночный удар по герою) "
-                                f"{extra['max_hero_hit']}")
+                    bits.append(s("combat.max_hit", value=extra["max_hero_hit"]))
                 line += " | " + ", ".join(bits)
             out.append(line)
-        out.append("")
         return out
 
-    def _buffs(self, rows: List[Dict[str, Any]]) -> List[str]:
-        out = ["## ПОСТОЯННЫЕ БАФФЫ (только реально накопленные стаки)"]
+    def _buffs(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        out = []
         for r in rows:
-            b = ", ".join(f"{x['name']} ×{x['stacks']}"
-                          + (f" (с {x['since']})" if x["since"] else "")
-                          for x in r["buffs"])
-            out.append(f"  {r['who']}: {b}")
-        out.append("")
+            buffs = ", ".join(
+                f"{x['name']} ×{x['stacks']}"
+                + (" " + s("buffs.since", time=x["since"]) if x["since"] else "")
+                for x in r["buffs"])
+            out.append(f"  {r['who']}: {buffs}")
         return out
 
-    def _teamfights(self, tfs: List[Dict[str, Any]], policy: Policy) -> List[str]:
-        out = ["## ТИМФАЙТЫ"]
+    def _teamfights(self, tfs: List[Dict[str, Any]], policy: Policy,
+                    s: i18n.Strings) -> List[str]:
         if not tfs:
-            return out + ["  — (в матче не выделено крупных тимфайтов)", ""]
+            return [f"  {s('tf.none')}"]
 
         detailed = policy.at_least("teamfights", EXPANDED)
+        out = []
         for i, tf in enumerate(tfs, 1):
-            tag = " (лайнинг)" if tf["in_lane"] else ""
             me = tf["me"]
-            mine = (f"я: урон {me['damage']}, смертей {me['deaths']}, "
-                    f"Δgold {_fmt_signed(me['gold_delta'])}")
+            mine = s("tf.me", damage=me["damage"], deaths=me["deaths"],
+                     gold=_signed(me["gold_delta"]))
             if me["killed"]:
-                mine += f", убил: {', '.join(me['killed'])}"
+                mine += ", " + s("tf.me_killed", heroes=", ".join(me["killed"]))
 
-            header = (f"Бой {i}: {tf['start']}–{tf['end']}{tag} | {tf['score']} — "
-                      f"{tf['verdict']} | {mine}")
-            if detailed:
-                out.append(header)
-                out.append(f"    погибли: {', '.join(tf['fallen']) or '—'}")
-                for p in tf["participants"]:
-                    out.append(f"    {p['who']}: Δgold={_fmt_signed(p['gold_delta'])}, "
-                               f"Δxp={_fmt_signed(p['xp_delta'])}, смертей={p['deaths']}, "
-                               f"урон={p['damage']}, лечение={p['healing']}")
-            else:
-                out.append(header)
-                if tf["fallen"]:
-                    out.append(f"    погибли: {', '.join(tf['fallen'])}")
+            out.append(s("tf.header", n=i, start=tf["start"], end=tf["end"],
+                         lane=s("tf.lane_tag") if tf["in_lane"] else "",
+                         score=s("tf.score", mine=tf["my_losses"], theirs=tf["enemy_losses"]),
+                         verdict=s(tf["verdict"]), me=mine))
+
+            if tf["fallen"] or detailed:
+                out.append("    " + s("tf.fallen",
+                                      heroes=", ".join(tf["fallen"]) or s("dash")))
+            for p in tf["participants"]:
+                out.append("    " + s("tf.detail", who=p["who"], gold=_signed(p["gold_delta"]),
+                                      xp=_signed(p["xp_delta"]), deaths=p["deaths"],
+                                      damage=p["damage"], healing=p["healing"]))
         if not detailed:
-            out.append("  (поимённая раскладка боёв — в --depth deep или --focus fights)")
-        out.append("")
+            out.append(f"  {s('tf.more')}")
         return out
 
     def _damage(self, rows: List[Dict[str, Any]]) -> List[str]:
-        out = ["## УРОН ПО ГЕРОЯМ (топ-цели)"]
+        out = []
         for r in rows:
             if not r["targets"]:
                 continue
-            t = ", ".join(f"{x['hero']}:{x['dmg']}" for x in r["targets"])
-            out.append(f"  {r['who']}: {t}")
-        out.append("")
+            targets = ", ".join(f"{x['hero']}:{x['dmg']}" for x in r["targets"])
+            out.append(f"  {r['who']}: {targets}")
         return out
 
-    def _objectives(self, objs: List[Dict[str, Any]]) -> List[str]:
-        out = ["## ОБЪЕКТИВЫ (строения / Рошан / Тормантор / первая кровь)"]
-        out += [f"  {o['time']} {o['event']}" for o in objs] or ["  —"]
-        out.append("")
-        return out
+    def _objectives(self, objs: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        return [f"  {o['time']} {self._objective_text(o, s)}" for o in objs]
 
-    def _limitations(self, features: Features) -> List[str]:
-        note = [
-            "## ОГРАНИЧЕНИЯ ДАННЫХ (важно, не додумывай)",
-            "- Нетворт/опыт/CS доступны с гранулярностью 1 точка в минуту — это максимум OpenDota.",
-            "- Позиции игроков — только агрегированный хитмап, НЕ временной ряд координат.",
-            "- HP-по-времени и посекундные размены недоступны (появятся в Тир 3, свой парсер).",
-            "- Позиции 1–5 и роли — эвристика по линии и нетворту, а не факт из источника.",
-        ]
-        note += features.caveats
+    @staticmethod
+    def _objective_text(o: Dict[str, Any], s: i18n.Strings) -> str:
+        kind, p = o["kind"], o.get("params") or {}
+        if kind == "building":
+            if p.get("hero"):
+                by = s("obj.by_hero", hero=p["hero"])
+            elif p.get("by_creeps"):
+                by = s("obj.by_creeps")
+            else:
+                by = ""
+            return s("obj.building", attacker=p["attacker"], victim=p["victim"],
+                     kind=s(f"obj.{p['building']}"), short=p["short"], by=by)
+        if kind in ("roshan", "tormentor", "courier"):
+            return s(f"obj.{kind}", team=p.get("team", "?"))
+        return s(f"obj.{kind}")
+
+    def _limitations(self, features: Features, s: i18n.Strings) -> List[str]:
+        out = [s("limit.granularity"), s("limit.positions"), s("limit.hp"), s("limit.roles")]
+        out += [s(key, **params) for key, params in features.caveats]
         if not features.meta.get("parsed"):
-            note.append("- ВНИМАНИЕ: матч распарсен не полностью — часть детальных полей "
-                        "может быть пустой.")
-        note.append("")
-        return note
-
-    def _task(self, policy: Policy) -> List[str]:
-        out = ["## ЗАДАЧА"]
-        out += [f"{i}. {t}" for i, t in enumerate(policy.tasks(), 1)]
-        out.append("Опирайся на цифры выше и будь конкретным.")
+            out.append(s("limit.unparsed"))
         return out
+
+    @staticmethod
+    def _note(policy: Policy) -> List[str]:
+        # В markdown вопрос нужно выделить визуально, иначе он теряется среди
+        # заголовков. В XML границу уже задаёт тег — рамка была бы лишним шумом.
+        framed = profile(policy.model).wrapper != "xml"
+        body = [f"  {line.strip()}" if line.strip() else ""
+                for line in (policy.note or "").splitlines()]
+        if not framed:
+            return [line.strip() for line in body]
+        rule = "=" * 74
+        return [rule, *body, rule]

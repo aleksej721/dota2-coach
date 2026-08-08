@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dota2coach</title>
+<!--I18N-->
+<style>
+/* ============================================================
+   Токены. Тёмная тема — база, светлая переопределяет тот же набор,
+   поэтому стеклянная эстетика в обеих одна и та же.
+   ============================================================ */
+:root {
+  --bg:            #0a0b0f;
+  --text:          #f2f3f7;
+  --muted:         #9aa0ae;
+  --faint:         #6b7180;
+
+  --glass-bg:      rgba(255, 255, 255, .052);
+  --glass-border:  rgba(255, 255, 255, .092);
+  --glass-hi:      rgba(255, 255, 255, .16);
+  --field-bg:      rgba(255, 255, 255, .04);
+  --field-border:  rgba(255, 255, 255, .10);
+  --field-hover:   rgba(255, 255, 255, .17);
+  --solid:         rgba(10, 11, 15, .55);
+  --code:          #dfe3ec;
+
+  --accent:        #6d6df0;
+  --accent-2:      #a274f5;
+  --accent-soft:   rgba(109, 109, 240, .16);
+  --on-accent:     #fff;
+
+  --danger:        #ff8080;
+  --danger-bg:     rgba(255, 90, 90, .10);
+  --danger-bd:     rgba(255, 90, 90, .28);
+  --warn:          #ffc46b;
+  --warn-bg:       rgba(255, 180, 80, .09);
+  --warn-bd:       rgba(255, 180, 80, .26);
+
+  --glow-1: rgba(109, 109, 240, .26);
+  --glow-2: rgba(162, 116, 245, .18);
+  --glow-3: rgba(70, 110, 220, .14);
+
+  --shadow: 0 22px 60px rgba(0, 0, 0, .48), 0 2px 8px rgba(0, 0, 0, .30);
+  --scroll: rgba(255, 255, 255, .16);
+
+  --r-lg: 20px;
+  --r-md: 13px;
+  --r-sm: 10px;
+  --ease: cubic-bezier(.22, .8, .28, 1);
+  --dur: .2s;
+  --space-1: 6px;
+  --space-2: 10px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+          system-ui, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Светлая тема: стекло становится светлым и НЕПРОЗРАЧНЕЕ — на светлом фоне
+   тонкая плёнка не читается, а контраст текста важнее силы блюра. */
+:root[data-theme="light"] {
+  --bg:            #eef0f6;
+  --text:          #16181f;
+  --muted:         #5a6172;
+  --faint:         #868da0;
+
+  --glass-bg:      rgba(255, 255, 255, .62);
+  --glass-border:  rgba(16, 20, 40, .10);
+  --glass-hi:      rgba(255, 255, 255, .85);
+  --field-bg:      rgba(255, 255, 255, .72);
+  --field-border:  rgba(16, 20, 40, .14);
+  --field-hover:   rgba(16, 20, 40, .26);
+  --solid:         rgba(255, 255, 255, .86);
+  --code:          #232838;
+
+  --accent:        #5757e0;
+  --accent-2:      #8f56e8;
+  --accent-soft:   rgba(87, 87, 224, .16);
+
+  --danger:        #b3261e;
+  --danger-bg:     rgba(220, 60, 50, .09);
+  --danger-bd:     rgba(220, 60, 50, .26);
+  --warn:          #8a5a00;
+  --warn-bg:       rgba(230, 160, 40, .13);
+  --warn-bd:       rgba(200, 140, 40, .30);
+
+  --glow-1: rgba(109, 109, 240, .20);
+  --glow-2: rgba(162, 116, 245, .16);
+  --glow-3: rgba(80, 140, 230, .14);
+
+  --shadow: 0 18px 44px rgba(20, 26, 60, .12), 0 2px 6px rgba(20, 26, 60, .07);
+  --scroll: rgba(20, 26, 60, .22);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 44px 24px 90px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.glow {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(680px 460px at 18% -8%,  var(--glow-1), transparent 70%),
+    radial-gradient(560px 420px at 88% 6%,   var(--glow-2), transparent 70%),
+    radial-gradient(760px 520px at 50% 108%, var(--glow-3), transparent 72%);
+}
+
+.wrap { max-width: 1040px; margin: 0 auto; animation: page-in .42s var(--ease) both; }
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ============================================================
+   Шапка и управление
+   ============================================================ */
+header { position: relative; text-align: center; margin-bottom: var(--space-5); }
+
+.logo {
+  display: inline-flex; align-items: center; gap: 11px;
+  font-size: 27px; font-weight: 650; letter-spacing: -.022em;
+}
+.logo svg { width: 27px; height: 27px; }
+.tagline { margin: 8px 0 0; color: var(--muted); font-size: 14.5px; }
+
+.controls {
+  position: absolute; top: 2px; right: 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.ctl {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 11px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit; font-size: 13px; font-weight: 550;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.ctl:hover { border-color: var(--field-hover); }
+.ctl:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%239aa0ae' stroke-width='1.7' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; }
+.ctl svg { width: 15px; height: 15px; }
+
+/* ============================================================
+   Стекло
+   ============================================================ */
+.card {
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.card::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  padding-top: 1px;
+  background: linear-gradient(180deg, var(--glass-hi), transparent 42%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+}
+
+form.card { padding: 0; overflow: clip; }
+
+.form-section {
+  position: relative;
+  padding: 24px 26px;
+}
+.form-section + .form-section { border-top: 1px solid var(--glass-border); }
+.section-head {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 16px; color: var(--text);
+  font-size: 13px; font-weight: 650; letter-spacing: .01em;
+}
+.section-index {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 25px; height: 25px; border-radius: 9px;
+  color: var(--accent); background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  font-size: 11px; font-weight: 720; font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Поля
+   ============================================================ */
+.row { display: grid; gap: 16px; }
+.row-2 { grid-template-columns: 1fr 1fr; }
+.row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.row-4 { grid-template-columns: 1.12fr 1.18fr 1fr 1.08fr; }
+.row-note { grid-template-columns: 2fr 1fr; align-items: start; }
+.row + .row, .row + .field, .field + .row { margin-top: 16px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.lbl {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12.5px; font-weight: 560; color: var(--muted);
+}
+.lbl .opt { color: var(--faint); font-weight: 500; }
+
+input[type="text"], textarea, select.fld {
+  width: 100%;
+  padding: 10px 13px;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-family: inherit; font-size: 15px; line-height: 1.45;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
+              box-shadow var(--dur) var(--ease);
+  min-height: 44px;
+}
+input::placeholder, textarea::placeholder { color: var(--faint); }
+input:hover, textarea:hover, select.fld:hover { border-color: var(--field-hover); }
+input:focus, textarea:focus, select.fld:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3.5px var(--accent-soft);
+}
+textarea { resize: vertical; min-height: 74px; }
+
+select.fld {
+  appearance: none; -webkit-appearance: none; padding-right: 36px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%239aa0ae' stroke-width='1.7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 13px center;
+}
+:root[data-theme="light"] select.fld, :root[data-theme="light"] select.ctl {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%235a6172' stroke-width='1.7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.hint-link {
+  align-self: flex-start;
+  padding: 0; background: none; border: none;
+  color: var(--faint); font: inherit; font-size: 12.5px; cursor: pointer;
+  border-bottom: 1px dashed var(--field-hover);
+  transition: color var(--dur) var(--ease);
+}
+.hint-link:hover { color: var(--muted); }
+#heroField[hidden] { display: none; }
+#heroField { margin-top: 16px; }
+.field-note {
+  margin-top: 2px; color: var(--warn); font-size: 11.5px; line-height: 1.4;
+}
+.field-note[hidden] { display: none; }
+
+/* --- значок подсказки --- */
+.info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; padding: 0;
+  background: none; border: 1px solid var(--field-hover); border-radius: 50%;
+  color: var(--muted); font: inherit; font-size: 10px; font-weight: 700;
+  line-height: 1; cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.info:hover, .info[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.info:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+#hint {
+  position: absolute; z-index: 40; max-width: 380px;
+  padding: 13px 15px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  color: var(--text); font-size: 13.5px; line-height: 1.5;
+  -webkit-backdrop-filter: blur(26px) saturate(160%);
+  backdrop-filter: blur(26px) saturate(160%);
+  animation: pop .16s var(--ease) both;
+}
+/* Подложка: подсказка — мелкий длинный текст, поверх чистого блюра он плывёт. */
+#hint::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; background: var(--solid);
+}
+#hint[hidden] { display: none; }
+@keyframes pop { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+
+/* --- сегмент-тумблер --- */
+.segment {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr;
+  min-height: 44px;
+  padding: 3px; background: var(--field-bg);
+  border: 1px solid var(--field-border); border-radius: var(--r-md);
+}
+.segment .thumb {
+  position: absolute; top: 3px; left: 3px; bottom: 3px; width: calc(50% - 3px);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 4px 14px var(--accent-soft);
+  transition: transform var(--dur) var(--ease);
+}
+.segment[data-value="deep"] .thumb { transform: translateX(100%); }
+.segment label {
+  position: relative; z-index: 1; padding: 7px 0; text-align: center;
+  font-size: 14px; font-weight: 560; color: var(--muted); cursor: pointer;
+  transition: color var(--dur) var(--ease);
+  -webkit-user-select: none; user-select: none;
+}
+.segment input { position: absolute; opacity: 0; pointer-events: none; }
+.segment input:checked + span { color: var(--on-accent); }
+.segment:focus-within { box-shadow: 0 0 0 3.5px var(--accent-soft); }
+
+/* ============================================================
+   Кнопки
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 12px 22px; border: 1px solid transparent; border-radius: var(--r-md);
+  font: inherit; font-size: 15px; font-weight: 590; color: var(--on-accent);
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 24px var(--accent-soft);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+              opacity var(--dur) var(--ease);
+  min-height: 44px;
+}
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(0) scale(.988); }
+.btn:disabled { opacity: .62; cursor: default; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--accent-soft); }
+
+.btn-ghost {
+  background: var(--field-bg); border-color: var(--field-border);
+  box-shadow: none; color: var(--text); font-size: 13.5px; font-weight: 550;
+  padding: 8px 15px;
+}
+.btn-ghost:hover:not(:disabled) { background: var(--accent-soft); transform: none; }
+.btn-ghost:active:not(:disabled) { transform: scale(.975); }
+
+.submit-zone {
+  display: grid; justify-items: center; gap: 10px;
+  padding: 22px 26px 24px; border-top: 1px solid var(--glass-border);
+  background: linear-gradient(180deg, transparent, var(--accent-soft));
+}
+.submit-row { display: flex; justify-content: center; }
+.submit-row .btn { min-width: 200px; }
+
+.spinner {
+  width: 15px; height: 15px;
+  border: 2px solid rgba(255, 255, 255, .35); border-top-color: var(--on-accent);
+  border-radius: 50%; animation: spin .68s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   Статус, панели, результат
+   ============================================================ */
+.status {
+  text-align: center; color: var(--muted);
+  font-size: 13px; font-variant-numeric: tabular-nums; min-height: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.status:empty { display: none; }
+
+.panel {
+  margin-top: 18px; padding: 14px 17px; border-radius: var(--r-md);
+  font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.panel::before { display: inline-block; margin-right: 8px; font-weight: 750; }
+.panel-error::before { content: "!"; }
+.panel-warn::before { content: "i"; }
+.panel-error { background: var(--danger-bg); border: 1px solid var(--danger-bd); color: var(--danger); }
+.panel-warn  { background: var(--warn-bg);  border: 1px solid var(--warn-bd);  color: var(--warn); }
+.panel strong { display: block; margin-bottom: 3px; font-weight: 620; }
+
+#result { margin-top: 20px; padding: 18px; }
+
+.result-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; margin-bottom: 13px;
+}
+.meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chip {
+  padding: 3.5px 10px; background: var(--field-bg);
+  border: 1px solid var(--field-border); border-radius: 99px;
+  font-size: 12.5px; font-weight: 550; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.chip-accent { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.actions { display: flex; gap: 8px; }
+
+pre#promptText {
+  margin: 0; max-height: 440px; padding: 15px 17px; overflow: auto;
+  background: var(--solid); border: 1px solid var(--field-border);
+  border-radius: var(--r-md);
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.62;
+  color: var(--code); white-space: pre; tab-size: 2;
+  scrollbar-color: var(--scroll) transparent;
+}
+pre#promptText::-webkit-scrollbar { width: 11px; height: 11px; }
+pre#promptText::-webkit-scrollbar-corner { background: transparent; }
+pre#promptText::-webkit-scrollbar-thumb {
+  background: var(--scroll); border: 3px solid transparent;
+  background-clip: content-box; border-radius: 99px;
+}
+
+.disclaimer {
+  display: flex; gap: 9px; margin-top: 13px;
+  color: var(--muted); font-size: 12.5px; line-height: 1.5;
+}
+.disclaimer svg { flex: none; width: 15px; height: 15px; margin-top: 2px; color: var(--faint); }
+
+.reveal { animation: reveal .3s var(--ease) both; }
+@keyframes reveal { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+
+.foot { margin-top: 26px; text-align: center; color: var(--faint); font-size: 12.5px; }
+.foot code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+@media (max-width: 760px) {
+  body { padding: 24px 14px 54px; }
+  .row-2, .row-3, .row-4, .row-note { grid-template-columns: 1fr; }
+  header { text-align: left; }
+  .controls { position: static; justify-content: flex-start; margin-top: 12px; }
+  .ctl { height: 44px; }
+  .form-section { padding: 20px 17px; }
+  .submit-zone { padding: 20px 17px; }
+  .submit-row, .submit-row .btn { width: 100%; }
+  .result-bar { align-items: stretch; }
+  .actions { width: 100%; }
+  .actions .btn { flex: 1; padding-inline: 12px; }
+  pre#promptText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55vh; }
+}
+
+@media (min-width: 761px) and (max-width: 980px) {
+  .row-4 { grid-template-columns: 1fr 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2.6 21 7.4v9.2L12 21.4 3 16.6V7.4z" stroke="url(#g)" stroke-width="1.7" stroke-linejoin="round"/>
+        <path d="M12 8.1 16.2 10.4v4.6L12 17.3 7.8 15V10.4z" fill="url(#g)" opacity=".85"/>
+        <defs><linearGradient id="g" x1="3" y1="2" x2="21" y2="21">
+          <stop stop-color="#6d6df0"/><stop offset="1" stop-color="#a274f5"/>
+        </linearGradient></defs>
+      </svg>
+      <span data-i18n="title">dota2coach</span>
+    </div>
+    <p class="tagline" data-i18n="tagline"></p>
+
+    <div class="controls">
+      <select class="ctl" id="langSelect" data-i18n-title="lang.toggle"></select>
+      <button type="button" class="ctl" id="themeBtn" data-i18n-title="theme.toggle">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" aria-hidden="true"></svg>
+      </button>
+    </div>
+  </header>
+
+  <form class="card" id="form" autocomplete="off">
+    <section class="form-section" aria-labelledby="groupPlayer">
+      <h2 class="section-head" id="groupPlayer">
+        <span class="section-index">01</span><span data-i18n="group.player"></span>
+      </h2>
+      <div class="row row-2">
+        <div class="field">
+          <span class="lbl"><label for="matchId" data-i18n="field.match"></label>
+            <button type="button" class="info" data-hint="hint.match" aria-expanded="false">?</button>
+          </span>
+          <input id="matchId" type="text" data-i18n-ph="field.match.ph" required>
+        </div>
+        <div class="field">
+          <span class="lbl"><label for="accountId" data-i18n="field.account"></label>
+            <button type="button" class="info" data-hint="hint.account" aria-expanded="false">?</button>
+          </span>
+          <input id="accountId" type="text" inputmode="numeric" data-i18n-ph="field.account.ph">
+          <button type="button" class="hint-link" id="heroToggle" data-i18n="field.hero_toggle"></button>
+        </div>
+      </div>
+
+      <div class="field" id="heroField" hidden>
+        <span class="lbl"><label for="hero" data-i18n="field.hero"></label></span>
+        <input id="hero" type="text" data-i18n-ph="field.hero.ph">
+      </div>
+    </section>
+
+    <section class="form-section" aria-labelledby="groupAnalysis">
+      <h2 class="section-head" id="groupAnalysis">
+        <span class="section-index">02</span><span data-i18n="group.analysis"></span>
+      </h2>
+      <div class="row row-4">
+        <div class="field">
+          <span class="lbl"><label for="roleSelect" data-i18n="field.role"></label>
+            <button type="button" class="info" data-hint="hint.role" aria-expanded="false">?</button>
+          </span>
+          <select class="fld" id="roleSelect"></select>
+        </div>
+        <div class="field">
+          <span class="lbl"><label for="focus" data-i18n="field.focus"></label>
+            <button type="button" class="info" data-hint="hint.focus" aria-expanded="false">?</button>
+          </span>
+          <select class="fld" id="focus"></select>
+          <span class="field-note" id="focusNote" aria-live="polite" hidden></span>
+        </div>
+        <div class="field">
+          <span class="lbl"><span id="depthLabel" data-i18n="field.depth"></span>
+            <button type="button" class="info" data-hint="hint.depth" aria-expanded="false">?</button>
+          </span>
+          <div class="segment" id="depth" data-value="quick" role="radiogroup" aria-labelledby="depthLabel">
+            <div class="thumb" aria-hidden="true"></div>
+            <label><input type="radio" name="depth" value="quick" checked><span>quick</span></label>
+            <label><input type="radio" name="depth" value="deep"><span>deep</span></label>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lbl"><label for="model" data-i18n="field.model"></label>
+            <button type="button" class="info" data-hint="hint.model" aria-expanded="false">?</button>
+          </span>
+          <select class="fld" id="model"></select>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-section" aria-labelledby="groupRequest">
+      <h2 class="section-head" id="groupRequest">
+        <span class="section-index">03</span><span data-i18n="group.request"></span>
+      </h2>
+      <div class="row row-note">
+        <div class="field">
+          <span class="lbl"><label for="note" data-i18n="field.note"></label>
+            <span class="opt" data-i18n="field.note.optional"></span>
+            <button type="button" class="info" data-hint="hint.note" aria-expanded="false">?</button>
+          </span>
+          <textarea id="note" rows="3" data-i18n-ph="field.note.ph"></textarea>
+        </div>
+        <div class="field">
+          <span class="lbl"><label for="mmr" data-i18n="field.mmr"></label>
+            <span class="opt" data-i18n="field.mmr.optional"></span>
+            <button type="button" class="info" data-hint="hint.mmr" aria-expanded="false">?</button>
+          </span>
+          <input id="mmr" type="text" data-i18n-ph="field.mmr.ph">
+        </div>
+      </div>
+    </section>
+
+    <div class="submit-zone">
+      <div class="submit-row">
+        <button type="submit" class="btn" id="submitBtn" data-i18n="submit"></button>
+      </div>
+      <div class="status" id="status" aria-live="polite"></div>
+    </div>
+  </form>
+
+  <div class="panel panel-error reveal" id="error" hidden></div>
+  <div class="panel panel-warn reveal" id="warning" hidden></div>
+
+  <section class="card reveal" id="result" hidden>
+    <div class="result-bar">
+      <div class="meta">
+        <span class="chip" id="chipSize"></span>
+        <span class="chip" id="chipTokens"></span>
+        <span class="chip" id="chipDepth"></span>
+        <span class="chip" id="chipFocus"></span>
+        <span class="chip" id="chipModel"></span>
+        <span class="chip chip-accent" id="chipRole"></span>
+        <span class="chip chip-accent" id="chipNote" hidden></span>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" id="copyBtn"></button>
+        <button type="button" class="btn btn-ghost" id="downloadBtn"></button>
+      </div>
+    </div>
+    <pre id="promptText"></pre>
+    <p class="disclaimer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01" stroke-linecap="round"/>
+      </svg>
+      <span data-i18n="disclaimer"></span>
+    </p>
+  </section>
+
+  <p class="foot">
+    <code>python -m dota2coach analyze &lt;match_id&gt; --me &lt;account_id&gt;</code>
+  </p>
+</div>
+
+<div id="hint" role="dialog" hidden></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const CFG = window.I18N;
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), statusEl = $("status"), errorEl = $("error"),
+        warnEl = $("warning"), resultEl = $("result"), promptEl = $("promptText"),
+        submitBtn = $("submitBtn"), depthSeg = $("depth"), hintEl = $("hint"),
+        roleSel = $("roleSelect"), focusNote = $("focusNote");
+
+  const STORE = "dota2coach:prefs";
+  // Версия формата настроек. Настройки прошлых версий игнорируем: например,
+  // раньше глубина сохранялась всегда, и это молча отменяло дефолт модели.
+  const PREFS_VERSION = 3;
+  let lang = CFG.defaultLang;
+  let theme = "dark";
+  let depthTouched = false;      // трогал ли пользователь тумблер глубины
+  let currentFilename = "prompt.txt";
+  let ticker = null;
+  let focusNoteTimer = null;
+
+  const t = (key, params) => {
+    let s = (CFG.strings[lang] || {})[key];
+    if (s === undefined) return key;
+    if (params) for (const k in params) s = s.replaceAll("{" + k + "}", params[k]);
+    return s;
+  };
+
+  /* ============================================================
+     Настройки: язык, тема, account_id и режимы переживают перезагрузку
+     ============================================================ */
+  const readPrefs = () => {
+    try {
+      const p = JSON.parse(localStorage.getItem(STORE) || "{}");
+      return p.v === PREFS_VERSION ? p : {};
+    } catch { return {}; }
+  };
+  const savePrefs = () => {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        v: PREFS_VERSION, lang, theme,
+        accountId: $("accountId").value.trim(),
+        depth: depthTouched ? depthSeg.dataset.value : null,
+        role: roleSel.value || null,
+        focus: $("focus").value,
+        model: $("model").value,
+        mmr: $("mmr").value.trim(),
+      }));
+    } catch { /* приватный режим — просто не сохраняем */ }
+  };
+
+  /* ============================================================
+     Тема
+     ============================================================ */
+  const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>';
+  const MOON = '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>';
+
+  const applyTheme = () => {
+    document.documentElement.dataset.theme = theme;
+    // Иконка показывает, КУДА переключит клик, а не текущее состояние.
+    $("themeIcon").innerHTML = theme === "dark" ? SUN : MOON;
+  };
+
+  $("themeBtn").addEventListener("click", () => {
+    theme = theme === "dark" ? "light" : "dark";
+    applyTheme(); savePrefs();
+  });
+
+  /* ============================================================
+     Язык: перерисовываем подписи, плейсхолдеры и содержимое селектов
+     ============================================================ */
+  const renderRoleOptions = () => {
+    const keep = roleSel.value;
+    roleSel.innerHTML = "";
+    roleSel.append(new Option(t("role.auto"), ""));
+    for (const code of CFG.roles) {
+      roleSel.append(new Option(t("role." + code), code));
+    }
+    roleSel.value = CFG.roles.includes(keep) ? keep : "";
+  };
+
+  const renderFocusOptions = (notify = false) => {
+    const focusSel = $("focus");
+    const keep = focusSel.value;
+    const allowed = roleSel.value && CFG.roleFocuses[roleSel.value]
+      ? CFG.roleFocuses[roleSel.value]
+      : CFG.focuses;
+    focusSel.innerHTML = "";
+    for (const code of allowed) {
+      focusSel.append(new Option(t("focus." + code), code));
+    }
+    const preserved = allowed.includes(keep);
+    focusSel.value = preserved ? keep : "full";
+
+    clearTimeout(focusNoteTimer);
+    focusNote.hidden = !(notify && keep && !preserved);
+    if (!focusNote.hidden) {
+      focusNote.textContent = t("focus.adjusted");
+      focusNoteTimer = setTimeout(() => { focusNote.hidden = true; }, 5000);
+    }
+  };
+
+  const applyLang = () => {
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
+      el.placeholder = t(el.dataset.i18nPh);
+    });
+    document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+      el.title = t(el.dataset.i18nTitle);
+    });
+
+    renderRoleOptions();
+    renderFocusOptions(false);
+
+    $("submitBtn").textContent = submitBtn.disabled ? t("submit.busy") : t("submit");
+    $("copyBtn").textContent = t("result.copy");
+    $("downloadBtn").textContent = t("result.download");
+    $("chipNote").textContent = t("result.with_note");
+    if ($("chipRole").textContent) {
+      const role = roleSel.value;
+      $("chipRole").textContent = t("result.role", {
+        role: role ? t("role." + role) : t("role.auto"),
+      });
+    }
+    if (!hintEl.hidden) hintEl.hidden = true;
+  };
+
+  /* ============================================================
+     Подсказки: по клику, а не по ховеру — ховер недоступен с клавиатуры
+     ============================================================ */
+  let openHintBtn = null;
+
+  const closeHint = () => {
+    hintEl.hidden = true;
+    if (openHintBtn) openHintBtn.setAttribute("aria-expanded", "false");
+    openHintBtn = null;
+  };
+
+  const openHint = (btn) => {
+    hintEl.textContent = t(btn.dataset.hint);
+    hintEl.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    openHintBtn = btn;
+
+    // Позиционируем под значком и удерживаем в пределах окна.
+    const r = btn.getBoundingClientRect();
+    const w = Math.min(380, window.innerWidth - 32);
+    hintEl.style.width = w + "px";
+    let left = r.left + window.scrollX - 6;
+    left = Math.min(left, window.scrollX + window.innerWidth - w - 16);
+    hintEl.style.left = Math.max(window.scrollX + 16, left) + "px";
+    hintEl.style.top = (r.bottom + window.scrollY + 8) + "px";
+  };
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".info");
+    if (btn) {
+      e.preventDefault();
+      if (openHintBtn === btn) closeHint(); else openHint(btn);
+      return;
+    }
+    if (!e.target.closest("#hint")) closeHint();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeHint(); });
+  window.addEventListener("resize", closeHint);
+
+  /* ============================================================
+     Форма
+     ============================================================ */
+  depthSeg.addEventListener("change", (e) => {
+    if (e.target.name !== "depth") return;
+    depthSeg.dataset.value = e.target.value;
+    depthTouched = true;
+  });
+
+  const setDepth = (value) => {
+    depthSeg.dataset.value = value;
+    depthSeg.querySelector(`input[value="${value}"]`).checked = true;
+  };
+
+  // Пока глубину не трогали руками, она следует за дефолтом выбранной модели.
+  $("model").addEventListener("change", () => {
+    if (depthTouched) return;
+    const m = CFG.models.find((x) => x.code === $("model").value);
+    if (m) setDepth(m.defaultDepth);
+  });
+
+  roleSel.addEventListener("change", () => {
+    renderFocusOptions(true);
+    savePrefs();
+  });
+
+  $("heroToggle").addEventListener("click", () => {
+    const f = $("heroField");
+    f.hidden = !f.hidden;
+    if (!f.hidden) $("hero").focus({ preventScroll: true });
+  });
+
+  /* Из ссылки на матч вытаскиваем номер: люди копируют именно ссылку. */
+  const parseMatchId = (raw) => {
+    const digits = String(raw).match(/\d{5,}/g);
+    if (!digits) return null;
+    const best = digits.sort((a, b) => b.length - a.length)[0];
+    return Number(best);
+  };
+
+  const estimateTokens = (text) => {
+    // Грубая оценка: у кириллицы токенов на символ заметно больше, чем у латиницы.
+    const cyr = (text.match(/[Ѐ-ӿ]/g) || []).length / Math.max(text.length, 1);
+    const perToken = 4 - 1.6 * cyr;
+    const n = Math.round(text.length / perToken);
+    return n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n);
+  };
+
+  /* ============================================================
+     Загрузка и ошибки
+     ============================================================ */
+  const STAGES = [[0, "stage.0"], [6, "stage.6"], [14, "stage.14"], [40, "stage.40"]];
+
+  const startTicker = () => {
+    const t0 = Date.now();
+    const tick = () => {
+      const sec = Math.round((Date.now() - t0) / 1000);
+      let key = STAGES[0][1];
+      for (const [at, k] of STAGES) if (sec >= at) key = k;
+      statusEl.textContent = `${t(key)}  ${sec} ${t("stage.seconds")}`;
+    };
+    tick();
+    ticker = setInterval(tick, 1000);
+  };
+  const stopTicker = () => { clearInterval(ticker); ticker = null; statusEl.textContent = ""; };
+
+  const setBusy = (busy) => {
+    submitBtn.disabled = busy;
+    form.setAttribute("aria-busy", String(busy));
+    submitBtn.innerHTML = busy ? '<span class="spinner"></span>' + t("submit.busy") : t("submit");
+  };
+
+  const hide = (...els) => els.forEach((el) => { el.hidden = true; });
+  const showPanel = (el, title, text) => {
+    el.innerHTML = "";
+    if (title) { const b = document.createElement("strong"); b.textContent = title; el.appendChild(b); }
+    el.appendChild(document.createTextNode(text));
+    el.hidden = false;
+  };
+
+  const numOrNull = (v) => { const s = v.trim(); return s === "" ? null : Number(s); };
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    closeHint();
+    hide(errorEl, warnEl, resultEl);
+
+    const matchId = parseMatchId($("matchId").value);
+    if (!matchId) { showPanel(errorEl, t("err.match"), t("err.match.body")); return; }
+
+    const accountId = numOrNull($("accountId").value);
+    const hero = $("hero").value.trim();
+    if (accountId === null && hero === "") {
+      showPanel(errorEl, t("err.who"), t("err.who.body")); return;
+    }
+    if (accountId !== null && (!Number.isInteger(accountId) || accountId <= 0)) {
+      showPanel(errorEl, t("err.account"), t("err.account.body")); return;
+    }
+
+    savePrefs();
+    setBusy(true);
+    startTicker();
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          match_id: matchId,
+          account_id: accountId,
+          hero: hero || null,
+          depth: depthSeg.dataset.value,
+          role: roleSel.value || null,
+          focus: $("focus").value,
+          model: $("model").value,
+          lang: lang,
+          note: $("note").value.trim() || null,
+          mmr: $("mmr").value.trim() || null,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) { showError(res.status, data); return; }
+
+      currentFilename = data.filename || "prompt.txt";
+      promptEl.textContent = data.prompt;
+      $("chipSize").textContent = (data.size_bytes / 1024).toFixed(1) + " " + (lang === "en" ? "KB" : "КБ");
+      $("chipTokens").textContent = t("result.tokens", { n: estimateTokens(data.prompt) });
+      $("chipDepth").textContent = "depth: " + data.depth;
+      $("chipFocus").textContent = "focus: " + data.focus;
+      const m = CFG.models.find((x) => x.code === data.model);
+      $("chipModel").textContent = m ? m.label : data.model;
+      const selectedRole = data.role || roleSel.value;
+      $("chipRole").textContent = t("result.role", {
+        role: selectedRole ? t("role." + selectedRole) : t("role.auto"),
+      });
+      $("chipNote").hidden = !data.has_note;
+      resultEl.hidden = false;
+      if (data.warning === "unparsed") {
+        showPanel(warnEl, t("err.warn_title"), t("warn.unparsed"));
+      }
+      resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch {
+      showPanel(errorEl, t("err.offline"), t("err.offline.body"));
+    } finally {
+      stopTicker();
+      setBusy(false);
+    }
+  });
+
+  function showError(status, data) {
+    const detail = data && data.detail;
+    const kind = detail && typeof detail === "object" ? detail.kind : null;
+    const title = t("err." + status) !== "err." + status ? t("err." + status) : t("err.generic");
+
+    let body = kind ? t("err.body." + kind) : null;
+    if (!body || body.startsWith("err.body.")) {
+      // Неизвестный вид сбоя (например, ошибка валидации pydantic) — показываем
+      // то, что пришло с сервера, лишь бы пользователь не остался без объяснения.
+      body = typeof detail === "string" ? detail
+           : Array.isArray(detail) && detail[0] ? detail[0].msg
+           : (detail && detail.message) || String(status);
+    }
+    // В сообщении про «кто из игроков» server присылает состав матча — он полезен.
+    if (kind === "player_not_found" && detail.message.includes("\n")) {
+      body += "\n" + t("err.roster") + detail.message.split("\n").slice(1).join("\n")
+                                             .replace(/^[^:]*:/, "");
+    }
+    showPanel(errorEl, title, body);
+  }
+
+  /* ============================================================
+     Копирование и скачивание
+     ============================================================ */
+  $("copyBtn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    try {
+      await navigator.clipboard.writeText(promptEl.textContent);
+      btn.textContent = t("result.copied");
+    } catch {
+      const r = document.createRange();
+      r.selectNodeContents(promptEl);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      btn.textContent = t("result.selected");
+    }
+    setTimeout(() => { btn.textContent = t("result.copy"); }, 1800);
+  });
+
+  $("downloadBtn").addEventListener("click", () => {
+    const blob = new Blob([promptEl.textContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = currentFilename; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  form.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") form.requestSubmit();
+  });
+
+  /* ============================================================
+     Старт
+     ============================================================ */
+  const langSel = $("langSelect");
+  for (const l of CFG.languages) langSel.append(new Option(l.name, l.code));
+  const modelSel = $("model");
+  for (const m of CFG.models) modelSel.append(new Option(m.label, m.code));
+
+  const prefs = readPrefs();
+  const browserLang = (navigator.language || "").slice(0, 2);
+  lang = prefs.lang || (CFG.strings[browserLang] ? browserLang : CFG.defaultLang);
+  theme = prefs.theme === "light" ? "light" : "dark";
+  if (prefs.accountId) $("accountId").value = prefs.accountId;
+  if (prefs.mmr) $("mmr").value = prefs.mmr;
+  if (prefs.model && CFG.models.some((m) => m.code === prefs.model)) modelSel.value = prefs.model;
+  if (prefs.depth) { depthTouched = true; setDepth(prefs.depth); }
+  else {
+    const m = CFG.models.find((x) => x.code === modelSel.value);
+    if (m) setDepth(m.defaultDepth);
+  }
+
+  langSel.value = lang;
+  langSel.addEventListener("change", () => { lang = langSel.value; applyLang(); savePrefs(); });
+
+  applyTheme();
+  applyLang();
+  if (prefs.role && CFG.roles.includes(prefs.role)) {
+    roleSel.value = prefs.role;
+    renderFocusOptions(false);
+  }
+  if (prefs.focus && [...$("focus").options].some((o) => o.value === prefs.focus)) {
+    $("focus").value = prefs.focus;
+  }
+  $("matchId").focus({ preventScroll: true });
+})();
+</script>
+</body>
+</html>

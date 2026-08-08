@@ -13,9 +13,22 @@ from abc import ABC, abstractmethod
 
 from ..model import Match
 
+# Виды сбоев. Нужны обёрткам, которым мало текста: веб по ним выбирает HTTP-код,
+# не разбирая сообщение регулярками.
+KIND_NOT_FOUND = "not_found"          # матча нет в OpenDota
+KIND_PLAYER_NOT_FOUND = "player_not_found"  # матч есть, но не понять, кто из игроков — ты
+KIND_RATE_LIMITED = "rate_limited"    # 429
+KIND_NETWORK = "network"              # сеть не отвечает
+KIND_UNAVAILABLE = "unavailable"      # 5xx или мусор вместо JSON
+KIND_UNKNOWN = "unknown"
+
 
 class DataSourceError(Exception):
     """Ожидаемая проблема источника (нет матча, сеть, лимиты). С понятным текстом."""
+
+    def __init__(self, message: str, kind: str = KIND_UNKNOWN):
+        super().__init__(message)
+        self.kind = kind
 
 
 class DataSource(ABC):
