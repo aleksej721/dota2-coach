@@ -80,6 +80,8 @@ class Features:
     teamfights: List[Dict[str, Any]] = field(default_factory=list)
     objectives: List[Dict[str, Any]] = field(default_factory=list)
     damage: List[Dict[str, Any]] = field(default_factory=list)
+    # Выбранный игроком промежуток под лупой. Пусто, если окно не задано.
+    window: Dict[str, Any] = field(default_factory=dict)
     role_impact: Dict[str, Any] = field(default_factory=dict)
     # Статистические отклонения — сырьё для гипотез модели, см. anomalies.py.
     anomalies: List[Anomaly] = field(default_factory=list)
@@ -144,6 +146,10 @@ class FeatureExtractor:
             f.objectives = self._objectives(match, policy)
         if policy.shows("damage"):
             f.damage = [self._damage_row(p, me) for p in self._audience(match, me, policy, "damage")]
+        if policy.shows("window"):
+            f.window = self._window(match, me, policy)
+            f.caveats.append(("caveat.window_compressed",
+                              {"start": policy.window[0], "end": policy.window[1]}))
         return f
 
     # --- общие помощники ------------------------------------------------------
@@ -613,77 +619,135 @@ class FeatureExtractor:
 
     # --- TEAMFIGHTS -----------------------------------------------------------
 
+    def _fight_row(self, match: Match, me: Player, tf: Dict[str, Any],
+                   detailed: bool) -> Dict[str, Any]:
+        """Один тимфайт. Вынесен отдельно: та же раскладка нужна секции окна,
+        где детализация максимальная независимо от глубины остального промпта."""
+        my_idx = match.players.index(me)
+        tf_players = tf.get("players") or []
+        rad_deaths = dire_deaths = 0
+        fallen: List[str] = []
+        participants = []
+
+        for idx, p in enumerate(match.players):
+            if idx >= len(tf_players):
+                continue
+            fp = tf_players[idx]
+            deaths = fp.get("deaths") or 0
+            if deaths:
+                fallen.append(self._short_tag(p, me))
+                if p.is_radiant:
+                    rad_deaths += deaths
+                else:
+                    dire_deaths += deaths
+            # Игрок «участвовал», если умер или нанёс урон. Ненулевой gold_delta
+            # набегает и у того, кто в это время спокойно фармил на другой карте.
+            if detailed and (deaths or fp.get("damage")):
+                participants.append({
+                    "who": self._tag(p, me),
+                    "gold_delta": fp.get("gold_delta"),
+                    "xp_delta": fp.get("xp_delta"),
+                    "deaths": deaths,
+                    "damage": fp.get("damage"),
+                    "healing": fp.get("healing"),
+                })
+
+        my_losses, enemy_losses = ((dire_deaths, rad_deaths) if not me.is_radiant
+                                   else (rad_deaths, dire_deaths))
+        if my_losses < enemy_losses:
+            verdict = "tf.win"
+        elif my_losses > enemy_losses:
+            verdict = "tf.lose"
+        else:
+            verdict = "tf.even"
+
+        mine = tf_players[my_idx] if my_idx < len(tf_players) else {}
+        killed = [self._c.npc_to_hero(k) for k, v in (mine.get("killed") or {}).items()
+                  if str(k).startswith("npc_dota_hero_") and v]
+
+        return {
+            "start": mmss(tf.get("start")),
+            "end": mmss(tf.get("end")),
+            "deaths": tf.get("deaths"),
+            "my_losses": my_losses,
+            "enemy_losses": enemy_losses,
+            "verdict": verdict,
+            "fallen": fallen,
+            "me": {
+                "damage": mine.get("damage") or 0,
+                "deaths": mine.get("deaths") or 0,
+                "gold_delta": mine.get("gold_delta") or 0,
+                "xp_delta": mine.get("xp_delta") or 0,
+                "killed": killed,
+            },
+            "participants": participants,
+            "in_lane": (tf.get("start") or 0) <= LANE_WINDOW_SEC,
+        }
+
     def _teamfights(self, match: Match, me: Player, policy: Policy) -> List[Dict[str, Any]]:
         detailed = policy.at_least("teamfights", EXPANDED)
-        my_idx = match.players.index(me)
-        out = []
-
         fights = match.teamfights
         if policy.focus == "laning":
             # Разбираем линию — поздние замесы к вопросу отношения не имеют.
             fights = [tf for tf in fights if (tf.get("start") or 0) <= LANE_WINDOW_SEC]
+        return [self._fight_row(match, me, tf, detailed) for tf in fights]
 
-        for tf in fights:
-            tf_players = tf.get("players") or []
-            rad_deaths = dire_deaths = 0
-            fallen: List[str] = []
-            participants = []
+    # --- ОКНО (максимальная детализация выбранного промежутка) -----------------
 
-            for idx, p in enumerate(match.players):
-                if idx >= len(tf_players):
+    def _window(self, match: Match, me: Player, policy: Policy) -> Dict[str, Any]:
+        """Всё, что происходило в промежутке, по всем героям и без прореживания.
+
+        Единственное место в проекте, где мы сознательно не экономим: игрок сам
+        попросил рассмотреть отрезок под лупой, и порог «сигнал > объём» здесь
+        оплачен тем, что весь остальной матч ужат до сводки (см. Policy.level).
+        """
+        start_min, end_min = policy.window
+        lo, hi = start_min * 60, end_min * 60
+        minutes = list(range(start_min, end_min + 1))
+
+        gold_adv, xp_adv = self._team_adv_series(match, me)
+        team = [{"m": m, "gold": _at(gold_adv, m), "xp": _at(xp_adv, m)} for m in minutes]
+
+        series = [{"who": self._tag(p, me),
+                   "rows": [{"m": m, "nw": _at(p.gold_t, m), "xp": _at(p.xp_t, m),
+                             "lh": _at(p.lh_t, m), "dn": _at(p.dn_t, m)}
+                            for m in minutes]}
+                  for p in match.players]
+
+        kills = []
+        for p in match.players:
+            for e in p.kills_log:
+                t = e.get("time")
+                if t is None or not (lo <= t <= hi):
                     continue
-                fp = tf_players[idx]
-                deaths = fp.get("deaths") or 0
-                if deaths:
-                    fallen.append(self._short_tag(p, me))
-                    if p.is_radiant:
-                        rad_deaths += deaths
-                    else:
-                        dire_deaths += deaths
-                # Игрок «участвовал», если умер или нанёс урон. Ненулевой gold_delta
-                # набегает и у того, кто в это время спокойно фармил на другой карте.
-                if detailed and (deaths or fp.get("damage")):
-                    participants.append({
-                        "who": self._tag(p, me),
-                        "gold_delta": fp.get("gold_delta"),
-                        "xp_delta": fp.get("xp_delta"),
-                        "deaths": deaths,
-                        "damage": fp.get("damage"),
-                        "healing": fp.get("healing"),
-                    })
+                kills.append({"t": t, "time": mmss(t), "killer": self._short_tag(p, me),
+                              "victim": self._c.npc_to_hero(e.get("key"))})
+        kills.sort(key=lambda k: k["t"])
 
-            my_losses, enemy_losses = ((dire_deaths, rad_deaths) if not me.is_radiant
-                                       else (rad_deaths, dire_deaths))
-            if my_losses < enemy_losses:
-                verdict = "tf.win"
-            elif my_losses > enemy_losses:
-                verdict = "tf.lose"
-            else:
-                verdict = "tf.even"
+        # Порог стоимости здесь не применяем: в узком окне важна каждая покупка,
+        # включая расходники — по ним видно, кто готовился к бою, а кто фармил.
+        purchases = []
+        for p in match.players:
+            for e in p.purchase_log:
+                t, key = e.get("time"), (e.get("key") or "")
+                if t is None or not (lo <= t <= hi) or key.startswith("recipe_"):
+                    continue
+                purchases.append({"t": t, "time": mmss(t), "who": self._short_tag(p, me),
+                                  "item": self._c.item_name(key)})
+        purchases.sort(key=lambda x: x["t"])
 
-            mine = tf_players[my_idx] if my_idx < len(tf_players) else {}
-            killed = [self._c.npc_to_hero(k) for k, v in (mine.get("killed") or {}).items()
-                      if str(k).startswith("npc_dota_hero_") and v]
+        fights = [self._fight_row(match, me, tf, detailed=True)
+                  for tf in match.teamfights
+                  if (tf.get("end") or 0) >= lo and (tf.get("start") or 0) <= hi]
 
-            out.append({
-                "start": mmss(tf.get("start")),
-                "end": mmss(tf.get("end")),
-                "deaths": tf.get("deaths"),
-                "my_losses": my_losses,
-                "enemy_losses": enemy_losses,
-                "verdict": verdict,
-                "fallen": fallen,
-                "me": {
-                    "damage": mine.get("damage") or 0,
-                    "deaths": mine.get("deaths") or 0,
-                    "gold_delta": mine.get("gold_delta") or 0,
-                    "xp_delta": mine.get("xp_delta") or 0,
-                    "killed": killed,
-                },
-                "participants": participants,
-                "in_lane": (tf.get("start") or 0) <= LANE_WINDOW_SEC,
-            })
-        return out
+        objectives = [{"time": mmss(o.time), "kind": o.kind, "params": o.params,
+                       "minor": o.minor}
+                      for o in match.objectives if lo <= o.time <= hi]
+
+        return {"start": start_min, "end": end_min, "team": team, "series": series,
+                "kills": kills, "purchases": purchases, "fights": fights,
+                "objectives": objectives,
+                "empty": not (kills or purchases or fights or objectives)}
 
     # --- OBJECTIVES -----------------------------------------------------------
 

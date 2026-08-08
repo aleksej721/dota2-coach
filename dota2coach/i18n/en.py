@@ -21,6 +21,28 @@ PROMPT = {
     "meta.me": "Me: {hero} | {position} | lvl {level} | KDA {k}/{d}/{a}",
     "meta.export": "Export mode: depth={depth}, focus={focus}, model={model}",
     "meta.level": "My skill level: {mmr}",
+    "meta.window":
+        "Requested analysis window: {start}–{end} min (see its own section; the rest of "
+        "the match is given as a summary).",
+
+    "sec.window": "WINDOW {start}–{end} MIN — MAXIMUM DETAIL",
+    "window.note":
+        "I asked to look at the {start}–{end} min stretch under a magnifier: below are the "
+        "actions of ALL heroes inside that window, undecimated. The rest of the match is "
+        "deliberately given as a summary in this prompt — lean on the window and use the "
+        "rest as background.",
+    "window.quiet":
+        "(no kills, purchases, fights or objectives recorded inside this window — that is "
+        "a fact too: the stretch was empty)",
+    "window.team": "My team's advantage, per minute of the window:",
+    "window.series": "All players per minute (net worth / xp / last hits-denies):",
+    "window.kills": "Kills inside the window:",
+    "window.kill_row": "{time} {killer} killed {victim}",
+    "window.purchases":
+        "Purchases inside the window (consumables included — they show who was preparing "
+        "for a fight):",
+    "window.fights": "Fights overlapping the window (player by player):",
+    "window.objectives": "Objectives inside the window:",
 
     "sec.role_impact": "ROLE-SPECIFIC METRICS ★",
     "role.1.name": "Pos 1 Carry",
@@ -254,6 +276,10 @@ PROMPT = {
     "caveat.abilities_order":
         "- Ability build: #N is the upgrade order, NOT the hero level (the source gives no "
         "timings). OpenDota has no numeric talent values — only their names.",
+    "caveat.window_compressed":
+        "- A {start}–{end} min window was requested, so every other section is compressed "
+        "to a summary. If a conclusion needs a fact outside the window and it is not in "
+        "the prompt, say so instead of filling the gap yourself.",
     "caveat.saves_unavailable":
         "- OpenDota has no reliable save-event counter. Use healing, fight involvement and "
         "defensive-item timings as evidence, but do not invent a save count.",

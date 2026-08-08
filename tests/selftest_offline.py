@@ -224,6 +224,63 @@ def check_anomalies(match, me, extractor, builder, quick_text):
     assert "НАЧАЛО разбора" in quick_text
 
 
+def check_window(match, me, extractor, builder):
+    """Окно даёт максимум внутри и сжимает всё остальное."""
+    from dota2coach.cli import parse_window
+    from dota2coach.policy import EXPANDED, FULL_LOG, SUMMARY
+
+    assert parse_window("30-40") == (30, 40)
+    assert parse_window("30–40") == (30, 40), "длинное тире тоже принимаем"
+    assert parse_window(None) is None
+    for bad in ("30", "30-", "abc", "30-40-50"):
+        try:
+            parse_window(bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"{bad!r} должен быть отвергнут")
+
+    # Границы валидирует Policy, а не разбор строки.
+    for bad_window in ((10, 10), (10, 5), (-1, 5)):
+        try:
+            Policy(window=bad_window)
+        except ValueError:
+            continue
+        raise AssertionError(f"{bad_window} должен быть отвергнут")
+
+    windowed = Policy(depth="deep", focus="full", window=(5, 10))
+    assert windowed.level("window") == FULL_LOG
+    # Deep без окна раскрывал бы эти секции — с окном они ужаты.
+    for section in ("networth", "items", "teamfights", "laning"):
+        assert Policy(depth="deep").level(section) == EXPANDED, section
+        assert windowed.level(section) == SUMMARY, section
+    # Аномалии — исключение: из них строятся гипотезы, они нужны всегда.
+    assert windowed.shows("anomalies")
+    assert Policy(depth="deep").level("window") == 0, "без окна секции нет"
+
+    features = extractor.extract(match, me, windowed)
+    w = features.window
+    assert (w["start"], w["end"]) == (5, 10)
+    assert len(w["series"]) == len(match.players), "в окне должны быть все игроки"
+    assert [r["m"] for r in w["series"][0]["rows"]] == [5, 6, 7, 8, 9, 10], "без прореживания"
+    assert [k["victim"] for k in w["kills"]] == ["5", "axe"], "не те убийства попали в окно"
+    assert w["fights"] and w["fights"][0]["participants"], "бой 8:40–9:20 задел окно"
+
+    text = builder.build(features, windowed)
+    assert "## ОКНО 5–10 МИН — МАКСИМАЛЬНАЯ ДЕТАЛИЗАЦИЯ" in text
+    assert text.index("## ОКНО") < text.index("## СКОРБОРД"), "окно должно идти до сводок"
+    assert "остальные секции сжаты до сводки" in text, "нет оговорки в ограничениях"
+    assert "Запрошенное окно разбора: 5–10 мин" in text
+
+    # Пустое окно — тоже факт, а не пустая секция.
+    quiet = Policy(depth="quick", window=(35, 38))
+    quiet_text = builder.build(extractor.extract(match, me, quiet), quiet)
+    assert "отрезок был пустым" in quiet_text
+
+    for lang, marker in (("en", "## WINDOW 5–10 MIN"), ("uk", "## ВІКНО 5–10 ХВ")):
+        p = Policy(depth="quick", lang=lang, window=(5, 10))
+        assert marker in builder.build(extractor.extract(match, me, p), p), lang
+
+
 def check_scaffold(match, me, extractor, builder, quick_text):
     """Заметка игрока: свой блок, приоритет в правилах, раздел 0 в формате ответа."""
     noted = Policy(depth="quick", focus="full", note="  почему я слил лайн?  ",
@@ -378,6 +435,7 @@ def main():
 
     check_item_lag()
     check_anomalies(match, me, extractor, builder, quick_text)
+    check_window(match, me, extractor, builder)
     check_scaffold(match, me, extractor, builder, quick_text)
     check_models(match, me, extractor, builder)
     check_languages(match, me, extractor, builder)

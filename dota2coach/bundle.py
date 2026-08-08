@@ -31,6 +31,12 @@ class BundleBuilder:
 
         data = Group("match_data")
         data.add(s("sec.meta"), self._meta(features.meta, policy, s))
+        # Окно идёт сразу после меты: игрок попросил именно этот отрезок, и он
+        # должен стоять до сжатых секций, а не теряться под ними.
+        if features.window:
+            data.add(s("sec.window", start=features.window["start"],
+                       end=features.window["end"]),
+                     self._window(features.window, s))
         if features.role_impact:
             data.add(s("sec.role_impact"), self._role_impact(features.role_impact, s))
         if policy.shows("anomalies"):
@@ -137,6 +143,56 @@ class BundleBuilder:
             out.append(s(f"role.{key}", items=listed))
         return out
 
+    def _window(self, w: Dict[str, Any], s: i18n.Strings) -> List[str]:
+        out = [s("window.note", start=w["start"], end=w["end"])]
+        if w["empty"]:
+            out.append(f"  {s('window.quiet')}")
+
+        out += ["", s("window.team")]
+        for t in w["team"]:
+            out.append(f"  m{t['m']:>2}: " + s("nw.row", gold=_signed(t["gold"]),
+                                               xp=_signed(t["xp"])))
+
+        out += ["", s("window.series")]
+        for row in w["series"]:
+            points = ", ".join(
+                "m{m}={nw}g/{xp}xp/{lh}-{dn}".format(**p) for p in row["rows"]
+                if p["nw"] is not None or p["xp"] is not None)
+            out.append(f"  {row['who']}: {points or s('dash')}")
+
+        out += ["", s("window.kills")]
+        out += [f"  " + s("window.kill_row", time=k["time"], killer=k["killer"],
+                          victim=k["victim"]) for k in w["kills"]] or [f"  {s('dash')}"]
+
+        out += ["", s("window.purchases")]
+        out += [f"  {p['time']} {p['who']}: {p['item']}"
+                for p in w["purchases"]] or [f"  {s('dash')}"]
+
+        if w["fights"]:
+            out += ["", s("window.fights")]
+            for i, tf in enumerate(w["fights"], 1):
+                me = tf["me"]
+                mine = s("tf.me", damage=me["damage"], deaths=me["deaths"],
+                         gold=_signed(me["gold_delta"]))
+                if me["killed"]:
+                    mine += ", " + s("tf.me_killed", heroes=", ".join(me["killed"]))
+                out.append(s("tf.header", n=i, start=tf["start"], end=tf["end"], lane="",
+                             score=s("tf.score", mine=tf["my_losses"],
+                                     theirs=tf["enemy_losses"]),
+                             verdict=s(tf["verdict"]), me=mine))
+                out.append("    " + s("tf.fallen",
+                                      heroes=", ".join(tf["fallen"]) or s("dash")))
+                for p in tf["participants"]:
+                    out.append("    " + s("tf.detail", who=p["who"],
+                                          gold=_signed(p["gold_delta"]),
+                                          xp=_signed(p["xp_delta"]), deaths=p["deaths"],
+                                          damage=p["damage"], healing=p["healing"]))
+
+        if w["objectives"]:
+            out += ["", s("window.objectives")]
+            out += self._objectives(w["objectives"], s)
+        return out
+
     def _anomalies(self, rows: List[Anomaly], s: i18n.Strings) -> List[str]:
         """Отклонения списком, каждое — с осью гипотезы в квадратных скобках.
 
@@ -172,6 +228,8 @@ class BundleBuilder:
         ]
         if policy.mmr:
             out.append(s("meta.level", mmr=policy.mmr))
+        if policy.has_window:
+            out.append(s("meta.window", start=policy.window[0], end=policy.window[1]))
         return out
 
     def _draft(self, d: Dict[str, Any], s: i18n.Strings) -> List[str]:

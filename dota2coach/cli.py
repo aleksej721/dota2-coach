@@ -6,7 +6,7 @@ core.build_pipeline() — там же, откуда его берёт веб-и�
 
 import argparse
 import sys
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple
 
 from .core import build_pipeline
 from .i18n import DEFAULT_LANG, LANGUAGES
@@ -45,6 +45,10 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--note", "--ask", dest="note", metavar="ТЕКСТ", default=None,
                    help="твой конкретный вопрос к разбору — он станет главным приоритетом "
                         "(напр. --note \"почему я слил лайн против Pudge?\")")
+    a.add_argument("--window", metavar="НАЧАЛО-КОНЕЦ", default=None,
+                   help="игровой промежуток в минутах (напр. 30-40) — он будет "
+                        "показан с максимальной детализацией по всем героям, "
+                        "а остальной матч сжат до сводки")
     a.add_argument("--no-cache", action="store_true",
                    help="не брать сырой ответ матча из .cache — сходить в API заново")
 
@@ -55,15 +59,35 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def parse_window(raw: Optional[str]) -> Optional[Tuple[int, int]]:
+    """«30-40» -> (30, 40). Валидацию границ делает Policy, здесь только разбор."""
+    if not raw:
+        return None
+    parts = raw.replace("–", "-").split("-")
+    if len(parts) != 2 or not all(p.strip().isdigit() for p in parts):
+        raise ValueError(f"--window ожидает вид НАЧАЛО-КОНЕЦ в минутах, получено {raw!r}")
+    return int(parts[0]), int(parts[1])
+
+
 def run_analyze(args: argparse.Namespace) -> int:
     if args.me is None and not args.hero:
         print("Ошибка: укажи --me <account_id> ИЛИ --hero <имя героя>.", file=sys.stderr)
         return 2
 
+    try:
+        window = parse_window(args.window)
+    except ValueError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        return 2
+
     pipeline = build_pipeline(use_cache=not args.no_cache, out_dir="output")
-    policy = Policy(depth=resolve_depth(args.depth, args.model), focus=args.focus,
-                    note=args.note, model=args.model, lang=args.lang, mmr=args.mmr,
-                    role=args.role)
+    try:
+        policy = Policy(depth=resolve_depth(args.depth, args.model), focus=args.focus,
+                        note=args.note, model=args.model, lang=args.lang, mmr=args.mmr,
+                        role=args.role, window=window)
+    except ValueError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        return 2
 
     try:
         path, text = pipeline.run(args.match_id, args.me, args.hero, policy)
@@ -78,6 +102,9 @@ def run_analyze(args: argparse.Namespace) -> int:
         print(f"Уровень для калибровки советов: {policy.mmr}")
     if policy.role:
         print(f"Роль для оценки: позиция {policy.role}")
+    if policy.has_window:
+        print(f"Окно с максимальной детализацией: {policy.window[0]}–{policy.window[1]} мин "
+              f"(остальной матч сжат до сводки)")
     if policy.has_note:
         print(f"Главный запрос игрока: «{policy.note_inline}»")
     elif args.note is not None:

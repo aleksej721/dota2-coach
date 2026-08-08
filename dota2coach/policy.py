@@ -140,6 +140,11 @@ class Policy:
     mmr: Optional[str] = None
     # Явная позиция игрока. None означает «использовать эвристику матча».
     role: Optional[str] = None
+    # Игровой промежуток (минуты, включительно): «разбери мне 30–40». Если задан,
+    # окно печатается с максимальной детализацией, а ВСЁ остальное сжимается до
+    # сводки. Иначе детализация окна утонула бы в общем объёме — а весь смысл
+    # запроса в том, чтобы внимание модели ушло именно туда.
+    window: Optional[Tuple[int, int]] = None
     # Внутреннее происхождение роли после Pipeline.resolve_role(); не является
     # пользовательским флагом и не участвует в сравнении Policy.
     role_source: str = field(default="auto", repr=False, compare=False)
@@ -151,6 +156,12 @@ class Policy:
             raise ValueError(f"focus должен быть одним из {FOCUSES}, получено {self.focus!r}")
         if self.role is not None and self.role not in ROLES:
             raise ValueError(f"role должен быть одним из {ROLES}, получено {self.role!r}")
+        if self.window is not None:
+            start, end = self.window
+            if start < 0 or end <= start:
+                raise ValueError(f"window должен быть парой (начало, конец) с концом "
+                                 f"строго больше начала, получено {self.window!r}")
+            object.__setattr__(self, "window", (int(start), int(end)))
         if self.model not in MODELS:
             raise ValueError(f"model должен быть одним из {MODELS}, получено {self.model!r}")
         # Незнакомый язык не роняет разбор — молча откатываемся на язык по умолчанию.
@@ -192,12 +203,29 @@ class Policy:
     def has_role(self) -> bool:
         return self.role in ROLES
 
+    @property
+    def has_window(self) -> bool:
+        return self.window is not None
+
     def level(self, section: str) -> int:
+        # Секция окна существует ровно тогда, когда окно задано, и всегда идёт
+        # полным логом: ради этого её и просили.
+        if section == "window":
+            return FULL_LOG if self.has_window else HIDDEN
+
         override = _FOCUS_OVERRIDES[self.focus].get(section)
         if override is not None:
-            return override
-        quick_lvl, deep_lvl = _BASE[section]
-        return deep_lvl if self.deep else quick_lvl
+            level = override
+        else:
+            quick_lvl, deep_lvl = _BASE[section]
+            level = deep_lvl if self.deep else quick_lvl
+
+        # Окно перераспределяет внимание, а не добавляется поверх: остальной матч
+        # ужимается до сводки. Аномалии не трогаем — из них строятся гипотезы,
+        # и они нужны целиком независимо от того, какой отрезок разбирается.
+        if self.has_window and section != "anomalies":
+            level = min(level, SUMMARY)
+        return level
 
     def shows(self, section: str) -> bool:
         return self.level(section) > HIDDEN

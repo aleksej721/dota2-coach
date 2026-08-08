@@ -86,6 +86,12 @@ class AnalyzeRequest(BaseModel):
     note: Optional[str] = Field(None, description="твой вопрос — станет главным приоритетом")
     mmr: Optional[str] = Field(None, description="MMR или бракет для калибровки советов")
     role: Optional[Role] = Field(None, description="позиция 1–5; null = эвристика матча")
+    # Окно приходит двумя числами, а не строкой «30-40»: так его валидирует
+    # pydantic, а не наш разбор текста.
+    window_start: Optional[int] = Field(None, ge=0, le=180,
+                                        description="начало окна разбора, минуты")
+    window_end: Optional[int] = Field(None, ge=1, le=180,
+                                      description="конец окна разбора, минуты")
 
 
 class AnalyzeResponse(BaseModel):
@@ -100,6 +106,7 @@ class AnalyzeResponse(BaseModel):
     has_mmr: bool
     role: Optional[str]
     parsed: bool
+    window: Optional[str] = None
     warning: Optional[str] = None
 
 
@@ -138,9 +145,15 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     if req.account_id is None and not (req.hero or "").strip():
         raise HTTPException(422, {"kind": "player_not_specified", "message": ""})
 
+    window = None
+    if req.window_start is not None and req.window_end is not None:
+        if req.window_end <= req.window_start:
+            raise HTTPException(422, {"kind": "bad_window", "message": ""})
+        window = (req.window_start, req.window_end)
+
     policy = Policy(depth=resolve_depth(req.depth, req.model), focus=req.focus,
                     note=req.note, model=req.model, lang=req.lang, mmr=req.mmr,
-                    role=req.role)
+                    role=req.role, window=window)
 
     try:
         # Блокирующие requests уводим в пул потоков, чтобы не держать event loop.
@@ -170,6 +183,7 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         has_mmr=bool(policy.mmr),
         role=policy.role,
         parsed=result.parsed,
+        window=f"{policy.window[0]}–{policy.window[1]}" if policy.has_window else None,
         # Текст предупреждения собирает страница: он тоже локализован.
         warning="unparsed" if not result.parsed else None,
     )
