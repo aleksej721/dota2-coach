@@ -715,6 +715,11 @@ UI = {
     "result.download": "Скачать .txt",
     "result.tokens": "~{n} токенов",
     "result.with_note": "с вопросом игрока",
+    "result.side.radiant": "Radiant",
+    "result.side.dire": "Dire",
+    "result.win": "победа",
+    "result.lose": "поражение",
+    "result.winrate": "винрейт {pct}%",
     "result.role": "роль: {role}",
 
     "disclaimer":

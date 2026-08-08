@@ -690,6 +690,11 @@ UI = {
     "result.download": "Download .txt",
     "result.tokens": "~{n} tokens",
     "result.with_note": "with player's question",
+    "result.side.radiant": "Radiant",
+    "result.side.dire": "Dire",
+    "result.win": "win",
+    "result.lose": "loss",
+    "result.winrate": "win rate {pct}%",
     "result.role": "role: {role}",
 
     "disclaimer":

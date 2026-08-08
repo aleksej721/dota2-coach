@@ -45,11 +45,12 @@ class Pipeline:
         self._out_dir = pathlib.Path(out_dir)
 
     def build(self, match_id: int, account_id: Optional[int], hero: Optional[str],
-              policy: Policy) -> Tuple[str, Match]:
+              policy: Policy) -> Tuple[str, Match, Player]:
         """Собирает текст промпта. Ничего не пишет на диск.
 
-        Вместе с текстом возвращает Match: вызывающему коду бывает нужен его
-        статус (например, распарсен ли матч), чтобы предупредить пользователя.
+        Вместе с текстом возвращает Match и найденного игрока: вызывающему коду
+        бывает нужен статус матча (распарсен ли он) и сторона игрока — например,
+        веб-интерфейс окрашивает результат в цвета его фракции.
         """
         match = self._source.fetch_match(match_id)
         me = self._find_me(match, account_id, hero)
@@ -58,12 +59,12 @@ class Pipeline:
         # нормализации и не «заражаются» пользовательским выбором.
         effective_policy = policy.resolve_role(me.position_key)
         features = self._extractor.extract(match, me, effective_policy)
-        return self._builder.build(features, effective_policy), match
+        return self._builder.build(features, effective_policy), match, me
 
     def run(self, match_id: int, account_id: Optional[int], hero: Optional[str],
             policy: Policy) -> Tuple[pathlib.Path, str]:
         """Как build(), но ещё и кладёт результат в output/<match_id>.txt."""
-        text, _ = self.build(match_id, account_id, hero, policy)
+        text, _, _ = self.build(match_id, account_id, hero, policy)
         self._out_dir.mkdir(exist_ok=True)
         path = self._out_dir / f"{match_id}.txt"
         path.write_text(text, encoding="utf-8")

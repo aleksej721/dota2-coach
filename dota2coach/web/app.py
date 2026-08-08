@@ -121,6 +121,10 @@ class AnalyzeResponse(BaseModel):
     has_mmr: bool
     role: Optional[str]
     parsed: bool
+    # Сторона и исход нужны интерфейсу: результат окрашивается в цвета фракции
+    # игрока, а не в один нейтральный акцент.
+    side: str
+    win: bool
     window: Optional[str] = None
     warning: Optional[str] = None
 
@@ -198,6 +202,8 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         has_mmr=bool(policy.mmr),
         role=policy.role,
         parsed=result.parsed,
+        side=result.side,
+        win=result.win,
         window=f"{policy.window[0]}–{policy.window[1]}" if policy.has_window else None,
         # Текст предупреждения собирает страница: он тоже локализован.
         warning="unparsed" if not result.parsed else None,
@@ -224,6 +230,7 @@ class ProfileResponse(BaseModel):
     analyzed: int
     requested: int
     unparsed: int
+    winrate: int
     model: str
     lang: str
     has_note: bool
@@ -269,6 +276,7 @@ async def profile(req: ProfileRequest) -> ProfileResponse:
         analyzed=result.analyzed,
         requested=result.requested,
         unparsed=result.unparsed,
+        winrate=result.winrate,
         model=policy.model,
         lang=policy.lang,
         has_note=policy.has_note,

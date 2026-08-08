@@ -38,6 +38,7 @@ class ProfileResult:
     analyzed: int          # сколько матчей реально вошло в выборку
     requested: int
     unparsed: int          # из них без полного парсинга — данные неполные
+    winrate: int
 
     @property
     def size_bytes(self) -> int:
@@ -56,6 +57,8 @@ class PromptResult:
     match_id: int
     policy: Policy
     parsed: bool          # False — OpenDota не распарсила матч, детальные секции неполные
+    side: str             # "radiant" | "dire" — сторона игрока
+    win: bool
 
     @property
     def size_bytes(self) -> int:
@@ -99,8 +102,9 @@ def generate_prompt(match_id: int, account_id: Optional[int] = None,
     """
     policy = policy or Policy()
     pipeline = pipeline or build_pipeline()
-    text, match = pipeline.build(match_id, account_id, hero, policy)
-    return PromptResult(text=text, match_id=match_id, policy=policy, parsed=match.parsed)
+    text, match, me = pipeline.build(match_id, account_id, hero, policy)
+    return PromptResult(text=text, match_id=match_id, policy=policy, parsed=match.parsed,
+                        side="radiant" if me.is_radiant else "dire", win=me.win)
 
 
 def generate_profile_prompt(account_id: int, count: int, hero: Optional[str] = None,
@@ -120,4 +124,5 @@ def generate_profile_prompt(account_id: int, count: int, hero: Optional[str] = N
         text=text, account_id=account_id, policy=policy,
         analyzed=features.analyzed, requested=features.requested,
         unparsed=sum(1 for d in features.digests if not d.parsed),
+        winrate=features.averages.get("winrate", 0),
     )

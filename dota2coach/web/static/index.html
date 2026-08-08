@@ -41,8 +41,22 @@
   --glow-2: rgba(162, 116, 245, .18);
   --glow-3: rgba(70, 110, 220, .14);
 
+  /* Фракции. Акцент интерфейса остаётся фиолетовым: Radiant и Dire работают
+     как СМЫСЛОВАЯ метка (моя сторона, исход матча), а не как раскраска —
+     иначе страница превратилась бы в светофор. */
+  --radiant:      #4ade9b;
+  --radiant-deep: #1f8f63;
+  --radiant-soft: rgba(74, 222, 155, .14);
+  --radiant-aura: rgba(45, 190, 130, .20);
+  --dire:         #ff6b5e;
+  --dire-deep:    #a52a22;
+  --dire-soft:    rgba(255, 107, 94, .13);
+  --dire-aura:    rgba(190, 45, 40, .18);
+
   --shadow: 0 22px 60px rgba(0, 0, 0, .48), 0 2px 8px rgba(0, 0, 0, .30);
+  --shadow-lift: 0 30px 74px rgba(0, 0, 0, .55), 0 3px 10px rgba(0, 0, 0, .34);
   --scroll: rgba(255, 255, 255, .16);
+  --grain: .035;
 
   --r-lg: 20px;
   --r-md: 13px;
@@ -92,12 +106,38 @@
   --glow-2: rgba(162, 116, 245, .16);
   --glow-3: rgba(80, 140, 230, .14);
 
+  /* На светлом фоне яркая зелень и алый «звенят», поэтому фракции здесь
+     заметно глубже и менее насыщенны — читаемость важнее верности палитре игры. */
+  --radiant:      #0f7a52;
+  --radiant-deep: #0a5c3d;
+  --radiant-soft: rgba(15, 122, 82, .12);
+  --radiant-aura: rgba(30, 160, 110, .16);
+  --dire:         #b3372c;
+  --dire-deep:    #8a251c;
+  --dire-soft:    rgba(179, 55, 44, .10);
+  --dire-aura:    rgba(200, 70, 60, .13);
+
   --shadow: 0 18px 44px rgba(20, 26, 60, .12), 0 2px 6px rgba(20, 26, 60, .07);
+  --shadow-lift: 0 26px 60px rgba(20, 26, 60, .17), 0 3px 8px rgba(20, 26, 60, .09);
   --scroll: rgba(20, 26, 60, .22);
+  --grain: .02;
 }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+
+/* Смена темы меняет только CSS-переменные, и Chrome не считает это поводом
+   перерастеризовать слои с backdrop-filter: они продолжают размывать снимок
+   ПРЕЖНЕГО фона, и вся страница уходит под серую пелену. Снятие фильтра на один
+   кадр (класс живёт два requestAnimationFrame, см. applyTheme) заставляет
+   композитор пересобрать слои заново. */
+:root.theme-swap .card,
+:root.theme-swap .ctl,
+:root.theme-swap .modes,
+:root.theme-swap #hint {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
 
 body {
   margin: 0;
@@ -112,17 +152,45 @@ body {
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
+/* Фон — фракционная дуальность: сияние Radiant внизу слева (природное,
+   растущее вверх) и жар Dire сверху справа. Реки между ними нет буквально,
+   но диагональ, по которой они встречаются, читается сама. */
 .glow {
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  position: fixed; inset: 0; z-index: -2; pointer-events: none;
   background:
-    radial-gradient(680px 460px at 18% -8%,  var(--glow-1), transparent 70%),
-    radial-gradient(560px 420px at 88% 6%,   var(--glow-2), transparent 70%),
-    radial-gradient(760px 520px at 50% 108%, var(--glow-3), transparent 72%);
+    radial-gradient(720px 520px at 88% -6%,  var(--dire-aura), transparent 68%),
+    radial-gradient(680px 560px at 6% 104%,  var(--radiant-aura), transparent 68%),
+    radial-gradient(620px 440px at 24% -10%, var(--glow-1), transparent 72%),
+    radial-gradient(540px 420px at 76% 108%, var(--glow-2), transparent 72%);
 }
 
-.wrap { max-width: 1040px; margin: 0 auto; animation: page-in .42s var(--ease) both; }
-@keyframes page-in {
-  from { opacity: 0; transform: translateY(8px); }
+/* Зерно поверх фона. Один фиксированный слой с inline-SVG: чистые градиенты
+   на больших площадях полосят, а плёнка шума это скрывает без цены в кадрах. */
+.grain {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  opacity: var(--grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Тонкая фракционная нить по краям страницы: слева Radiant, справа Dire. */
+body::before, body::after {
+  content: ""; position: fixed; top: 0; bottom: 0; width: 1px; z-index: -1;
+  pointer-events: none;
+}
+body::before { left: 0; background: linear-gradient(180deg, transparent, var(--radiant), transparent); opacity: .5; }
+body::after { right: 0; background: linear-gradient(180deg, var(--dire), transparent 70%); opacity: .45; }
+
+.wrap { max-width: 1040px; margin: 0 auto; }
+
+/* Появление лестницей: шапка, режимы, форма. Двигаем только opacity и
+   transform, поэтому композитор справляется без перерисовок. */
+header { animation: rise .5s var(--ease) both; }
+.modes { animation: rise .5s .06s var(--ease) both; }
+.modes-note { animation: rise .5s .1s var(--ease) both; }
+form.card { animation: rise .55s .14s var(--ease) both; }
+.foot { animation: rise .5s .22s var(--ease) both; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px) scale(.994); }
   to { opacity: 1; transform: none; }
 }
 
@@ -168,30 +236,38 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
    Переключатель режимов
    ============================================================ */
 .modes {
+  position: relative;
   display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
   max-width: 520px; margin: 0 auto var(--space-4);
   padding: 5px;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: calc(var(--r-md) + 5px);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
 }
+/* Отдельная «шайба» вместо перекраски фона кнопок: она СКОЛЬЗИТ между
+   режимами, и переключение читается как движение, а не как мгновенная замена. */
+.modes-thumb {
+  position: absolute; top: 5px; bottom: 5px; left: 5px;
+  width: calc(50% - 7px); border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 22px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .22);
+  transition: transform .3s var(--ease);
+}
+.modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(100% + 4px)); }
 .mode {
+  position: relative; z-index: 1;
   display: grid; gap: 1px; justify-items: center;
-  padding: 9px 12px; border: 1px solid transparent; border-radius: var(--r-md);
+  padding: 9px 12px; border: none; border-radius: var(--r-md);
   background: none; color: var(--muted);
   font: inherit; cursor: pointer; text-align: center;
-  transition: color var(--dur) var(--ease), background var(--dur) var(--ease),
-              border-color var(--dur) var(--ease);
+  transition: color .24s var(--ease);
 }
 .mode-name { font-size: 14.5px; font-weight: 600; }
-.mode-sub { font-size: 11.5px; color: var(--faint); }
+.mode-sub { font-size: 11.5px; color: var(--faint); transition: color .24s var(--ease); }
 .mode:hover { color: var(--text); }
-.mode[aria-selected="true"] {
-  color: var(--on-accent);
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 6px 18px var(--accent-soft);
-}
+.mode[aria-selected="true"], .mode[aria-selected="true"]:hover { color: var(--on-accent); }
 .mode[aria-selected="true"] .mode-sub { color: rgba(255, 255, 255, .82); }
 .mode:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .modes-note { display: flex; justify-content: center; margin: -14px 0 var(--space-4); }
@@ -217,6 +293,14 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   -webkit-mask-composite: xor; mask-composite: exclude;
   pointer-events: none;
 }
+/* Второй слой глубины: тёплый отсвет по нижней кромке. Одной верхней подсветки
+   мало — без нижней карточка выглядит наклейкой, а не объёмом. */
+.card::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .05),
+              inset 0 0 60px rgba(255, 255, 255, .012);
+  pointer-events: none;
+}
 
 form.card { padding: 0; overflow: clip; }
 
@@ -227,11 +311,15 @@ form.card { padding: 0; overflow: clip; }
   margin: 0 0 16px; color: var(--text);
   font-size: 13px; font-weight: 650; letter-spacing: .01em;
 }
+/* Гранёный шестиугольник вместо скруглённого квадрата — самый спокойный
+   способ намекнуть на дотовскую иконографику: форма рун и «древних». */
 .section-index {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 25px; height: 25px; border-radius: 9px;
-  color: var(--accent); background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  width: 26px; height: 29px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  color: var(--accent);
+  background: linear-gradient(160deg, var(--accent-soft),
+              color-mix(in srgb, var(--accent) 26%, transparent));
   font-size: 11px; font-weight: 720; font-variant-numeric: tabular-nums;
 }
 
@@ -474,17 +562,32 @@ select.fld {
    Кнопки
    ============================================================ */
 .btn {
+  position: relative; overflow: hidden;
   display: inline-flex; align-items: center; justify-content: center; gap: 9px;
   padding: 12px 22px; border: 1px solid transparent; border-radius: var(--r-md);
   font: inherit; font-size: 15px; font-weight: 590; color: var(--on-accent);
   cursor: pointer;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 8px 24px var(--accent-soft);
+  box-shadow: 0 8px 24px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .2);
   transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
               opacity var(--dur) var(--ease);
   min-height: 44px;
 }
-.btn:hover:not(:disabled) { transform: translateY(-1px); }
+/* Блик проходит по кнопке на ховере. Двигается transform, не background-position,
+   поэтому анимация идёт на композиторе и не заставляет перерисовывать градиент. */
+.btn::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .26), transparent);
+  transform: translateX(0); opacity: 0;
+  pointer-events: none;
+}
+.btn:hover:not(:disabled)::after { animation: sheen .72s var(--ease); }
+@keyframes sheen {
+  from { transform: translateX(0); opacity: 0; }
+  20% { opacity: 1; }
+  to { transform: translateX(340%); opacity: 0; }
+}
+.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 30px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .24); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(.988); }
 .btn:disabled { opacity: .62; cursor: default; }
 .btn:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--accent-soft); }
@@ -533,7 +636,33 @@ select.fld {
 .panel-warn  { background: var(--warn-bg);  border: 1px solid var(--warn-bd);  color: var(--warn); }
 .panel strong { display: block; margin-bottom: 3px; font-weight: 620; }
 
-#result { margin-top: 20px; padding: 18px; }
+/* Результат окрашивается в цвета МОЕЙ фракции — это и есть смысловое
+   применение дуальности: по одному взгляду видно, за кого играл. */
+#result { margin-top: 20px; padding: 18px; overflow: hidden; }
+#result[data-side] {
+  border-color: color-mix(in srgb, var(--side) 34%, var(--glass-border));
+}
+#result[data-side="radiant"] { --side: var(--radiant); --side-soft: var(--radiant-soft); }
+#result[data-side="dire"] { --side: var(--dire); --side-soft: var(--dire-soft); }
+/* Полоса фракции по верхней кромке: разворачивается вместе с появлением. */
+#result[data-side]::before {
+  padding-top: 2px;
+  background: linear-gradient(90deg, var(--side), transparent 62%);
+  animation: edge .5s .1s var(--ease) both;
+}
+@keyframes edge { from { opacity: 0; transform: scaleX(.4); transform-origin: left; }
+                  to { opacity: 1; transform: none; } }
+
+.side-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 3.5px 11px 3.5px 9px;
+  background: var(--side-soft, var(--field-bg));
+  border: 1px solid color-mix(in srgb, var(--side, var(--accent)) 45%, transparent);
+  border-radius: 99px;
+  color: var(--side, var(--text)); font-size: 12.5px; font-weight: 620;
+}
+.side-badge[hidden] { display: none; }
+.side-badge svg { width: 13px; height: 13px; flex: none; }
 
 .result-bar {
   display: flex; align-items: center; justify-content: space-between;
@@ -545,6 +674,20 @@ select.fld {
   border: 1px solid var(--field-border); border-radius: 99px;
   font-size: 12.5px; font-weight: 550; color: var(--text);
   font-variant-numeric: tabular-nums;
+  animation: chip-in .34s var(--ease) both;
+}
+/* Чипы выезжают по очереди — мелочь, но именно она делает появление результата
+   похожим на «собралось», а не на «мигнуло». Задержка задана по позиции. */
+.meta > *:nth-child(1) { animation-delay: .04s; }
+.meta > *:nth-child(2) { animation-delay: .08s; }
+.meta > *:nth-child(3) { animation-delay: .12s; }
+.meta > *:nth-child(4) { animation-delay: .16s; }
+.meta > *:nth-child(5) { animation-delay: .2s; }
+.meta > *:nth-child(6) { animation-delay: .24s; }
+.meta > *:nth-child(n+7) { animation-delay: .28s; }
+@keyframes chip-in {
+  from { opacity: 0; transform: translateY(6px) scale(.96); }
+  to { opacity: 1; transform: none; }
 }
 .chip[hidden] { display: none; }
 .chip-accent { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
@@ -607,16 +750,29 @@ pre#promptText::-webkit-scrollbar-thumb {
 </head>
 <body>
 <div class="glow"></div>
+<div class="grain"></div>
 
 <div class="wrap">
   <header>
     <div class="logo">
+      <!-- Эмблема: гранёный «древний» с ядром, рассечённым по диагонали на
+           половину Radiant и половину Dire. Обе фракции в одном знаке — это и
+           есть тема интерфейса. -->
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M12 2.6 21 7.4v9.2L12 21.4 3 16.6V7.4z" stroke="url(#g)" stroke-width="1.7" stroke-linejoin="round"/>
-        <path d="M12 8.1 16.2 10.4v4.6L12 17.3 7.8 15V10.4z" fill="url(#g)" opacity=".85"/>
-        <defs><linearGradient id="g" x1="3" y1="2" x2="21" y2="21">
-          <stop stop-color="#6d6df0"/><stop offset="1" stop-color="#a274f5"/>
-        </linearGradient></defs>
+        <path d="M12 2.6 21 7.4v9.2L12 21.4 3 16.6V7.4z" stroke="url(#g)"
+              stroke-width="1.7" stroke-linejoin="round"/>
+        <path d="M12 8.1 16.2 10.4v4.6L12 17.3 7.8 15V10.4z" fill="url(#core)" opacity=".9"/>
+        <path d="M12 8.1v9.2" stroke="var(--bg)" stroke-width=".9" opacity=".55"/>
+        <defs>
+          <linearGradient id="g" x1="3" y1="2" x2="21" y2="21">
+            <stop stop-color="#6d6df0"/><stop offset="1" stop-color="#a274f5"/>
+          </linearGradient>
+          <linearGradient id="core" x1="7.8" y1="17" x2="16.2" y2="8">
+            <stop stop-color="var(--radiant)"/>
+            <stop offset=".5" stop-color="var(--accent)"/>
+            <stop offset="1" stop-color="var(--dire)"/>
+          </linearGradient>
+        </defs>
       </svg>
       <span data-i18n="title">dota2coach</span>
     </div>
@@ -631,7 +787,8 @@ pre#promptText::-webkit-scrollbar-thumb {
     </div>
   </header>
 
-  <div class="modes" role="tablist" id="modes">
+  <div class="modes" role="tablist" id="modes" data-mode="match">
+    <div class="modes-thumb" aria-hidden="true"></div>
     <button type="button" class="mode" role="tab" id="modeMatch" data-mode="match"
             aria-selected="true">
       <span class="mode-name" data-i18n="mode.match"></span>
@@ -805,6 +962,13 @@ pre#promptText::-webkit-scrollbar-thumb {
   <section class="card reveal" id="result" hidden>
     <div class="result-bar">
       <div class="meta">
+        <span class="side-badge" id="sideBadge" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l7 4v6.5c0 3.4-2.9 6.1-7 7.5-4.1-1.4-7-4.1-7-7.5V7z"/>
+          </svg>
+          <span id="sideText"></span>
+        </span>
         <span class="chip" id="chipSize"></span>
         <span class="chip" id="chipTokens"></span>
         <span class="chip" id="chipDepth"></span>
@@ -813,6 +977,7 @@ pre#promptText::-webkit-scrollbar-thumb {
         <span class="chip chip-accent" id="chipRole"></span>
         <span class="chip chip-accent" id="chipWindow" hidden></span>
         <span class="chip chip-accent" id="chipMatches" hidden></span>
+        <span class="chip" id="chipWinrate" hidden></span>
         <span class="chip" id="chipUnparsed" hidden></span>
         <span class="chip chip-accent" id="chipNote" hidden></span>
       </div>
@@ -910,9 +1075,19 @@ pre#promptText::-webkit-scrollbar-thumb {
     $("themeIcon").innerHTML = theme === "dark" ? SUN : MOON;
   };
 
+  /* Снимаем backdrop-filter на один кадр, чтобы композитор пересобрал слои:
+     без этого стеклянные поверхности продолжают размывать прежний фон. */
+  const repaintGlass = () => {
+    const root = document.documentElement;
+    root.classList.add("theme-swap");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      root.classList.remove("theme-swap");
+    }));
+  };
+
   $("themeBtn").addEventListener("click", () => {
     theme = theme === "dark" ? "light" : "dark";
-    applyTheme(); savePrefs();
+    applyTheme(); repaintGlass(); savePrefs();
   });
 
   /* ============================================================
@@ -922,6 +1097,9 @@ pre#promptText::-webkit-scrollbar-thumb {
     for (const el of document.querySelectorAll("[data-only]")) {
       el.hidden = el.dataset.only !== mode;
     }
+    // Положение скользящей шайбы задаётся атрибутом, а не инлайн-стилем:
+    // анимацию описывает CSS, скрипт только сообщает состояние.
+    $("modes").dataset.mode = mode;
     // У поля героя есть своё состояние: оно раскрывается по ссылке «не знаю ID»,
     // и общий цикл по режимам не должен показывать его сам.
     $("heroField").hidden = mode !== "match" || !heroOpen;
@@ -1302,10 +1480,22 @@ pre#promptText::-webkit-scrollbar-thumb {
     $("chipModel").textContent = m ? m.label : data.model;
 
     const isProfile = mode === "profile";
+    // Сторона игрока — только у одиночного разбора: у профиля сторон много.
+    const badge = $("sideBadge");
+    badge.hidden = isProfile || !data.side;
+    if (!badge.hidden) {
+      resultEl.dataset.side = data.side;
+      $("sideText").textContent = t("result.side." + data.side) + " · "
+        + t(data.win ? "result.win" : "result.lose");
+    } else {
+      delete resultEl.dataset.side;
+    }
+
     $("chipDepth").hidden = isProfile;
     $("chipFocus").hidden = isProfile;
     $("chipMatches").hidden = !isProfile;
     $("chipUnparsed").hidden = !(isProfile && data.unparsed);
+    $("chipWinrate").hidden = !isProfile;
     $("chipWindow").hidden = !data.window;
 
     if (!isProfile) {
@@ -1318,6 +1508,8 @@ pre#promptText::-webkit-scrollbar-thumb {
       $("chipMatches").textContent = t("result.matches", {
         analyzed: data.analyzed, requested: data.requested,
       });
+      $("chipWinrate").hidden = false;
+      $("chipWinrate").textContent = t("result.winrate", { pct: data.winrate });
       if (data.unparsed) {
         $("chipUnparsed").textContent = t("result.unparsed", { n: data.unparsed });
       }
