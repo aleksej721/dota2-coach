@@ -605,22 +605,57 @@ UI = {
     "group.request": "Player context",
 
     "field.match": "Match ID or link",
-    "field.match.ph": "8931432366 or a Dotabuff / OpenDota link",
+    "field.match.ph": "match ID or link",
     "field.account": "My account_id",
-    "field.account.ph": "964327319",
+    "field.account.ph": "86745912",
     "field.hero_toggle": "don't know my ID — I'll name my hero",
     "field.hero": "My hero in this match",
-    "field.hero.ph": "Phantom Lancer",
+    "field.hero.ph": "hero name from the match",
+
+    "mode.help": "how do the modes differ?",
+    "mode.match": "Single match",
+    "mode.profile": "Profile",
+    "mode.match.sub": "one game in depth",
+    "mode.profile.sub": "patterns across N matches",
+    "group.profile": "Player and sample",
+    "advanced.toggle": "Advanced settings",
+    "advanced.summary": "role, focus, depth, model, window, question",
+
+    "field.matches": "How many recent matches",
+    "field.matches.ph": "10",
+    "field.hero_filter": "This hero only",
+    "field.hero_filter.ph": "hero name (optional)",
+    "field.role_filter": "This position only",
+    "role.any": "Any — as played",
+    "submit.profile": "Analyze profile",
+    "submit.busy.profile": "Building the profile…",
+    "pstage.0": "Fetching the player's match list…",
+    "pstage.4": "Pulling matches one by one: OpenDota allows about one request per second.",
+    "pstage.25": "Still pulling. More matches take longer — you can leave the page alone.",
+    "pstage.90": "Almost there. Folding the sample into patterns.",
+    "result.matches": "matches: {analyzed}/{requested}",
+    "result.unparsed": "unparsed: {n}",
+    "result.window": "window: {range} min",
+
+    "field.window": "Game window",
+    "field.window.enable": "analyze a specific stretch",
+    "window.off": "whole match",
+    "window.range": "{start}–{end} min",
+    "window.start": "window start, minutes",
+    "window.end": "window end, minutes",
     "field.depth": "Depth",
     "field.role": "My role",
     "field.focus": "Focus",
     "field.model": "Model",
     "field.note": "Question for the review",
     "field.note.optional": "— optional",
-    "field.note.ph": "why did I finish Manta so late, and was Diffusal better against Ursa?",
+    "field.note.ph.1":
+        "why did I finish Manta so late, and was Diffusal better against Ursa",
+    "field.note.ph.2": "where is my BF on Anti-Mage by minute 30",
+    "field.note.ph.3": "I play support — were my wards and stacks right",
     "field.mmr": "My level / MMR",
     "field.mmr.optional": "— optional",
-    "field.mmr.ph": "3500 or Legend",
+    "field.mmr.ph": "e.g. 3500 / Legend (or 300 — no judgement)",
 
     "role.auto": "Auto — detect from match",
     "role.1": "Pos 1 — Carry",
@@ -699,6 +734,25 @@ UI = {
         "Could not reach OpenDota. Check your connection and try again.",
     "err.body.unavailable":
         "OpenDota is unavailable or returning errors right now. Try again a bit later.",
+    "warn.profile_unparsed":
+        "OpenDota did not fully parse some matches in the sample: they have no percentiles or "
+        "per-minute data, so they only partially feed the averages and trends. How many "
+        "exactly is stated in the prompt, in the limitations section.",
+    "warn.profile_short":
+        "Fewer matches made it in than requested: some are unavailable or did not match the "
+        "filter. Conclusions from a small sample are shaky — that is noted in the prompt too.",
+    "err.body.no_matches":
+        "No matches found for these filters. Relax the hero or position filter — and if there "
+        "are no matches at all, check that \"Expose Public Match Data\" is enabled in Dota 2: "
+        "without it OpenDota cannot see your history.",
+    "err.body.hero_unknown":
+        "The hero name was not recognised, or it matches several heroes. Write it out more "
+        "fully — for example, \"Phantom Lancer\" instead of \"Phantom\".",
+    "err.body.profile_timeout":
+        "The sample is taking too long to collect. Reduce the number of matches or try again: "
+        "some matches are already in the local cache, so a second run will be faster.",
+    "err.body.bad_window":
+        "The end of the window must be greater than its start. Adjust the slider.",
     "err.body.parse_timeout":
         "OpenDota is still parsing this match. Wait a minute and retry — the second "
         "attempt usually finds the data ready.",
@@ -736,6 +790,30 @@ UI = {
         "Your own question for the review. If it is set, the review starts with it and the "
         "generic sections move to the background. Be specific: \"why did I lose the lane "
         "against Pudge and Hoodwink?\" works far better than \"how do I play better?\".",
+    "hint.mode":
+        "\"Single match\" breaks down one game in detail. \"Profile\" takes the last N "
+        "matches and looks for what REPEATS: averages, trends, recurring deviations. Full "
+        "match data is not in the profile — otherwise the prompt would not fit any model.",
+    "hint.matches":
+        "How many recent matches to fold into the profile. Fewer is faster but the "
+        "conclusions are shaky; more is sturdier but slower and risks mixing patches. "
+        "Matches are pulled one per second or so: 10 matches means about 15 seconds.",
+    "hint.hero_filter":
+        "Optional. Keeps only matches on this hero, which makes the averages and patterns "
+        "far more meaningful than an average across all heroes. The name can be partial but "
+        "must be unambiguous: \"Phantom\" will not do, \"Phantom Lancer\" will.",
+    "hint.role_filter":
+        "Optional. Keeps only matches on this position. The position is derived heuristically "
+        "from lane and net worth, so some matches may drop out — how many actually made it "
+        "is stated in the prompt itself.",
+    "hint.window":
+        "Pick a stretch if you want to examine a specific point of the game in maximum "
+        "detail — the actions of every hero inside that window. Inside the window nothing is "
+        "thinned out: all ten heroes per minute, purchases, kills and fights. The rest of the "
+        "match is compressed to a summary — otherwise the window's detail would drown in it.",
+    "hint.advanced":
+        "Everything you can leave alone. The defaults are tuned for an ordinary review; open "
+        "this when you need a specific slice.",
     "hint.mmr":
         "Optional. Give an MMR or a bracket (Herald, Legend, Ancient…) and the model will "
         "calibrate its advice to that level instead of suggesting moves you can't execute yet.",

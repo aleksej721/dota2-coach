@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dota2coach",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "dota2coach", "serve", "--port", "8010"],
+      "port": 8010
+    }
+  ]
+}

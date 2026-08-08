@@ -129,7 +129,7 @@ body {
 /* ============================================================
    Шапка и управление
    ============================================================ */
-header { position: relative; text-align: center; margin-bottom: var(--space-5); }
+header { position: relative; text-align: center; margin-bottom: var(--space-4); }
 
 .logo {
   display: inline-flex; align-items: center; gap: 11px;
@@ -138,6 +138,9 @@ header { position: relative; text-align: center; margin-bottom: var(--space-5); 
 .logo svg { width: 27px; height: 27px; }
 .tagline { margin: 8px 0 0; color: var(--muted); font-size: 14.5px; }
 
+/* Язык и тема живут в шапке и видны всегда: это не поля формы, и убирать их
+   под аккордеон означало бы прятать переключатель языка от того, кто пришёл
+   на непонятном ему языке. */
 .controls {
   position: absolute; top: 2px; right: 0;
   display: flex; align-items: center; gap: 8px;
@@ -160,6 +163,38 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%239aa0ae' stroke-width='1.7' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 9px center; }
 .ctl svg { width: 15px; height: 15px; }
+
+/* ============================================================
+   Переключатель режимов
+   ============================================================ */
+.modes {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  max-width: 520px; margin: 0 auto var(--space-4);
+  padding: 5px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(var(--r-md) + 5px);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.mode {
+  display: grid; gap: 1px; justify-items: center;
+  padding: 9px 12px; border: 1px solid transparent; border-radius: var(--r-md);
+  background: none; color: var(--muted);
+  font: inherit; cursor: pointer; text-align: center;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease),
+              border-color var(--dur) var(--ease);
+}
+.mode-name { font-size: 14.5px; font-weight: 600; }
+.mode-sub { font-size: 11.5px; color: var(--faint); }
+.mode:hover { color: var(--text); }
+.mode[aria-selected="true"] {
+  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 18px var(--accent-soft);
+}
+.mode[aria-selected="true"] .mode-sub { color: rgba(255, 255, 255, .82); }
+.mode:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.modes-note { display: flex; justify-content: center; margin: -14px 0 var(--space-4); }
 
 /* ============================================================
    Стекло
@@ -185,10 +220,7 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
 
 form.card { padding: 0; overflow: clip; }
 
-.form-section {
-  position: relative;
-  padding: 24px 26px;
-}
+.form-section { position: relative; padding: 24px 26px; }
 .form-section + .form-section { border-top: 1px solid var(--glass-border); }
 .section-head {
   display: flex; align-items: center; gap: 10px;
@@ -208,12 +240,12 @@ form.card { padding: 0; overflow: clip; }
    ============================================================ */
 .row { display: grid; gap: 16px; }
 .row-2 { grid-template-columns: 1fr 1fr; }
-.row-3 { grid-template-columns: 1fr 1fr 1fr; }
-.row-4 { grid-template-columns: 1.12fr 1.18fr 1fr 1.08fr; }
+.row-auto { grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); }
 .row-note { grid-template-columns: 2fr 1fr; align-items: start; }
 .row + .row, .row + .field, .field + .row { margin-top: 16px; }
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+[data-only][hidden] { display: none; }
 
 .lbl {
   display: flex; align-items: center; gap: 5px;
@@ -261,9 +293,7 @@ select.fld {
 .hint-link:hover { color: var(--muted); }
 #heroField[hidden] { display: none; }
 #heroField { margin-top: 16px; }
-.field-note {
-  margin-top: 2px; color: var(--warn); font-size: 11.5px; line-height: 1.4;
-}
+.field-note { margin-top: 2px; color: var(--warn); font-size: 11.5px; line-height: 1.4; }
 .field-note[hidden] { display: none; }
 
 /* --- значок подсказки --- */
@@ -322,6 +352,123 @@ select.fld {
 .segment input { position: absolute; opacity: 0; pointer-events: none; }
 .segment input:checked + span { color: var(--on-accent); }
 .segment:focus-within { box-shadow: 0 0 0 3.5px var(--accent-soft); }
+
+/* ============================================================
+   Расширенные настройки (progressive disclosure)
+   ============================================================ */
+.adv { border-top: 1px solid var(--glass-border); }
+.adv-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 16px 26px; background: none; border: none;
+  color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; text-align: left;
+  transition: background var(--dur) var(--ease);
+}
+.adv-toggle:hover { background: var(--accent-soft); }
+.adv-toggle:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.adv-chevron {
+  flex: none; width: 15px; height: 15px; color: var(--muted);
+  transition: transform var(--dur) var(--ease);
+}
+.adv-toggle[aria-expanded="true"] .adv-chevron { transform: rotate(90deg); }
+.adv-summary {
+  flex: 1; color: var(--faint); font-size: 12px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.adv-toggle[aria-expanded="true"] .adv-summary { opacity: 0; }
+
+/* Раскрытие через grid-template-rows: 0fr -> 1fr анимируется, в отличие от
+   height:auto, и не требует измерять содержимое скриптом. */
+.adv-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .26s var(--ease); }
+.adv[data-open="true"] .adv-body { grid-template-rows: 1fr; }
+.adv-inner { overflow: hidden; }
+.adv-pad { padding: 4px 26px 24px; }
+
+/* ============================================================
+   Ползунок тайм-рейнджа
+   ============================================================ */
+.switch {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 13px; color: var(--muted); cursor: pointer;
+  -webkit-user-select: none; user-select: none;
+}
+/* Не width/height:0: с нулевым размером Chrome выкидывает поле из дерева
+   доступности, и скринридер перестаёт видеть переключатель вовсе. */
+.switch input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.switch-track {
+  position: relative; flex: none; width: 38px; height: 22px;
+  background: var(--field-bg); border: 1px solid var(--field-border);
+  border-radius: 99px; transition: background var(--dur) var(--ease),
+                                   border-color var(--dur) var(--ease);
+}
+.switch-dot {
+  position: absolute; top: 3px; left: 3px; width: 14px; height: 14px;
+  background: var(--muted); border-radius: 50%;
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.switch input:checked + .switch-track {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+.switch input:checked + .switch-track .switch-dot {
+  transform: translateX(16px); background: var(--on-accent);
+}
+.switch input:focus-visible + .switch-track { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.range-value {
+  margin-left: auto; padding: 2px 9px;
+  background: var(--accent-soft); border-radius: 99px;
+  color: var(--accent); font-size: 12px; font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+
+.range-wrap {
+  margin-top: 14px;
+  transition: opacity var(--dur) var(--ease), filter var(--dur) var(--ease);
+}
+.range-wrap[data-off="true"] { opacity: .4; filter: saturate(.2); }
+
+/* Два нативных input[type=range] лежат друг на друге: доступность с клавиатуры
+   и на мобильном достаётся бесплатно, а «двуручечность» даёт наложение. */
+.range { position: relative; height: 36px; }
+.range-track {
+  position: absolute; top: 16px; left: 0; right: 0; height: 5px;
+  background: var(--field-bg); border: 1px solid var(--field-border);
+  border-radius: 99px; overflow: hidden;
+}
+.range-fill {
+  position: absolute; top: 0; bottom: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+.range input[type="range"] {
+  position: absolute; top: 0; left: 0; width: 100%; height: 36px; margin: 0;
+  appearance: none; -webkit-appearance: none;
+  background: none; pointer-events: none;
+}
+.range input[type="range"]:focus { outline: none; }
+.range input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; pointer-events: auto;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bg); border: 2.5px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: grab;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.range input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
+.range input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.06); }
+.range input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+.range input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--bg); border: 2.5px solid var(--accent); cursor: grab;
+}
+.range input[type="range"]::-moz-range-track { background: none; }
+
+.range-ticks {
+  display: flex; justify-content: space-between;
+  color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums;
+}
 
 /* ============================================================
    Кнопки
@@ -399,6 +546,7 @@ select.fld {
   font-size: 12.5px; font-weight: 550; color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+.chip[hidden] { display: none; }
 .chip-accent { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .actions { display: flex; gap: 8px; }
 
@@ -431,21 +579,21 @@ pre#promptText::-webkit-scrollbar-thumb {
 
 @media (max-width: 760px) {
   body { padding: 24px 14px 54px; }
-  .row-2, .row-3, .row-4, .row-note { grid-template-columns: 1fr; }
+  .row-2, .row-auto, .row-note { grid-template-columns: 1fr; }
   header { text-align: left; }
   .controls { position: static; justify-content: flex-start; margin-top: 12px; }
   .ctl { height: 44px; }
+  .modes { max-width: none; }
   .form-section { padding: 20px 17px; }
+  .adv-toggle { padding: 16px 17px; }
+  .adv-pad { padding: 4px 17px 20px; }
+  .adv-summary { display: none; }
   .submit-zone { padding: 20px 17px; }
   .submit-row, .submit-row .btn { width: 100%; }
   .result-bar { align-items: stretch; }
   .actions { width: 100%; }
   .actions .btn { flex: 1; padding-inline: 12px; }
   pre#promptText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55vh; }
-}
-
-@media (min-width: 761px) and (max-width: 980px) {
-  .row-4 { grid-template-columns: 1fr 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -483,95 +631,169 @@ pre#promptText::-webkit-scrollbar-thumb {
     </div>
   </header>
 
+  <div class="modes" role="tablist" id="modes">
+    <button type="button" class="mode" role="tab" id="modeMatch" data-mode="match"
+            aria-selected="true">
+      <span class="mode-name" data-i18n="mode.match"></span>
+      <span class="mode-sub" data-i18n="mode.match.sub"></span>
+    </button>
+    <button type="button" class="mode" role="tab" id="modeProfile" data-mode="profile"
+            aria-selected="false">
+      <span class="mode-name" data-i18n="mode.profile"></span>
+      <span class="mode-sub" data-i18n="mode.profile.sub"></span>
+    </button>
+  </div>
+  <p class="modes-note">
+    <button type="button" class="hint-link" data-hint="hint.mode" aria-expanded="false"
+            data-i18n="mode.help"></button>
+  </p>
+
   <form class="card" id="form" autocomplete="off">
-    <section class="form-section" aria-labelledby="groupPlayer">
-      <h2 class="section-head" id="groupPlayer">
-        <span class="section-index">01</span><span data-i18n="group.player"></span>
+    <!-- Базовый вид: только необходимое. Всё прочее — в «Расширенных настройках». -->
+    <section class="form-section" aria-labelledby="groupBasics">
+      <h2 class="section-head" id="groupBasics">
+        <span class="section-index">01</span><span id="groupBasicsText"></span>
       </h2>
       <div class="row row-2">
-        <div class="field">
+        <div class="field" data-only="match">
           <span class="lbl"><label for="matchId" data-i18n="field.match"></label>
             <button type="button" class="info" data-hint="hint.match" aria-expanded="false">?</button>
           </span>
-          <input id="matchId" type="text" data-i18n-ph="field.match.ph" required>
+          <input id="matchId" type="text" data-i18n-ph="field.match.ph">
         </div>
         <div class="field">
           <span class="lbl"><label for="accountId" data-i18n="field.account"></label>
             <button type="button" class="info" data-hint="hint.account" aria-expanded="false">?</button>
           </span>
           <input id="accountId" type="text" inputmode="numeric" data-i18n-ph="field.account.ph">
-          <button type="button" class="hint-link" id="heroToggle" data-i18n="field.hero_toggle"></button>
+          <button type="button" class="hint-link" id="heroToggle" data-only="match"
+                  data-i18n="field.hero_toggle"></button>
+        </div>
+        <div class="field" data-only="profile" hidden>
+          <span class="lbl"><label for="matches" data-i18n="field.matches"></label>
+            <button type="button" class="info" data-hint="hint.matches" aria-expanded="false">?</button>
+          </span>
+          <input id="matches" type="text" inputmode="numeric" data-i18n-ph="field.matches.ph">
         </div>
       </div>
 
-      <div class="field" id="heroField" hidden>
+      <div class="field" id="heroField" data-only="match" hidden>
         <span class="lbl"><label for="hero" data-i18n="field.hero"></label></span>
         <input id="hero" type="text" data-i18n-ph="field.hero.ph">
       </div>
     </section>
 
-    <section class="form-section" aria-labelledby="groupAnalysis">
-      <h2 class="section-head" id="groupAnalysis">
-        <span class="section-index">02</span><span data-i18n="group.analysis"></span>
-      </h2>
-      <div class="row row-4">
-        <div class="field">
-          <span class="lbl"><label for="roleSelect" data-i18n="field.role"></label>
-            <button type="button" class="info" data-hint="hint.role" aria-expanded="false">?</button>
-          </span>
-          <select class="fld" id="roleSelect"></select>
-        </div>
-        <div class="field">
-          <span class="lbl"><label for="focus" data-i18n="field.focus"></label>
-            <button type="button" class="info" data-hint="hint.focus" aria-expanded="false">?</button>
-          </span>
-          <select class="fld" id="focus"></select>
-          <span class="field-note" id="focusNote" aria-live="polite" hidden></span>
-        </div>
-        <div class="field">
-          <span class="lbl"><span id="depthLabel" data-i18n="field.depth"></span>
-            <button type="button" class="info" data-hint="hint.depth" aria-expanded="false">?</button>
-          </span>
-          <div class="segment" id="depth" data-value="quick" role="radiogroup" aria-labelledby="depthLabel">
-            <div class="thumb" aria-hidden="true"></div>
-            <label><input type="radio" name="depth" value="quick" checked><span>quick</span></label>
-            <label><input type="radio" name="depth" value="deep"><span>deep</span></label>
+    <div class="adv" id="adv" data-open="false">
+      <button type="button" class="adv-toggle" id="advToggle" aria-expanded="false"
+              aria-controls="advBody">
+        <svg class="adv-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 6l6 6-6 6"/>
+        </svg>
+        <span data-i18n="advanced.toggle"></span>
+        <span class="adv-summary" data-i18n="advanced.summary"></span>
+      </button>
+      <div class="adv-body" id="advBody">
+        <div class="adv-inner">
+          <div class="adv-pad">
+            <div class="row row-auto">
+              <div class="field" data-only="match">
+                <span class="lbl"><label for="roleSelect" data-i18n="field.role"></label>
+                  <button type="button" class="info" data-hint="hint.role" aria-expanded="false">?</button>
+                </span>
+                <select class="fld" id="roleSelect"></select>
+              </div>
+              <div class="field" data-only="match">
+                <span class="lbl"><label for="focus" data-i18n="field.focus"></label>
+                  <button type="button" class="info" data-hint="hint.focus" aria-expanded="false">?</button>
+                </span>
+                <select class="fld" id="focus"></select>
+                <span class="field-note" id="focusNote" aria-live="polite" hidden></span>
+              </div>
+              <div class="field" data-only="match">
+                <span class="lbl"><span id="depthLabel" data-i18n="field.depth"></span>
+                  <button type="button" class="info" data-hint="hint.depth" aria-expanded="false">?</button>
+                </span>
+                <div class="segment" id="depth" data-value="quick" role="radiogroup"
+                     aria-labelledby="depthLabel">
+                  <div class="thumb" aria-hidden="true"></div>
+                  <label><input type="radio" name="depth" value="quick" checked><span>quick</span></label>
+                  <label><input type="radio" name="depth" value="deep"><span>deep</span></label>
+                </div>
+              </div>
+
+              <div class="field" data-only="profile" hidden>
+                <span class="lbl"><label for="heroFilter" data-i18n="field.hero_filter"></label>
+                  <span class="opt" data-i18n="field.note.optional"></span>
+                  <button type="button" class="info" data-hint="hint.hero_filter" aria-expanded="false">?</button>
+                </span>
+                <input id="heroFilter" type="text" data-i18n-ph="field.hero_filter.ph">
+              </div>
+              <div class="field" data-only="profile" hidden>
+                <span class="lbl"><label for="roleFilter" data-i18n="field.role_filter"></label>
+                  <span class="opt" data-i18n="field.note.optional"></span>
+                  <button type="button" class="info" data-hint="hint.role_filter" aria-expanded="false">?</button>
+                </span>
+                <select class="fld" id="roleFilter"></select>
+              </div>
+
+              <div class="field">
+                <span class="lbl"><label for="model" data-i18n="field.model"></label>
+                  <button type="button" class="info" data-hint="hint.model" aria-expanded="false">?</button>
+                </span>
+                <select class="fld" id="model"></select>
+              </div>
+            </div>
+
+            <div class="field" data-only="match" id="windowField">
+              <span class="lbl">
+                <span data-i18n="field.window"></span>
+                <button type="button" class="info" data-hint="hint.window" aria-expanded="false">?</button>
+                <span class="range-value" id="windowValue"></span>
+              </span>
+              <label class="switch">
+                <input type="checkbox" id="windowOn">
+                <span class="switch-track"><span class="switch-dot"></span></span>
+                <span data-i18n="field.window.enable"></span>
+              </label>
+              <div class="range-wrap" id="rangeWrap" data-off="true">
+                <div class="range">
+                  <div class="range-track"><div class="range-fill" id="rangeFill"></div></div>
+                  <input type="range" id="windowStart" min="0" max="80" step="1" value="25"
+                         data-i18n-title="window.start">
+                  <input type="range" id="windowEnd" min="0" max="80" step="1" value="35"
+                         data-i18n-title="window.end">
+                </div>
+                <div class="range-ticks">
+                  <span>0</span><span>20</span><span>40</span><span>60</span><span>80</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="row row-note">
+              <div class="field">
+                <span class="lbl"><label for="note" data-i18n="field.note"></label>
+                  <span class="opt" data-i18n="field.note.optional"></span>
+                  <button type="button" class="info" data-hint="hint.note" aria-expanded="false">?</button>
+                </span>
+                <textarea id="note" rows="3"></textarea>
+              </div>
+              <div class="field">
+                <span class="lbl"><label for="mmr" data-i18n="field.mmr"></label>
+                  <span class="opt" data-i18n="field.mmr.optional"></span>
+                  <button type="button" class="info" data-hint="hint.mmr" aria-expanded="false">?</button>
+                </span>
+                <input id="mmr" type="text" data-i18n-ph="field.mmr.ph">
+              </div>
+            </div>
           </div>
         </div>
-        <div class="field">
-          <span class="lbl"><label for="model" data-i18n="field.model"></label>
-            <button type="button" class="info" data-hint="hint.model" aria-expanded="false">?</button>
-          </span>
-          <select class="fld" id="model"></select>
-        </div>
       </div>
-    </section>
-
-    <section class="form-section" aria-labelledby="groupRequest">
-      <h2 class="section-head" id="groupRequest">
-        <span class="section-index">03</span><span data-i18n="group.request"></span>
-      </h2>
-      <div class="row row-note">
-        <div class="field">
-          <span class="lbl"><label for="note" data-i18n="field.note"></label>
-            <span class="opt" data-i18n="field.note.optional"></span>
-            <button type="button" class="info" data-hint="hint.note" aria-expanded="false">?</button>
-          </span>
-          <textarea id="note" rows="3" data-i18n-ph="field.note.ph"></textarea>
-        </div>
-        <div class="field">
-          <span class="lbl"><label for="mmr" data-i18n="field.mmr"></label>
-            <span class="opt" data-i18n="field.mmr.optional"></span>
-            <button type="button" class="info" data-hint="hint.mmr" aria-expanded="false">?</button>
-          </span>
-          <input id="mmr" type="text" data-i18n-ph="field.mmr.ph">
-        </div>
-      </div>
-    </section>
+    </div>
 
     <div class="submit-zone">
       <div class="submit-row">
-        <button type="submit" class="btn" id="submitBtn" data-i18n="submit"></button>
+        <button type="submit" class="btn" id="submitBtn"></button>
       </div>
       <div class="status" id="status" aria-live="polite"></div>
     </div>
@@ -589,6 +811,9 @@ pre#promptText::-webkit-scrollbar-thumb {
         <span class="chip" id="chipFocus"></span>
         <span class="chip" id="chipModel"></span>
         <span class="chip chip-accent" id="chipRole"></span>
+        <span class="chip chip-accent" id="chipWindow" hidden></span>
+        <span class="chip chip-accent" id="chipMatches" hidden></span>
+        <span class="chip" id="chipUnparsed" hidden></span>
         <span class="chip chip-accent" id="chipNote" hidden></span>
       </div>
       <div class="actions">
@@ -606,7 +831,7 @@ pre#promptText::-webkit-scrollbar-thumb {
   </section>
 
   <p class="foot">
-    <code>python -m dota2coach analyze &lt;match_id&gt; --me &lt;account_id&gt;</code>
+    <code id="footCmd"></code>
   </p>
 </div>
 
@@ -621,18 +846,24 @@ pre#promptText::-webkit-scrollbar-thumb {
   const form = $("form"), statusEl = $("status"), errorEl = $("error"),
         warnEl = $("warning"), resultEl = $("result"), promptEl = $("promptText"),
         submitBtn = $("submitBtn"), depthSeg = $("depth"), hintEl = $("hint"),
-        roleSel = $("roleSelect"), focusNote = $("focusNote");
+        roleSel = $("roleSelect"), focusNote = $("focusNote"), advEl = $("adv"),
+        advToggle = $("advToggle"), roleFilter = $("roleFilter"),
+        windowOn = $("windowOn"), wStart = $("windowStart"), wEnd = $("windowEnd");
 
   const STORE = "dota2coach:prefs";
   // Версия формата настроек. Настройки прошлых версий игнорируем: например,
   // раньше глубина сохранялась всегда, и это молча отменяло дефолт модели.
-  const PREFS_VERSION = 3;
+  const PREFS_VERSION = 4;
   let lang = CFG.defaultLang;
   let theme = "dark";
+  let mode = "match";           // match | profile
+  let heroOpen = false;          // раскрыто ли поле «имя моего героя»
   let depthTouched = false;      // трогал ли пользователь тумблер глубины
   let currentFilename = "prompt.txt";
   let ticker = null;
   let focusNoteTimer = null;
+  let phTimer = null;
+  let phIndex = 0;
 
   const t = (key, params) => {
     let s = (CFG.strings[lang] || {})[key];
@@ -642,7 +873,7 @@ pre#promptText::-webkit-scrollbar-thumb {
   };
 
   /* ============================================================
-     Настройки: язык, тема, account_id и режимы переживают перезагрузку
+     Настройки: язык, тема, режим, account_id и опции переживают перезагрузку
      ============================================================ */
   const readPrefs = () => {
     try {
@@ -653,10 +884,13 @@ pre#promptText::-webkit-scrollbar-thumb {
   const savePrefs = () => {
     try {
       localStorage.setItem(STORE, JSON.stringify({
-        v: PREFS_VERSION, lang, theme,
+        v: PREFS_VERSION, lang, theme, mode,
+        advOpen: advEl.dataset.open === "true",
         accountId: $("accountId").value.trim(),
+        matches: $("matches").value.trim(),
         depth: depthTouched ? depthSeg.dataset.value : null,
         role: roleSel.value || null,
+        roleFilter: roleFilter.value || null,
         focus: $("focus").value,
         model: $("model").value,
         mmr: $("mmr").value.trim(),
@@ -682,16 +916,95 @@ pre#promptText::-webkit-scrollbar-thumb {
   });
 
   /* ============================================================
+     Режимы: показываем только поля выбранного режима
+     ============================================================ */
+  const applyMode = () => {
+    for (const el of document.querySelectorAll("[data-only]")) {
+      el.hidden = el.dataset.only !== mode;
+    }
+    // У поля героя есть своё состояние: оно раскрывается по ссылке «не знаю ID»,
+    // и общий цикл по режимам не должен показывать его сам.
+    $("heroField").hidden = mode !== "match" || !heroOpen;
+    for (const btn of document.querySelectorAll(".mode")) {
+      btn.setAttribute("aria-selected", String(btn.dataset.mode === mode));
+    }
+    $("groupBasicsText").textContent =
+      t(mode === "profile" ? "group.profile" : "group.player");
+    $("footCmd").textContent = mode === "profile"
+      ? "python -m dota2coach profile <account_id> -n 10"
+      : "python -m dota2coach analyze <match_id> --me <account_id>";
+    setBusy(false);
+  };
+
+  for (const btn of document.querySelectorAll(".mode")) {
+    btn.addEventListener("click", () => {
+      if (mode === btn.dataset.mode) return;
+      mode = btn.dataset.mode;
+      // Результат предыдущего режима к новому отношения не имеет.
+      hide(errorEl, warnEl, resultEl);
+      closeHint();
+      applyMode(); savePrefs();
+    });
+  }
+
+  /* ============================================================
+     Расширенные настройки
+     ============================================================ */
+  const setAdvanced = (open) => {
+    advEl.dataset.open = String(open);
+    advToggle.setAttribute("aria-expanded", String(open));
+  };
+
+  advToggle.addEventListener("click", () => {
+    setAdvanced(advEl.dataset.open !== "true");
+    savePrefs();
+  });
+
+  /* ============================================================
+     Ползунок тайм-рейнджа
+     ============================================================ */
+  const MIN_SPAN = 1;   // окно в ноль минут смысла не имеет
+
+  const syncRange = () => {
+    let a = Number(wStart.value), b = Number(wEnd.value);
+    if (b - a < MIN_SPAN) {
+      // Раздвигаем ту ручку, которую НЕ держит пользователь, иначе она
+      // «прилипает» и перетаскивание упирается в невидимую стену.
+      if (document.activeElement === wStart) b = Math.min(Number(wEnd.max), a + MIN_SPAN);
+      else a = Math.max(0, b - MIN_SPAN);
+      wStart.value = a; wEnd.value = b;
+    }
+    const max = Number(wStart.max);
+    $("rangeFill").style.left = (100 * a / max) + "%";
+    $("rangeFill").style.width = (100 * (b - a) / max) + "%";
+    $("windowValue").textContent = windowOn.checked
+      ? t("window.range", { start: a, end: b })
+      : t("window.off");
+    $("rangeWrap").dataset.off = String(!windowOn.checked);
+  };
+
+  wStart.addEventListener("input", syncRange);
+  wEnd.addEventListener("input", syncRange);
+  windowOn.addEventListener("change", () => {
+    syncRange();
+    if (windowOn.checked) wStart.focus({ preventScroll: true });
+  });
+
+  /* ============================================================
      Язык: перерисовываем подписи, плейсхолдеры и содержимое селектов
      ============================================================ */
   const renderRoleOptions = () => {
     const keep = roleSel.value;
     roleSel.innerHTML = "";
     roleSel.append(new Option(t("role.auto"), ""));
-    for (const code of CFG.roles) {
-      roleSel.append(new Option(t("role." + code), code));
-    }
+    for (const code of CFG.roles) roleSel.append(new Option(t("role." + code), code));
     roleSel.value = CFG.roles.includes(keep) ? keep : "";
+
+    const keepFilter = roleFilter.value;
+    roleFilter.innerHTML = "";
+    roleFilter.append(new Option(t("role.any"), ""));
+    for (const code of CFG.roles) roleFilter.append(new Option(t("role." + code), code));
+    roleFilter.value = CFG.roles.includes(keepFilter) ? keepFilter : "";
   };
 
   const renderFocusOptions = (notify = false) => {
@@ -701,9 +1014,7 @@ pre#promptText::-webkit-scrollbar-thumb {
       ? CFG.roleFocuses[roleSel.value]
       : CFG.focuses;
     focusSel.innerHTML = "";
-    for (const code of allowed) {
-      focusSel.append(new Option(t("focus." + code), code));
-    }
+    for (const code of allowed) focusSel.append(new Option(t("focus." + code), code));
     const preserved = allowed.includes(keep);
     focusSel.value = preserved ? keep : "full";
 
@@ -713,6 +1024,25 @@ pre#promptText::-webkit-scrollbar-thumb {
       focusNote.textContent = t("focus.adjusted");
       focusNoteTimer = setTimeout(() => { focusNote.hidden = true; }, 5000);
     }
+  };
+
+  /* Плейсхолдер вопроса чередуется: один пример читается как «надо писать так»,
+     несколько показывают, что спросить можно про что угодно. */
+  const NOTE_PH = ["field.note.ph.1", "field.note.ph.2", "field.note.ph.3"];
+
+  const rotateNotePlaceholder = () => {
+    const el = $("note");
+    // Пока в поле пишут, подсказку не трогаем — это отвлекает.
+    if (document.activeElement !== el) {
+      el.placeholder = t(NOTE_PH[phIndex % NOTE_PH.length]);
+      phIndex += 1;
+    }
+  };
+
+  const startPlaceholderRotation = () => {
+    clearInterval(phTimer);
+    rotateNotePlaceholder();
+    phTimer = setInterval(rotateNotePlaceholder, 6500);
   };
 
   const applyLang = () => {
@@ -729,8 +1059,10 @@ pre#promptText::-webkit-scrollbar-thumb {
 
     renderRoleOptions();
     renderFocusOptions(false);
+    applyMode();
+    syncRange();
+    startPlaceholderRotation();
 
-    $("submitBtn").textContent = submitBtn.disabled ? t("submit.busy") : t("submit");
     $("copyBtn").textContent = t("result.copy");
     $("downloadBtn").textContent = t("result.download");
     $("chipNote").textContent = t("result.with_note");
@@ -771,7 +1103,7 @@ pre#promptText::-webkit-scrollbar-thumb {
   };
 
   document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".info");
+    const btn = e.target.closest("[data-hint]");
     if (btn) {
       e.preventDefault();
       if (openHintBtn === btn) closeHint(); else openHint(btn);
@@ -803,15 +1135,12 @@ pre#promptText::-webkit-scrollbar-thumb {
     if (m) setDepth(m.defaultDepth);
   });
 
-  roleSel.addEventListener("change", () => {
-    renderFocusOptions(true);
-    savePrefs();
-  });
+  roleSel.addEventListener("change", () => { renderFocusOptions(true); savePrefs(); });
 
   $("heroToggle").addEventListener("click", () => {
-    const f = $("heroField");
-    f.hidden = !f.hidden;
-    if (!f.hidden) $("hero").focus({ preventScroll: true });
+    heroOpen = !heroOpen;
+    $("heroField").hidden = !heroOpen;
+    if (heroOpen) $("hero").focus({ preventScroll: true });
   });
 
   /* Из ссылки на матч вытаскиваем номер: люди копируют именно ссылку. */
@@ -833,14 +1162,20 @@ pre#promptText::-webkit-scrollbar-thumb {
   /* ============================================================
      Загрузка и ошибки
      ============================================================ */
-  const STAGES = [[0, "stage.0"], [6, "stage.6"], [14, "stage.14"], [40, "stage.40"]];
+  // Разные режимы ждут по-разному: матч может уйти в парсинг, профиль тянет
+  // матчи по одному. Тексты этапов у них поэтому свои.
+  const STAGES = {
+    match: [[0, "stage.0"], [6, "stage.6"], [14, "stage.14"], [40, "stage.40"]],
+    profile: [[0, "pstage.0"], [4, "pstage.4"], [25, "pstage.25"], [90, "pstage.90"]],
+  };
 
   const startTicker = () => {
     const t0 = Date.now();
+    const stages = STAGES[mode];
     const tick = () => {
       const sec = Math.round((Date.now() - t0) / 1000);
-      let key = STAGES[0][1];
-      for (const [at, k] of STAGES) if (sec >= at) key = k;
+      let key = stages[0][1];
+      for (const [at, k] of stages) if (sec >= at) key = k;
       statusEl.textContent = `${t(key)}  ${sec} ${t("stage.seconds")}`;
     };
     tick();
@@ -848,13 +1183,18 @@ pre#promptText::-webkit-scrollbar-thumb {
   };
   const stopTicker = () => { clearInterval(ticker); ticker = null; statusEl.textContent = ""; };
 
-  const setBusy = (busy) => {
+  function setBusy(busy) {
+    const label = mode === "profile" ? "submit.profile" : "submit";
+    const busyLabel = mode === "profile" ? "submit.busy.profile" : "submit.busy";
     submitBtn.disabled = busy;
     form.setAttribute("aria-busy", String(busy));
-    submitBtn.innerHTML = busy ? '<span class="spinner"></span>' + t("submit.busy") : t("submit");
-  };
+    submitBtn.innerHTML = busy
+      ? '<span class="spinner"></span>' + t(busyLabel)
+      : t(label);
+  }
 
-  const hide = (...els) => els.forEach((el) => { el.hidden = true; });
+  function hide(...els) { els.forEach((el) => { el.hidden = true; }); }
+
   const showPanel = (el, title, text) => {
     el.innerHTML = "";
     if (title) { const b = document.createElement("strong"); b.textContent = title; el.appendChild(b); }
@@ -864,67 +1204,32 @@ pre#promptText::-webkit-scrollbar-thumb {
 
   const numOrNull = (v) => { const s = v.trim(); return s === "" ? null : Number(s); };
 
+  const badAccount = (id) => id === null || !Number.isInteger(id) || id <= 0;
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     closeHint();
     hide(errorEl, warnEl, resultEl);
 
-    const matchId = parseMatchId($("matchId").value);
-    if (!matchId) { showPanel(errorEl, t("err.match"), t("err.match.body")); return; }
-
     const accountId = numOrNull($("accountId").value);
-    const hero = $("hero").value.trim();
-    if (accountId === null && hero === "") {
-      showPanel(errorEl, t("err.who"), t("err.who.body")); return;
-    }
-    if (accountId !== null && (!Number.isInteger(accountId) || accountId <= 0)) {
-      showPanel(errorEl, t("err.account"), t("err.account.body")); return;
-    }
+    const request = mode === "profile"
+      ? buildProfileRequest(accountId)
+      : buildMatchRequest(accountId);
+    if (!request) return;
 
     savePrefs();
     setBusy(true);
     startTicker();
 
     try {
-      const res = await fetch("/api/analyze", {
+      const res = await fetch(request.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          match_id: matchId,
-          account_id: accountId,
-          hero: hero || null,
-          depth: depthSeg.dataset.value,
-          role: roleSel.value || null,
-          focus: $("focus").value,
-          model: $("model").value,
-          lang: lang,
-          note: $("note").value.trim() || null,
-          mmr: $("mmr").value.trim() || null,
-        }),
+        body: JSON.stringify(request.body),
       });
-
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) { showError(res.status, data); return; }
-
-      currentFilename = data.filename || "prompt.txt";
-      promptEl.textContent = data.prompt;
-      $("chipSize").textContent = (data.size_bytes / 1024).toFixed(1) + " " + (lang === "en" ? "KB" : "КБ");
-      $("chipTokens").textContent = t("result.tokens", { n: estimateTokens(data.prompt) });
-      $("chipDepth").textContent = "depth: " + data.depth;
-      $("chipFocus").textContent = "focus: " + data.focus;
-      const m = CFG.models.find((x) => x.code === data.model);
-      $("chipModel").textContent = m ? m.label : data.model;
-      const selectedRole = data.role || roleSel.value;
-      $("chipRole").textContent = t("result.role", {
-        role: selectedRole ? t("role." + selectedRole) : t("role.auto"),
-      });
-      $("chipNote").hidden = !data.has_note;
-      resultEl.hidden = false;
-      if (data.warning === "unparsed") {
-        showPanel(warnEl, t("err.warn_title"), t("warn.unparsed"));
-      }
-      resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      showResult(data);
     } catch {
       showPanel(errorEl, t("err.offline"), t("err.offline.body"));
     } finally {
@@ -932,6 +1237,106 @@ pre#promptText::-webkit-scrollbar-thumb {
       setBusy(false);
     }
   });
+
+  function buildMatchRequest(accountId) {
+    const matchId = parseMatchId($("matchId").value);
+    if (!matchId) { showPanel(errorEl, t("err.match"), t("err.match.body")); return null; }
+
+    const hero = $("hero").value.trim();
+    if (accountId === null && hero === "") {
+      showPanel(errorEl, t("err.who"), t("err.who.body")); return null;
+    }
+    if (accountId !== null && badAccount(accountId)) {
+      showPanel(errorEl, t("err.account"), t("err.account.body")); return null;
+    }
+
+    return {
+      url: "/api/analyze",
+      body: {
+        match_id: matchId,
+        account_id: accountId,
+        hero: hero || null,
+        depth: depthSeg.dataset.value,
+        role: roleSel.value || null,
+        focus: $("focus").value,
+        model: $("model").value,
+        lang: lang,
+        note: $("note").value.trim() || null,
+        mmr: $("mmr").value.trim() || null,
+        window_start: windowOn.checked ? Number(wStart.value) : null,
+        window_end: windowOn.checked ? Number(wEnd.value) : null,
+      },
+    };
+  }
+
+  function buildProfileRequest(accountId) {
+    if (badAccount(accountId)) {
+      showPanel(errorEl, t("err.account"), t("err.account.body")); return null;
+    }
+    const matches = numOrNull($("matches").value);
+    return {
+      url: "/api/profile",
+      body: {
+        account_id: accountId,
+        // Пустое поле — это «сколько по умолчанию», а не ошибка ввода:
+        // сервер сам подставит и провалидирует границы.
+        matches: matches === null ? undefined : matches,
+        hero: $("heroFilter").value.trim() || null,
+        role: roleFilter.value || null,
+        model: $("model").value,
+        lang: lang,
+        note: $("note").value.trim() || null,
+        mmr: $("mmr").value.trim() || null,
+      },
+    };
+  }
+
+  function showResult(data) {
+    currentFilename = data.filename || "prompt.txt";
+    promptEl.textContent = data.prompt;
+    $("chipSize").textContent =
+      (data.size_bytes / 1024).toFixed(1) + " " + (lang === "en" ? "KB" : "КБ");
+    $("chipTokens").textContent = t("result.tokens", { n: estimateTokens(data.prompt) });
+
+    const m = CFG.models.find((x) => x.code === data.model);
+    $("chipModel").textContent = m ? m.label : data.model;
+
+    const isProfile = mode === "profile";
+    $("chipDepth").hidden = isProfile;
+    $("chipFocus").hidden = isProfile;
+    $("chipMatches").hidden = !isProfile;
+    $("chipUnparsed").hidden = !(isProfile && data.unparsed);
+    $("chipWindow").hidden = !data.window;
+
+    if (!isProfile) {
+      $("chipDepth").textContent = "depth: " + data.depth;
+      $("chipFocus").textContent = "focus: " + data.focus;
+      if (data.window) {
+        $("chipWindow").textContent = t("result.window", { range: data.window });
+      }
+    } else {
+      $("chipMatches").textContent = t("result.matches", {
+        analyzed: data.analyzed, requested: data.requested,
+      });
+      if (data.unparsed) {
+        $("chipUnparsed").textContent = t("result.unparsed", { n: data.unparsed });
+      }
+    }
+
+    const selectedRole = data.role || (isProfile ? roleFilter.value : roleSel.value);
+    $("chipRole").textContent = t("result.role", {
+      role: selectedRole ? t("role." + selectedRole) : t(isProfile ? "role.any" : "role.auto"),
+    });
+    $("chipNote").hidden = !data.has_note;
+
+    resultEl.hidden = false;
+    if (data.warning) {
+      const body = t("warn." + data.warning);
+      showPanel(warnEl, t("err.warn_title"),
+                body.startsWith("warn.") ? t("warn.unparsed") : body);
+    }
+    resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 
   function showError(status, data) {
     const detail = data && data.detail;
@@ -995,7 +1400,10 @@ pre#promptText::-webkit-scrollbar-thumb {
   const browserLang = (navigator.language || "").slice(0, 2);
   lang = prefs.lang || (CFG.strings[browserLang] ? browserLang : CFG.defaultLang);
   theme = prefs.theme === "light" ? "light" : "dark";
+  mode = prefs.mode === "profile" ? "profile" : "match";
+  setAdvanced(prefs.advOpen === true);
   if (prefs.accountId) $("accountId").value = prefs.accountId;
+  if (prefs.matches) $("matches").value = prefs.matches;
   if (prefs.mmr) $("mmr").value = prefs.mmr;
   if (prefs.model && CFG.models.some((m) => m.code === prefs.model)) modelSel.value = prefs.model;
   if (prefs.depth) { depthTouched = true; setDepth(prefs.depth); }
@@ -1008,15 +1416,13 @@ pre#promptText::-webkit-scrollbar-thumb {
   langSel.addEventListener("change", () => { lang = langSel.value; applyLang(); savePrefs(); });
 
   applyTheme();
+  if (prefs.role && CFG.roles.includes(prefs.role)) roleSel.value = prefs.role;
+  if (prefs.roleFilter && CFG.roles.includes(prefs.roleFilter)) roleFilter.value = prefs.roleFilter;
   applyLang();
-  if (prefs.role && CFG.roles.includes(prefs.role)) {
-    roleSel.value = prefs.role;
-    renderFocusOptions(false);
-  }
   if (prefs.focus && [...$("focus").options].some((o) => o.value === prefs.focus)) {
     $("focus").value = prefs.focus;
   }
-  $("matchId").focus({ preventScroll: true });
+  ($("matchId").offsetParent ? $("matchId") : $("accountId")).focus({ preventScroll: true });
 })();
 </script>
 </body>
