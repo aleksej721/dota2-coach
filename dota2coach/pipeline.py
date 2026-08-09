@@ -70,6 +70,10 @@ class Pipeline:
         path.write_text(text, encoding="utf-8")
         return path, text
 
+    def warm(self) -> None:
+        """Прогревает справочники. Сеть трогает, данные матчей — нет."""
+        self._constants.warm()
+
     # --- профиль (кросс-матчевый разбор) --------------------------------------
 
     def build_profile(self, account_id: int, count: int, hero: Optional[str] = None,

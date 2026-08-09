@@ -1,0 +1,28 @@
+# Render Blueprint. Деплой ручной: autoDeploy отключён намеренно, чтобы каждый
+# push в master не уезжал на прод сам — катим кнопкой Manual Deploy.
+services:
+  - type: web
+    name: dota2coach
+    runtime: python
+    plan: free
+    region: frankfurt
+    autoDeploy: false
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn dota2coach.web.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      # Render поддерживает не любую версию. Если сборка упадёт на этой —
+      # поставь ту, что есть в его образе (3.11/3.12/3.13).
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      # Ключ OpenDota НЕОБЯЗАТЕЛЕН (без него ниже лимиты). sync: false —
+      # значение вводится в дашборде и в репозиторий не попадает.
+      - key: OPENDOTA_API_KEY
+        sync: false
+      # Куда дублировать отзывы, чтобы они пережили перезапуск контейнера.
+      - key: FEEDBACK_WEBHOOK_URL
+        sync: false
+      # За прокси нельзя ждать парсинг три минуты: соединение оборвут раньше,
+      # чем мы ответим, и пользователь увидит пустую ошибку вместо объяснения.
+      - key: PARSE_TIMEOUT_SEC
+        value: "60"

@@ -9,6 +9,7 @@ import asyncio
 import json
 import pathlib
 import threading
+from contextlib import asynccontextmanager
 from typing import Literal, Optional, get_args
 
 from fastapi import FastAPI, HTTPException
@@ -16,7 +17,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from .. import i18n
+from .. import config, i18n
 from ..core import build_pipeline, generate_profile_prompt, generate_prompt
 from ..policy import DEPTHS, FOCUSES, ROLES, ROLE_FOCUSES, Policy
 from ..profile import DEFAULT_MATCHES, MAX_MATCHES, MIN_MATCHES
@@ -27,9 +28,10 @@ from ..sources.base import (KIND_HERO_UNKNOWN, KIND_NETWORK, KIND_NO_MATCHES,
 
 STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
-# OpenDota парсит матч до ~3 минут; держим запас и отвечаем понятным 504,
-# а не рвём соединение молча.
-REQUEST_TIMEOUT_SEC = 240.0
+# Ждём чуть дольше, чем сам парсинг, и отвечаем понятным 504, а не рвём
+# соединение молча. Привязано к PARSE_TIMEOUT_SEC: на хостинге его уменьшают,
+# и разъехаться эти два значения не должны.
+REQUEST_TIMEOUT_SEC = config.parse_timeout_sec() + 60.0
 
 Depth = Literal["quick", "deep"]
 Focus = Literal[
@@ -60,21 +62,48 @@ STATUS_BY_KIND = {
     KIND_UNAVAILABLE: 502,
 }
 
-app = FastAPI(title="dota2coach", docs_url="/api/docs", redoc_url=None)
-
 # Один конвейер на процесс: переиспользуются прогретые справочники и общий
-# rate-limiter. RateLimiter однопоточный, поэтому разборы сериализуем локом —
-# параллельно разбирать два матча локально всё равно незачем.
+# rate-limiter. Разборы сериализуем локом — лимит OpenDota (60 запросов/мин)
+# общий на всех пользователей сервиса, а не на каждого.
 _pipeline_lock = threading.Lock()
+# Отдельный лок только на создание: иначе прогрев в фоне ждал бы, пока
+# завершится чужой разбор, и весь смысл прогрева пропал бы.
+_init_lock = threading.Lock()
 _pipeline = None
 
 
 def _shared_pipeline():
     global _pipeline
-    if _pipeline is None:
-        # out_dir не используется: веб в output/ не пишет, файл отдаёт браузер.
-        _pipeline = build_pipeline()
+    with _init_lock:
+        if _pipeline is None:
+            # out_dir не используется: веб в output/ не пишет, файл отдаёт браузер.
+            _pipeline = build_pipeline()
     return _pipeline
+
+
+def _warm_up() -> None:
+    """Тянет справочники OpenDota заранее, в фоне.
+
+    Без прогрева за них платит первый посетитель: восемь ресурсов через общий
+    rate-limiter — это секунды поверх и без того небыстрого холодного старта.
+    Идёт БЕЗ _pipeline_lock, чтобы не задерживать разбор, если он начался
+    раньше; очерёдность запросов к API всё равно держит rate-limiter.
+    """
+    try:
+        _shared_pipeline().warm()
+        print("dota2coach: справочники прогреты")
+    except Exception as e:  # прогрев — оптимизация, его сбой не должен ронять сервис
+        print(f"dota2coach: прогрев справочников не удался ({e})")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    threading.Thread(target=_warm_up, name="warmup", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="dota2coach", docs_url="/api/docs", redoc_url=None,
+              lifespan=lifespan)
 
 
 def _generate_blocking(match_id, account_id, hero, policy):
@@ -157,6 +186,12 @@ async def index() -> HTMLResponse:
     # no-store: страница одна и лежит рядом, а закэшированная версия после правки
     # стоит дороже, чем её повторная отдача.
     return HTMLResponse(_index_html(), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz() -> dict:
+    """Проба живости для хостинга: отвечает сразу, в сеть не ходит."""
+    return {"status": "ok", "warm": _pipeline is not None}
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)

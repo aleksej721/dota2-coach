@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from .. import normalize
+from .. import config, normalize
 from ..constants import Constants
 from ..model import Match
 from .base import (KIND_NETWORK, KIND_NO_MATCHES, KIND_NOT_FOUND, KIND_RATE_LIMITED,
@@ -26,16 +26,19 @@ class OpenDotaSource(DataSource):
 
     def __init__(self, session: requests.Session, constants: Constants, rate_limiter,
                  api_key: Optional[str] = None,
-                 parse_timeout: float = 180.0, poll_interval: float = 6.0,
-                 use_cache: bool = True, cache_dir: str = ".cache"):
+                 parse_timeout: Optional[float] = None, poll_interval: float = 6.0,
+                 use_cache: bool = True, cache_dir: Optional[str] = None):
         self._session = session
         self._constants = constants
         self._rate = rate_limiter
         self._api_key = api_key
-        self._parse_timeout = parse_timeout
+        # За обратным прокси хостинга трёхминутное ожидание не переживёт таймаут
+        # соединения, поэтому значение приходит из окружения (см. config).
+        self._parse_timeout = (parse_timeout if parse_timeout is not None
+                               else config.parse_timeout_sec())
         self._poll_interval = poll_interval
         self._use_cache = use_cache
-        self._cache_dir = pathlib.Path(cache_dir)
+        self._cache_dir = pathlib.Path(cache_dir or config.cache_dir())
 
     # --- низкоуровневые HTTP-хелперы -----------------------------------------
 
@@ -112,7 +115,7 @@ class OpenDotaSource(DataSource):
         if not self._use_cache or not self._is_parsed(raw):
             return
         try:
-            self._cache_dir.mkdir(exist_ok=True)
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
             self._cache_path(match_id).write_text(json.dumps(raw), encoding="utf-8")
         except OSError:
             pass  # кэш — оптимизация, его отсутствие не должно ломать разбор

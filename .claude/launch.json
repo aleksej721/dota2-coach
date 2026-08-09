@@ -4,8 +4,8 @@
     {
       "name": "dota2coach",
       "runtimeExecutable": ".venv/bin/python",
-      "runtimeArgs": ["-m", "dota2coach", "serve", "--port", "8010"],
-      "port": 8010
+      "runtimeArgs": ["-m", "dota2coach", "serve", "--port", "8000"],
+      "port": 8000
     }
   ]
 }

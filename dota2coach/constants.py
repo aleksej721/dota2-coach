@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from . import config
+
 # Токен локализации Valve вида {s:bonus_rot_slow} с необязательным знаком и
 # прилипшей единицей измерения сразу после скобки ("%" или "s" = секунды).
 # Единица ловится только вплотную к "}", иначе съели бы 's' у следующего слова.
@@ -91,15 +93,35 @@ class Constants:
 class ConstantsRepo(Constants):
     BASE = "https://api.opendota.com/api/constants"
 
+    # Справочники, которыми пользуется приложение. Список нужен прогреву:
+    # на сервере их тянут заранее, чтобы первый посетитель не ждал сеть.
+    RESOURCES = ("heroes", "items", "abilities", "ability_ids",
+                 "game_mode", "lobby_type", "patch", "permanent_buffs")
+
     def __init__(self, session: requests.Session, rate_limiter, api_key: Optional[str] = None,
-                 cache_dir: str = ".cache"):
+                 cache_dir: Optional[str] = None):
         self._session = session
         self._rate = rate_limiter
         self._api_key = api_key
-        self._cache_dir = pathlib.Path(cache_dir)
-        self._cache_dir.mkdir(exist_ok=True)
+        self._cache_dir = pathlib.Path(cache_dir or config.cache_dir())
+        # Каталог может быть недоступен для записи (read-only контейнер) — это
+        # не повод падать на старте: кэш всего лишь оптимизация.
+        try:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         self._mem: Dict[str, Any] = {}          # ресурс -> распарсенный JSON
         self._npc_index: Optional[Dict[str, str]] = None  # npc_name -> localized_name
+
+    def warm(self) -> None:
+        """Заранее подтягивает все справочники.
+
+        Вызывается в фоне при старте сервера. Без прогрева за них платит первый
+        же посетитель: восемь ресурсов через общий rate-limiter — это секунды
+        ожидания поверх и без того небыстрого cold start.
+        """
+        for resource in self.RESOURCES:
+            self._load(resource)
 
     # --- загрузка ресурса с трёхуровневым фолбэком: память -> файл -> сеть -> {} ---
     def _load(self, resource: str) -> Any:
@@ -121,9 +143,18 @@ class ConstantsRepo(Constants):
             resp = self._session.get(f"{self.BASE}/{resource}", params=params, timeout=30)
             resp.raise_for_status()
             data = resp.json()
-            cache_file.write_text(json.dumps(data), encoding="utf-8")
         except Exception:
             data = {}  # best-effort: без справочника используем fallback-имена
+
+        # Запись кэша — ОТДЕЛЬНО от загрузки. Иначе на read-only файловой системе
+        # (обычное дело в контейнере) исключение записи обнулило бы уже успешно
+        # скачанные данные, и все герои стали бы «hero_5».
+        if data:
+            try:
+                cache_file.write_text(json.dumps(data), encoding="utf-8")
+            except OSError:
+                pass
+
         self._mem[resource] = data
         return data
 

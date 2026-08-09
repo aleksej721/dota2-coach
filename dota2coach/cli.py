@@ -75,8 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="не брать матчи из .cache — сходить в API заново")
 
     s = sub.add_parser("serve", help="поднять локальный веб-интерфейс")
-    s.add_argument("--host", default="127.0.0.1", help="по умолчанию 127.0.0.1")
-    s.add_argument("--port", type=int, default=8000, help="по умолчанию 8000")
+    s.add_argument("--host", default=None,
+                   help="по умолчанию 127.0.0.1 (или 0.0.0.0, если задан $PORT)")
+    s.add_argument("--port", type=int, default=None,
+                   help="по умолчанию $PORT, иначе 8000")
     s.add_argument("--reload", action="store_true", help="автоперезапуск при правках (dev)")
     return parser
 
