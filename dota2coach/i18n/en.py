@@ -698,6 +698,16 @@ UI = {
     "result.winrate": "win rate {pct}%",
     "result.role": "role: {role}",
 
+    "feedback.question": "Was this analysis useful?",
+    "feedback.up": "Yes, useful",
+    "feedback.down": "No, weak",
+    "feedback.comment.ph": "what went wrong or what to improve — optional",
+    "feedback.send": "Send",
+    "feedback.sending": "Sending…",
+    "feedback.thanks": "Thank you! This helps make the analyses sharper.",
+    "feedback.thanks_more": "Thanks, noted.",
+    "feedback.error": "Could not send. Please try again.",
+
     "disclaimer":
         "This tool gives you DATA and a structured prompt. The quality of the REVIEW depends "
         "on the AI model you paste it into: a weak free chatbot will do noticeably worse than "

@@ -157,6 +157,10 @@ body {
    но диагональ, по которой они встречаются, читается сама. */
 .glow {
   position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  /* Собственный слой композитора. Без него фиксированный фон при прокрутке
+     перерисовывается не полностью, и сверху остаётся чёрная полоса
+     непрорисованной области — видно на длинных страницах с результатом. */
+  transform: translateZ(0);
   background:
     radial-gradient(720px 520px at 88% -6%,  var(--dire-aura), transparent 68%),
     radial-gradient(680px 560px at 6% 104%,  var(--radiant-aura), transparent 68%),
@@ -168,6 +172,7 @@ body {
    на больших площадях полосят, а плёнка шума это скрывает без цены в кадрах. */
 .grain {
   position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  transform: translateZ(0);
   opacity: var(--grain);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -714,6 +719,42 @@ pre#promptText::-webkit-scrollbar-thumb {
 }
 .disclaimer svg { flex: none; width: 15px; height: 15px; margin-top: 2px; color: var(--faint); }
 
+/* ============================================================
+   Фидбэк под результатом
+   ============================================================ */
+.feedback {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--glass-border);
+}
+.fb-q { color: var(--muted); font-size: 13px; }
+.fb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 36px; padding: 0;
+  background: var(--field-bg); border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  font-size: 17px; line-height: 1; cursor: pointer;
+  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease),
+              background var(--dur) var(--ease);
+}
+.fb-btn:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--field-hover); }
+.fb-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.fb-btn:disabled { cursor: default; }
+/* Выбранная оценка красится в свою фракцию: согласие — Radiant, несогласие — Dire. */
+.fb-btn[aria-pressed="true"][data-rating="1"] {
+  background: var(--radiant-soft); border-color: var(--radiant);
+}
+.fb-btn[aria-pressed="true"][data-rating="-1"] {
+  background: var(--dire-soft); border-color: var(--dire);
+}
+.fb-form { display: flex; gap: 8px; width: 100%; }
+.fb-form[hidden] { display: none; }
+.fb-form textarea { min-height: 44px; font-size: 14px; }
+.fb-form .btn { flex: none; align-self: flex-start; }
+.fb-note { color: var(--muted); font-size: 13px; }
+.fb-note[hidden] { display: none; }
+.fb-note[data-state="error"] { color: var(--danger); }
+
 .reveal { animation: reveal .3s var(--ease) both; }
 @keyframes reveal { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
 
@@ -987,6 +1028,20 @@ pre#promptText::-webkit-scrollbar-thumb {
       </div>
     </div>
     <pre id="promptText"></pre>
+    <div class="feedback" id="feedback">
+      <span class="fb-q" data-i18n="feedback.question"></span>
+      <button type="button" class="fb-btn" id="fbUp" data-rating="1"
+              aria-pressed="false" data-i18n-title="feedback.up">&#128077;</button>
+      <button type="button" class="fb-btn" id="fbDown" data-rating="-1"
+              aria-pressed="false" data-i18n-title="feedback.down">&#128078;</button>
+      <span class="fb-note" id="fbNote" role="status" aria-live="polite" hidden></span>
+      <div class="fb-form" id="fbForm" hidden>
+        <textarea id="fbComment" rows="2" data-i18n-ph="feedback.comment.ph"></textarea>
+        <button type="button" class="btn btn-ghost" id="fbSend"
+                data-i18n="feedback.send"></button>
+      </div>
+    </div>
+
     <p class="disclaimer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
         <circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01" stroke-linecap="round"/>
@@ -1029,6 +1084,10 @@ pre#promptText::-webkit-scrollbar-thumb {
   let focusNoteTimer = null;
   let phTimer = null;
   let phIndex = 0;
+  // Контекст последнего разбора — он же контекст отзыва. account_id сюда
+  // намеренно НЕ попадает: он опознаёт человека, а для оценки качества не нужен.
+  let fbContext = null;
+  let fbRating = 0;
 
   const t = (key, params) => {
     let s = (CFG.strings[lang] || {})[key];
@@ -1245,6 +1304,7 @@ pre#promptText::-webkit-scrollbar-thumb {
     syncRange();
     startPlaceholderRotation();
 
+    $("fbSend").textContent = t("feedback.send");
     $("copyBtn").textContent = t("result.copy");
     $("downloadBtn").textContent = t("result.download");
     $("chipNote").textContent = t("result.with_note");
@@ -1475,6 +1535,7 @@ pre#promptText::-webkit-scrollbar-thumb {
 
   function showResult(data) {
     currentFilename = data.filename || "prompt.txt";
+    resetFeedback(data);
     promptEl.textContent = data.prompt;
     $("chipSize").textContent =
       (data.size_bytes / 1024).toFixed(1) + " " + (lang === "en" ? "KB" : "КБ");
@@ -1554,6 +1615,90 @@ pre#promptText::-webkit-scrollbar-thumb {
     }
     showPanel(errorEl, title, body);
   }
+
+  /* ============================================================
+     Фидбэк: оценка отправляется сразу по клику, комментарий — опционально
+     ============================================================ */
+  const fbNote = $("fbNote"), fbForm = $("fbForm");
+
+  function resetFeedback(data) {
+    fbRating = 0;
+    fbContext = {
+      mode: mode,
+      lang: lang,
+      model: data.model || $("model").value,
+      match_id: mode === "match" ? parseMatchId($("matchId").value) : null,
+      role: mode === "match" ? (data.role || roleSel.value || null)
+                             : (roleFilter.value || null),
+      depth: mode === "match" ? (data.depth || null) : null,
+      focus: mode === "match" ? (data.focus || null) : null,
+      window: data.window || null,
+      matches: mode === "profile" ? (data.analyzed || null) : null,
+      prompt_bytes: data.size_bytes || null,
+    };
+    for (const btn of [$("fbUp"), $("fbDown")]) {
+      btn.setAttribute("aria-pressed", "false");
+      btn.disabled = false;
+    }
+    fbForm.hidden = true;
+    fbNote.hidden = true;
+    $("fbComment").value = "";
+  }
+
+  const postFeedback = async (payload) => {
+    const res = await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+  };
+
+  const showFbNote = (key, state) => {
+    fbNote.textContent = t(key);
+    fbNote.dataset.state = state || "ok";
+    fbNote.hidden = false;
+  };
+
+  for (const btn of [$("fbUp"), $("fbDown")]) {
+    btn.addEventListener("click", async () => {
+      const rating = Number(btn.dataset.rating);
+      if (!fbContext || fbRating === rating) return;
+      fbRating = rating;
+      // Оценку отправляем НЕМЕДЛЕННО: это главный сигнал, а комментарий пишут
+      // единицы. Ждать «Отправить» значило бы терять голос при уходе со страницы.
+      $("fbUp").setAttribute("aria-pressed", String(rating === 1));
+      $("fbDown").setAttribute("aria-pressed", String(rating === -1));
+      try {
+        await postFeedback({ ...fbContext, rating: rating, followup: false });
+        showFbNote("feedback.thanks");
+        fbForm.hidden = false;
+      } catch {
+        showFbNote("feedback.error", "error");
+      }
+    });
+  }
+
+  $("fbSend").addEventListener("click", async (e) => {
+    const comment = $("fbComment").value.trim();
+    if (!comment || !fbContext) return;
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = t("feedback.sending");
+    try {
+      // followup=true: это дополнение к уже учтённой оценке. Без флага при
+      // подсчёте голосов один человек считался бы дважды.
+      await postFeedback({ ...fbContext, rating: fbRating || 1,
+                           comment: comment, followup: true });
+      fbForm.hidden = true;
+      showFbNote("feedback.thanks_more");
+    } catch {
+      showFbNote("feedback.error", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = t("feedback.send");
+    }
+  });
 
   /* ============================================================
      Копирование и скачивание

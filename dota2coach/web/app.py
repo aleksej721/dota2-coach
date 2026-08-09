@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from .. import config, i18n
+from .. import config, feedback, i18n
 from ..core import build_pipeline, generate_profile_prompt, generate_prompt
 from ..policy import DEPTHS, FOCUSES, ROLES, ROLE_FOCUSES, Policy
 from ..profile import DEFAULT_MATCHES, MAX_MATCHES, MIN_MATCHES
@@ -319,3 +319,55 @@ async def profile(req: ProfileRequest) -> ProfileResponse:
         role=req.role,
         warning=warning,
     )
+
+
+# Отзывы. Хранилище собирается один раз: у JSONL внутри лок, у ограничителя —
+# счётчик окна, и пересоздавать их на каждый запрос нельзя.
+_feedback_store = feedback.build_store()
+
+# Длинный комментарий никто не пишет, а вот залить мегабайт в лог можно легко.
+MAX_COMMENT_CHARS = 2000
+
+
+class FeedbackRequest(BaseModel):
+    """Оценка разбора. account_id намеренно НЕ принимаем — см. feedback.py."""
+
+    rating: Literal[1, -1] = Field(..., description="1 — полезно, -1 — нет")
+    mode: Literal["match", "profile"]
+    lang: Lang = "ru"
+    model: Model = "chatgpt"
+    comment: Optional[str] = Field(None, max_length=MAX_COMMENT_CHARS,
+                                   description="что не так или что улучшить")
+    match_id: Optional[int] = Field(None, gt=0)
+    role: Optional[Role] = None
+    depth: Optional[Depth] = None
+    focus: Optional[Focus] = None
+    window: Optional[str] = Field(None, max_length=16)
+    matches: Optional[int] = Field(None, ge=0, le=MAX_MATCHES)
+    prompt_bytes: Optional[int] = Field(None, ge=0)
+    followup: bool = False
+
+
+@app.post("/api/feedback", status_code=202)
+async def submit_feedback(req: FeedbackRequest) -> dict:
+    entry = feedback.Feedback(
+        rating=req.rating,
+        mode=req.mode,
+        lang=req.lang,
+        model=req.model,
+        created_at=feedback.Feedback.now_iso(),
+        comment=(req.comment or "").strip() or None,
+        match_id=req.match_id,
+        role=req.role,
+        depth=req.depth,
+        focus=req.focus,
+        window=req.window,
+        matches=req.matches,
+        prompt_bytes=req.prompt_bytes,
+        followup=req.followup,
+    )
+    # Запись блокирующая (файл, возможно вебхук) — уводим в пул потоков, чтобы
+    # не держать event loop. Ошибки хранилищ наружу не выходят: пользователь
+    # своё дело сделал, и показывать ему чужие сбои незачем.
+    await run_in_threadpool(_feedback_store.save, entry)
+    return {"status": "accepted"}
