@@ -238,6 +238,72 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
 .ctl svg { width: 15px; height: 15px; }
 
 /* ============================================================
+   Инфо-окно
+   ============================================================ */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; place-items: center;
+  padding: 24px;
+  background: rgba(4, 5, 9, .62);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  animation: fade-in .18s var(--ease) both;
+}
+.modal-backdrop[hidden] { display: none; }
+:root[data-theme="light"] .modal-backdrop { background: rgba(20, 26, 60, .34); }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  position: relative;
+  width: min(640px, 100%); max-height: min(82vh, 760px);
+  padding: 26px 28px 24px;
+  overflow-y: auto;
+  animation: modal-in .26s var(--ease) both;
+  scrollbar-color: var(--scroll) transparent;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+.modal h2 {
+  margin: 0 0 4px; padding-right: 34px;
+  font-size: 20px; font-weight: 660; letter-spacing: -.015em;
+}
+.modal h3 {
+  margin: 20px 0 6px;
+  color: var(--accent); font-size: 13px; font-weight: 680;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.modal p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.62; }
+.modal ul { margin: 0; padding-left: 0; list-style: none; }
+.modal li {
+  position: relative; padding-left: 20px; margin-top: 7px;
+  color: var(--muted); font-size: 14.5px; line-height: 1.55;
+}
+/* Маркер-ромб вместо точки: та же гранёная геометрия, что у номеров секций. */
+.modal li::before {
+  content: ""; position: absolute; left: 4px; top: .62em;
+  width: 6px; height: 6px; transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--radiant), var(--dire));
+  border-radius: 1px;
+}
+.modal ol { margin: 0; padding-left: 20px; }
+.modal ol li { padding-left: 4px; }
+.modal ol li::before { content: none; }
+.modal ol li::marker { color: var(--accent); font-weight: 700; }
+.modal-close {
+  position: absolute; top: 16px; right: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0;
+  background: var(--field-bg); border: 1px solid var(--field-border);
+  border-radius: 50%; color: var(--muted);
+  font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
+}
+.modal-close:hover { color: var(--text); border-color: var(--field-hover); transform: rotate(90deg); }
+.modal-close:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ============================================================
    Переключатель режимов
    ============================================================ */
 .modes {
@@ -820,6 +886,13 @@ pre#promptText::-webkit-scrollbar-thumb {
     <p class="tagline" data-i18n="tagline"></p>
 
     <div class="controls">
+      <button type="button" class="ctl" id="infoBtn" data-i18n-title="info.open"
+              aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6h.01"/>
+        </svg>
+      </button>
       <select class="ctl" id="langSelect" data-i18n-title="lang.toggle"></select>
       <button type="button" class="ctl" id="themeBtn" data-i18n-title="theme.toggle">
         <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1053,6 +1126,35 @@ pre#promptText::-webkit-scrollbar-thumb {
   <p class="foot">
     <code id="footCmd"></code>
   </p>
+</div>
+
+<div class="modal-backdrop" id="infoModal" hidden>
+  <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <button type="button" class="modal-close" id="infoClose"
+            data-i18n-title="info.close">&times;</button>
+    <h2 id="infoTitle" data-i18n="info.title"></h2>
+
+    <h3 data-i18n="info.what.title"></h3>
+    <p data-i18n="info.what.body"></p>
+
+    <h3 data-i18n="info.can.title"></h3>
+    <ul>
+      <li data-i18n="info.can.1"></li>
+      <li data-i18n="info.can.2"></li>
+      <li data-i18n="info.can.3"></li>
+      <li data-i18n="info.can.4"></li>
+    </ul>
+
+    <h3 data-i18n="info.important.title"></h3>
+    <p data-i18n="info.important.body"></p>
+
+    <h3 data-i18n="info.tips.title"></h3>
+    <ol>
+      <li data-i18n="info.tips.1"></li>
+      <li data-i18n="info.tips.2"></li>
+      <li data-i18n="info.tips.3"></li>
+    </ol>
+  </div>
 </div>
 
 <div id="hint" role="dialog" hidden></div>
@@ -1318,6 +1420,48 @@ pre#promptText::-webkit-scrollbar-thumb {
   };
 
   /* ============================================================
+     Инфо-окно
+     ============================================================ */
+  const infoModal = $("infoModal");
+  let infoOpener = null;
+
+  const openInfo = () => {
+    infoOpener = document.activeElement;
+    infoModal.hidden = false;
+    // Фон не должен уезжать под модалкой на мобильном.
+    document.body.style.overflow = "hidden";
+    $("infoClose").focus({ preventScroll: true });
+  };
+
+  const closeInfo = () => {
+    if (infoModal.hidden) return;
+    infoModal.hidden = true;
+    document.body.style.overflow = "";
+    // Возвращаем фокус туда, откуда открыли: иначе он улетает в начало страницы.
+    if (infoOpener && infoOpener.focus) infoOpener.focus({ preventScroll: true });
+    infoOpener = null;
+  };
+
+  $("infoBtn").addEventListener("click", openInfo);
+  $("infoClose").addEventListener("click", closeInfo);
+  // Клик мимо окна закрывает: сам backdrop и есть «мимо», внутренняя карточка —
+  // отдельный элемент, и клики по ней сюда не долетают.
+  infoModal.addEventListener("click", (e) => { if (e.target === infoModal) closeInfo(); });
+
+  infoModal.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    // Ловушка фокуса: пока окно открыто, Tab не должен уводить на страницу за ним.
+    const focusable = infoModal.querySelectorAll("button, [href], a");
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  });
+
+  /* ============================================================
      Подсказки: по клику, а не по ховеру — ховер недоступен с клавиатуры
      ============================================================ */
   let openHintBtn = null;
@@ -1353,7 +1497,11 @@ pre#promptText::-webkit-scrollbar-thumb {
     }
     if (!e.target.closest("#hint")) closeHint();
   });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeHint(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    // Подсказка поверх модалки — закрываем сначала её, окно остаётся.
+    if (!hintEl.hidden) closeHint(); else closeInfo();
+  });
   window.addEventListener("resize", closeHint);
 
   /* ============================================================

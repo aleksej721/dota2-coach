@@ -774,6 +774,36 @@ UI = {
         "attempt usually finds the data ready.",
     "err.roster": "Players in this match:",
 
+    "info.open": "What this is and how to use it",
+    "info.close": "Close",
+    "info.title": "What this is and how to use it",
+    "info.what.title": "What this is",
+    "info.what.body":
+        "The tool pulls the detailed statistics of your Dota 2 match and packs them into a "
+        "ready-made prompt for an AI (ChatGPT, Claude, Gemini). You paste it into your AI "
+        "chat — and it breaks your game down like a coach. Far more accurate than "
+        "describing the game to an AI from memory.",
+    "info.can.title": "What you can do",
+    "info.can.1": "Break down a single match (laning, fights, timings, benchmarks).",
+    "info.can.2": "Build a profile from your last N games and find repeating mistakes.",
+    "info.can.3": "Focus on a role, a stage, or a specific stretch of the game.",
+    "info.can.4": "Add your own question — the analysis will be about it.",
+    "info.important.title": "Worth understanding",
+    "info.important.body":
+        "The tool gives you DATA and a prompt; the quality of the analysis depends on the "
+        "AI you paste it into. The first answer is the start of a conversation, not the "
+        "end: the AI will ask you follow-up questions itself.",
+    "info.tips.title": "3 tips",
+    "info.tips.1":
+        "Use a strong model (ChatGPT Plus / Claude Pro / Gemini Advanced) — a weak bot gets "
+        "lost in the volume and produces waffle.",
+    "info.tips.2":
+        "Write your question into the note field — a pointed request lands harder than a "
+        "general one.",
+    "info.tips.3":
+        "Do not stop at the first answer: reply to the follow-up questions and dig deeper; "
+        "and pick the right role — a carry and a support are analysed differently.",
+
     "theme.toggle": "Switch theme",
     "lang.toggle": "Interface and prompt language",
     "hint.close": "Close",
