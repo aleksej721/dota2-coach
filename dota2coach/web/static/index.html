@@ -181,6 +181,37 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* Дрейфующие искры: Radiant всплывает снизу слева, Dire оседает сверху справа.
+   Только opacity и transform — работа целиком на композиторе, без единой
+   перерисовки. Штук мало намеренно: атмосфера не должна стоить кадров. */
+.embers { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.embers i {
+  position: absolute; bottom: -6vh; left: var(--x);
+  width: var(--s); height: var(--s); border-radius: 50%;
+  background: var(--radiant);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--radiant) 70%, transparent);
+  opacity: 0;
+  animation: drift var(--d) linear var(--delay) infinite;
+}
+.embers i.dire {
+  bottom: auto; top: -6vh;
+  background: var(--dire);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--dire) 70%, transparent);
+  animation-name: fall;
+}
+@keyframes drift {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  12%  { opacity: .55; }
+  85%  { opacity: .35; }
+  100% { transform: translate3d(14px, -106vh, 0); opacity: 0; }
+}
+@keyframes fall {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  12%  { opacity: .5; }
+  85%  { opacity: .3; }
+  100% { transform: translate3d(-16px, 106vh, 0); opacity: 0; }
+}
+
 /* Тонкая фракционная нить по краям страницы: слева Radiant, справа Dire. */
 body::before, body::after {
   content: ""; position: fixed; top: 0; bottom: 0; width: 1px; z-index: -1;
@@ -433,7 +464,10 @@ input:hover, textarea:hover, select.fld:hover { border-color: var(--field-hover)
 input:focus, textarea:focus, select.fld:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3.5px var(--accent-soft);
+  /* Кольцо + мягкое свечение: поле под курсором должно быть видно сразу,
+     даже поверх стекла и фоновых эффектов. */
+  box-shadow: 0 0 0 3.5px var(--accent-soft),
+              0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 textarea { resize: vertical; min-height: 74px; }
 
@@ -468,7 +502,14 @@ select.fld {
   line-height: 1; cursor: pointer;
   transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
-.info:hover, .info[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.info {
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+              transform .26s var(--spring), box-shadow var(--dur) var(--ease);
+}
+.info:hover, .info[aria-expanded="true"] {
+  color: var(--accent); border-color: var(--accent); transform: scale(1.18);
+}
+.info[aria-expanded="true"] { box-shadow: 0 0 12px var(--accent-soft); }
 .info:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 
 #hint {
@@ -748,8 +789,18 @@ select.fld {
   box-shadow: none; color: var(--text); font-size: 13.5px; font-weight: 550;
   padding: 8px 15px;
 }
-.btn-ghost:hover:not(:disabled) { background: var(--accent-soft); transform: none; }
+.btn-ghost:hover:not(:disabled) { background: var(--accent-soft); transform: translateY(-1px); }
 .btn-ghost:active:not(:disabled) { transform: scale(.975); }
+/* Подтверждение действия: кнопка коротко «кивает» и зеленеет по-радиантски. */
+.btn-ghost.done {
+  color: var(--radiant);
+  border-color: color-mix(in srgb, var(--radiant) 55%, transparent);
+  background: var(--radiant-soft);
+  animation: nod .34s var(--spring);
+}
+@keyframes nod {
+  0% { transform: scale(1); } 45% { transform: scale(1.07); } 100% { transform: scale(1); }
+}
 
 .submit-zone {
   display: grid; justify-items: center; gap: 10px;
@@ -759,12 +810,20 @@ select.fld {
 .submit-row { display: flex; justify-content: center; }
 .submit-row .btn { min-width: 200px; }
 
-.spinner {
-  width: 15px; height: 15px;
-  border: 2px solid rgba(255, 255, 255, .35); border-top-color: var(--on-accent);
-  border-radius: 50%; animation: spin .68s linear infinite;
+/* Крипволна вместо спиннера: три шеврона идут вперёд по очереди. Ожидание
+   в тему разбора, и по-прежнему две анимируемых величины на элемент. */
+.wave { display: inline-flex; align-items: center; gap: 3px; }
+.wave i {
+  width: 5px; height: 13px; background: currentColor; opacity: .32;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  animation: march .9s ease-in-out infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+.wave i:nth-child(2) { animation-delay: .15s; }
+.wave i:nth-child(3) { animation-delay: .3s; }
+@keyframes march {
+  0%, 100% { opacity: .3; transform: translateX(0); }
+  50%      { opacity: 1;  transform: translateX(4px); }
+}
 
 /* ============================================================
    Статус, панели, результат
@@ -789,7 +848,13 @@ select.fld {
 
 /* Результат окрашивается в цвета МОЕЙ фракции — это и есть смысловое
    применение дуальности: по одному взгляду видно, за кого играл. */
-#result { margin-top: 20px; padding: 18px; overflow: hidden; }
+#result {
+  margin-top: 20px; padding: 18px; overflow: hidden;
+  transition: transform .32s var(--ease), box-shadow .32s var(--ease),
+              border-color var(--dur) var(--ease);
+}
+/* Лифт только у результата: форму, в которой печатают, дёргать нельзя. */
+#result:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
 #result[data-side] {
   border-color: color-mix(in srgb, var(--side) 34%, var(--glass-border));
 }
@@ -926,10 +991,15 @@ pre#promptText::-webkit-scrollbar-thumb {
   pre#promptText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55vh; }
 }
 
+/* Система просит меньше движения — отдаём меньше движения: декоративные
+   слои убираются совсем (обнулённая длительность оставила бы искры застывшими
+   посреди экрана), остальное становится мгновенным. */
 @media (prefers-reduced-motion: reduce) {
+  .embers, .range-fill::after { display: none; }
   *, *::before, *::after {
     scroll-behavior: auto !important;
     animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
 }
@@ -937,6 +1007,22 @@ pre#promptText::-webkit-scrollbar-thumb {
 </head>
 <body>
 <div class="glow"></div>
+<div class="embers" aria-hidden="true">
+  <i style="--x:44%;--s:3px;--d:23s;--delay:-20s"></i>
+  <i class="dire" style="--x:9%;--s:2px;--d:30s;--delay:-17s"></i>
+  <i style="--x:15%;--s:3px;--d:26s;--delay:-1s"></i>
+  <i class="dire" style="--x:67%;--s:3px;--d:17s;--delay:-2s"></i>
+  <i style="--x:58%;--s:4px;--d:18s;--delay:-7s"></i>
+  <i class="dire" style="--x:14%;--s:4px;--d:17s;--delay:-18s"></i>
+  <i style="--x:18%;--s:3px;--d:27s;--delay:-20s"></i>
+  <i class="dire" style="--x:77%;--s:2px;--d:26s;--delay:-18s"></i>
+  <i style="--x:53%;--s:2px;--d:20s;--delay:-1s"></i>
+  <i class="dire" style="--x:74%;--s:3px;--d:21s;--delay:-13s"></i>
+  <i style="--x:21%;--s:2px;--d:26s;--delay:-9s"></i>
+  <i class="dire" style="--x:74%;--s:3px;--d:18s;--delay:-18s"></i>
+  <i style="--x:76%;--s:3px;--d:22s;--delay:-3s"></i>
+  <i class="dire" style="--x:73%;--s:2px;--d:26s;--delay:-1s"></i>
+</div>
 <div class="grain"></div>
 
 <div class="wrap">
@@ -1746,7 +1832,7 @@ pre#promptText::-webkit-scrollbar-thumb {
     submitBtn.disabled = busy;
     form.setAttribute("aria-busy", String(busy));
     submitBtn.innerHTML = busy
-      ? '<span class="spinner"></span>' + t(busyLabel)
+      ? '<span class="wave" aria-hidden="true"><i></i><i></i><i></i></span>' + t(busyLabel)
       : t(label);
   }
 
@@ -2018,26 +2104,37 @@ pre#promptText::-webkit-scrollbar-thumb {
   /* ============================================================
      Копирование и скачивание
      ============================================================ */
+  /* Короткое подтверждение: галочка + «кивок» кнопки. Действие невидимое
+     (буфер, скачивание), и без отклика непонятно, случилось ли оно вообще. */
+  const confirmAction = (btn, key, restore) => {
+    btn.textContent = t(key) + " \u2713";
+    btn.classList.add("done");
+    setTimeout(() => {
+      btn.classList.remove("done");
+      btn.textContent = t(restore);
+    }, 1800);
+  };
+
   $("copyBtn").addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     try {
       await navigator.clipboard.writeText(promptEl.textContent);
-      btn.textContent = t("result.copied");
+      confirmAction(btn, "result.copied", "result.copy");
     } catch {
       const r = document.createRange();
       r.selectNodeContents(promptEl);
       const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
-      btn.textContent = t("result.selected");
+      confirmAction(btn, "result.selected", "result.copy");
     }
-    setTimeout(() => { btn.textContent = t("result.copy"); }, 1800);
   });
 
-  $("downloadBtn").addEventListener("click", () => {
+  $("downloadBtn").addEventListener("click", (e) => {
     const blob = new Blob([promptEl.textContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = currentFilename; a.click();
     URL.revokeObjectURL(url);
+    confirmAction(e.currentTarget, "result.download", "result.download");
   });
 
   form.addEventListener("keydown", (e) => {
