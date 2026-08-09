@@ -972,6 +972,15 @@ pre#promptText::-webkit-scrollbar-thumb {
 .foot { margin-top: 26px; text-align: center; color: var(--faint); font-size: 12.5px; }
 .foot code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
+/* На узком экране шесть фишек в строку не влезают и «5» уезжает вниз одна.
+   Поджимаем их, а не прячем иконки: иконка и есть визуальный язык позиций. */
+@media (max-width: 420px) {
+  .roles { gap: 4px; }
+  .role-chip { min-width: 38px; padding: 0 7px; font-size: 13px; }
+  .role-chip--auto { min-width: 54px; font-size: 12px; }
+  .role-chip svg { width: 13px; height: 13px; margin-right: 3px; }
+}
+
 @media (max-width: 760px) {
   body { padding: 24px 14px 54px; }
   .row-2, .row-auto, .row-note { grid-template-columns: 1fr; }
