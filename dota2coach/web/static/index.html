@@ -58,9 +58,39 @@
   --scroll: rgba(255, 255, 255, .16);
   --grain: .035;
 
-  --r-lg: 20px;
-  --r-md: 13px;
-  --r-sm: 10px;
+  /* --- Форма (M3 shape scale) --------------------------------------------
+     Радиусы приведены к шкале Material 3; старые имена сохранены, чтобы не
+     переписывать сотню правил разом. */
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 28px;
+
+  /* --- Elevation (M3) ----------------------------------------------------
+     Две тени на уровень: узкая «ключевая» под объектом и широкая «окружающая».
+     Одна размытая клякса, как было, читается как туман, а не как высота. */
+  --elev-1: 0 1px 2px rgba(0,0,0,.34), 0 1px 3px 1px rgba(0,0,0,.20);
+  --elev-2: 0 1px 2px rgba(0,0,0,.34), 0 2px 6px 2px rgba(0,0,0,.20);
+  --elev-3: 0 4px 8px 3px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.34);
+
+  /* --- Motion (M3) -------------------------------------------------------
+     Emphasized — для заметных переходов, decelerate — для появления. */
+  --m3-emphasized: cubic-bezier(.2, 0, 0, 1);
+  --m3-decelerate: cubic-bezier(.05, .7, .1, 1);
+  --m3-accelerate: cubic-bezier(.3, 0, .8, .15);
+  --m3-short: .2s;
+  --m3-medium: .35s;
+  --m3-long: .5s;
+
+  /* --- Пружины (M3 Expressive) -------------------------------------------
+     Настоящие затухающие колебания, посчитанные по модели пружины и выданные
+     в linear(). Ключевое отличие от cubic-bezier: пружина ОТСКАКИВАЕТ
+     несколько раз, а не один. Только для hero-моментов — везде подряд такое
+     превращает интерфейс в желе. */
+  --spring-bouncy: linear(0, 0.0511, 0.1853, 0.3726, 0.5836, 0.7929, 0.9801, 1.1314, 1.239, 1.3012, 1.3212, 1.3054, 1.2628, 1.2029, 1.1352, 1.0679, 1.0076, 0.9587, 0.9239, 0.9035, 0.8969, 0.9017, 0.9152, 0.9344, 0.9561, 0.9777, 0.9972, 1.013, 1.0243, 1.0309, 1.0331, 1.0316, 1.0273, 1.0212, 1.0143, 1.0073, 1);
+  --spring-soft: linear(0, 0.0418, 0.1482, 0.2933, 0.455, 0.6159, 0.7635, 0.8897, 0.9903, 1.0642, 1.113, 1.1395, 1.1477, 1.142, 1.1265, 1.1052, 1.0814, 1.0576, 1.0357, 1.0169, 1.0019, 0.9908, 0.9835, 0.9795, 0.9782, 0.979, 0.9812, 0.9843, 0.9878, 0.9914, 0.9946, 0.9974, 0.9996, 1.0013, 1.0024, 1.003, 1);
+  --spring-gentle: linear(0, 0.0337, 0.1174, 0.2292, 0.3529, 0.4767, 0.5927, 0.6962, 0.7848, 0.8578, 0.9157, 0.9599, 0.992, 1.014, 1.0279, 1.0355, 1.0383, 1.0377, 1.035, 1.031, 1.0263, 1.0215, 1.0169, 1.0128, 1.0092, 1.0062, 1.0038, 1.002, 1.0006, 0.9997, 0.9991, 0.9987, 0.9985, 0.9985, 0.9986, 0.9988, 1);
+
   --ease: cubic-bezier(.22, .8, .28, 1);
   /* Лёгкий перелёт: тумблеры и ручки ползунка «доезжают» с отскоком, а не
      тормозят в упор. Перелёт маленький — интерфейс должен быть живым, а не
@@ -123,6 +153,9 @@
 
   --shadow: 0 18px 44px rgba(20, 26, 60, .12), 0 2px 6px rgba(20, 26, 60, .07);
   --shadow-lift: 0 26px 60px rgba(20, 26, 60, .17), 0 3px 8px rgba(20, 26, 60, .09);
+  --elev-1: 0 1px 2px rgba(20,26,60,.16), 0 1px 3px 1px rgba(20,26,60,.09);
+  --elev-2: 0 1px 2px rgba(20,26,60,.16), 0 2px 6px 2px rgba(20,26,60,.09);
+  --elev-3: 0 4px 8px 3px rgba(20,26,60,.11), 0 1px 3px rgba(20,26,60,.16);
   --scroll: rgba(20, 26, 60, .22);
   --grain: .02;
 }
@@ -273,6 +306,37 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
 .ctl svg { width: 15px; height: 15px; }
 
 /* ============================================================
+   Material: state layers и ripple
+   ============================================================ */
+/* State layer — отдельный полупрозрачный слой поверх поверхности, а НЕ подмена
+   её фона. Это принципиально для стекла: подмена цвета убила бы прозрачность,
+   а слой поверх сохраняет и её, и блюр под собой.
+   Непрозрачности по M3: hover 8%, focus 10%, pressed 12%. */
+.ripple { position: relative; overflow: hidden; isolation: isolate; }
+.ripple > * { position: relative; z-index: 1; }
+.ripple::before {
+  content: ""; position: absolute; inset: 0; z-index: 0;
+  background: currentColor; opacity: 0; pointer-events: none;
+  transition: opacity var(--m3-short) var(--m3-emphasized);
+}
+.ripple:hover::before { opacity: .08; }
+.ripple:focus-visible::before { opacity: .10; }
+.ripple:active::before { opacity: .12; }
+.ripple:disabled::before { opacity: 0; }
+
+/* Чернильная волна из точки клика — узнаваемый отклик Material. Элемент
+   создаётся скриптом и сам себя убирает по окончании анимации. */
+.ripple-wave {
+  position: absolute; z-index: 0; border-radius: 50%;
+  background: currentColor; opacity: .28;
+  transform: scale(0); pointer-events: none;
+  animation: ripple-out .55s var(--m3-decelerate) forwards;
+}
+@keyframes ripple-out {
+  to { transform: scale(1); opacity: 0; }
+}
+
+/* ============================================================
    Инфо-окно
    ============================================================ */
 .modal-backdrop {
@@ -386,7 +450,7 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), var(--elev-1);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
   backdrop-filter: blur(22px) saturate(150%);
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
@@ -760,9 +824,11 @@ select.fld {
   font: inherit; font-size: 15px; font-weight: 590; color: var(--on-accent);
   cursor: pointer;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 8px 24px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .2);
-  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
-              opacity var(--dur) var(--ease);
+  box-shadow: var(--elev-1), 0 8px 24px var(--accent-soft),
+              inset 0 1px 0 rgba(255, 255, 255, .2);
+  transition: transform var(--m3-short) var(--m3-emphasized),
+              box-shadow var(--m3-short) var(--m3-emphasized),
+              opacity var(--m3-short) var(--m3-emphasized);
   min-height: 44px;
 }
 /* Блик проходит по кнопке на ховере. Двигается transform, не background-position,
@@ -779,7 +845,11 @@ select.fld {
   20% { opacity: 1; }
   to { transform: translateX(340%); opacity: 0; }
 }
-.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 30px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .24); }
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--elev-2), 0 12px 30px var(--accent-soft),
+              inset 0 1px 0 rgba(255, 255, 255, .24);
+}
 .btn:active:not(:disabled) { transform: translateY(0) scale(.988); }
 .btn:disabled { opacity: .62; cursor: default; }
 .btn:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--accent-soft); }
@@ -1061,7 +1131,7 @@ pre#promptText::-webkit-scrollbar-thumb {
     <p class="tagline" data-i18n="tagline"></p>
 
     <div class="controls">
-      <button type="button" class="ctl" id="infoBtn" data-i18n-title="info.open"
+      <button type="button" class="ctl ripple" id="infoBtn" data-i18n-title="info.open"
               aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
              stroke-linecap="round" aria-hidden="true">
@@ -1069,7 +1139,7 @@ pre#promptText::-webkit-scrollbar-thumb {
         </svg>
       </button>
       <select class="ctl" id="langSelect" data-i18n-title="lang.toggle"></select>
-      <button type="button" class="ctl" id="themeBtn" data-i18n-title="theme.toggle">
+      <button type="button" class="ctl ripple" id="themeBtn" data-i18n-title="theme.toggle">
         <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="1.8" stroke-linecap="round" aria-hidden="true"></svg>
       </button>
@@ -1078,12 +1148,12 @@ pre#promptText::-webkit-scrollbar-thumb {
 
   <div class="modes" role="tablist" id="modes" data-mode="match">
     <div class="modes-thumb" aria-hidden="true"></div>
-    <button type="button" class="mode" role="tab" id="modeMatch" data-mode="match"
+    <button type="button" class="mode ripple" role="tab" id="modeMatch" data-mode="match"
             aria-selected="true">
       <span class="mode-name" data-i18n="mode.match"></span>
       <span class="mode-sub" data-i18n="mode.match.sub"></span>
     </button>
-    <button type="button" class="mode" role="tab" id="modeProfile" data-mode="profile"
+    <button type="button" class="mode ripple" role="tab" id="modeProfile" data-mode="profile"
             aria-selected="false">
       <span class="mode-name" data-i18n="mode.profile"></span>
       <span class="mode-sub" data-i18n="mode.profile.sub"></span>
@@ -1130,7 +1200,7 @@ pre#promptText::-webkit-scrollbar-thumb {
     </section>
 
     <div class="adv" id="adv" data-open="false">
-      <button type="button" class="adv-toggle" id="advToggle" aria-expanded="false"
+      <button type="button" class="adv-toggle ripple" id="advToggle" aria-expanded="false"
               aria-controls="advBody">
         <svg class="adv-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1244,7 +1314,7 @@ pre#promptText::-webkit-scrollbar-thumb {
 
     <div class="submit-zone">
       <div class="submit-row">
-        <button type="submit" class="btn" id="submitBtn"></button>
+        <button type="submit" class="btn ripple" id="submitBtn"></button>
       </div>
       <div class="status" id="status" aria-live="polite"></div>
     </div>
@@ -1276,21 +1346,21 @@ pre#promptText::-webkit-scrollbar-thumb {
         <span class="chip chip-accent" id="chipNote" hidden></span>
       </div>
       <div class="actions">
-        <button type="button" class="btn btn-ghost" id="copyBtn"></button>
-        <button type="button" class="btn btn-ghost" id="downloadBtn"></button>
+        <button type="button" class="btn btn-ghost ripple" id="copyBtn"></button>
+        <button type="button" class="btn btn-ghost ripple" id="downloadBtn"></button>
       </div>
     </div>
     <pre id="promptText"></pre>
     <div class="feedback" id="feedback">
       <span class="fb-q" data-i18n="feedback.question"></span>
-      <button type="button" class="fb-btn" id="fbUp" data-rating="1"
+      <button type="button" class="fb-btn ripple" id="fbUp" data-rating="1"
               aria-pressed="false" data-i18n-title="feedback.up">&#128077;</button>
-      <button type="button" class="fb-btn" id="fbDown" data-rating="-1"
+      <button type="button" class="fb-btn ripple" id="fbDown" data-rating="-1"
               aria-pressed="false" data-i18n-title="feedback.down">&#128078;</button>
       <span class="fb-note" id="fbNote" role="status" aria-live="polite" hidden></span>
       <div class="fb-form" id="fbForm" hidden>
         <textarea id="fbComment" rows="2" data-i18n-ph="feedback.comment.ph"></textarea>
-        <button type="button" class="btn btn-ghost" id="fbSend"
+        <button type="button" class="btn btn-ghost ripple" id="fbSend"
                 data-i18n="feedback.send"></button>
       </div>
     </div>
@@ -1310,7 +1380,7 @@ pre#promptText::-webkit-scrollbar-thumb {
 
 <div class="modal-backdrop" id="infoModal" hidden>
   <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
-    <button type="button" class="modal-close" id="infoClose"
+    <button type="button" class="modal-close ripple" id="infoClose"
             data-i18n-title="info.close">&times;</button>
     <h2 id="infoTitle" data-i18n="info.title"></h2>
 
@@ -1545,7 +1615,7 @@ pre#promptText::-webkit-scrollbar-thumb {
     const make = (code, label, title, glyph, extraClass) => {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "role-chip" + (extraClass || "");
+      b.className = "role-chip ripple" + (extraClass || "");
       b.dataset.role = code;
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(roleSel.value === code));
@@ -1680,6 +1750,34 @@ pre#promptText::-webkit-scrollbar-thumb {
     }
     if (!hintEl.hidden) hintEl.hidden = true;
   };
+
+  /* ============================================================
+     Ripple: одна делегированная подписка на всю страницу
+     ============================================================ */
+  // Система просит меньше движения — волну не создаём вовсе. Обнулённая
+  // длительность оставила бы после себя мусорные узлы в DOM.
+  const calmMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+  document.addEventListener("pointerdown", (e) => {
+    if (calmMotion.matches) return;
+    const host = e.target.closest(".ripple");
+    if (!host || host.disabled) return;
+
+    const r = host.getBoundingClientRect();
+    // Радиус до самого дальнего угла: волна обязана накрыть поверхность
+    // целиком, откуда бы ни начиналась.
+    const dx = Math.max(e.clientX - r.left, r.right - e.clientX);
+    const dy = Math.max(e.clientY - r.top, r.bottom - e.clientY);
+    const radius = Math.hypot(dx, dy);
+
+    const wave = document.createElement("span");
+    wave.className = "ripple-wave";
+    wave.style.width = wave.style.height = radius * 2 + "px";
+    wave.style.left = (e.clientX - r.left - radius) + "px";
+    wave.style.top = (e.clientY - r.top - radius) + "px";
+    host.appendChild(wave);
+    wave.addEventListener("animationend", () => wave.remove(), { once: true });
+  });
 
   /* ============================================================
      Инфо-окно
