@@ -650,6 +650,7 @@ UI = {
     "field.mmr.ph": "напр. 3500 / Legend (ну або 300 — не засуджуємо)",
 
     "role.auto": "Auto — визначити з матчу",
+    "role.auto.short": "Авто",
     "role.1": "Pos 1 — Carry",
     "role.2": "Pos 2 — Mid",
     "role.3": "Pos 3 — Offlane",

@@ -62,6 +62,10 @@
   --r-md: 13px;
   --r-sm: 10px;
   --ease: cubic-bezier(.22, .8, .28, 1);
+  /* Лёгкий перелёт: тумблеры и ручки ползунка «доезжают» с отскоком, а не
+     тормозят в упор. Перелёт маленький — интерфейс должен быть живым, а не
+     развязным. */
+  --spring: cubic-bezier(.34, 1.56, .48, 1);
   --dur: .2s;
   --space-1: 6px;
   --space-2: 10px;
@@ -324,7 +328,7 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   width: calc(50% - 7px); border-radius: var(--r-md);
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   box-shadow: 0 8px 22px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .22);
-  transition: transform .3s var(--ease);
+  transition: transform .38s var(--spring);
 }
 .modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(100% + 4px)); }
 .mode {
@@ -499,7 +503,7 @@ select.fld {
   border-radius: 10px;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   box-shadow: 0 4px 14px var(--accent-soft);
-  transition: transform var(--dur) var(--ease);
+  transition: transform .34s var(--spring);
 }
 .segment[data-value="deep"] .thumb { transform: translateX(100%); }
 .segment label {
@@ -511,6 +515,48 @@ select.fld {
 .segment input { position: absolute; opacity: 0; pointer-events: none; }
 .segment input:checked + span { color: var(--on-accent); }
 .segment:focus-within { box-shadow: 0 0 0 3.5px var(--accent-soft); }
+
+/* ============================================================
+   Иконки позиций 1–5
+   ============================================================ */
+/* Нативный select остаётся источником истины: на нём держится вся логика
+   role-aware фокусов. Он лишь спрятан от глаз и от дерева доступности —
+   вместо него доступен радиогруппой набор кнопок ниже. */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; margin: -1px;
+  padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+.roles { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Шесть фишек не влезают в обычную колонку сетки и переносятся на вторую
+   строку — отдаём им две колонки, там где они есть. */
+@media (min-width: 761px) { .field--roles { grid-column: span 2; } }
+.role-chip {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 42px; height: 44px; padding: 0 10px;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  color: var(--muted);
+  font: inherit; font-size: 14px; font-weight: 640;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+  clip-path: polygon(50% 0, 100% 26%, 100% 74%, 50% 100%, 0 74%, 0 26%);
+  transition: color .22s var(--ease), background .22s var(--ease),
+              transform .28s var(--spring);
+}
+.role-chip--auto {
+  clip-path: none; border-radius: var(--r-md); min-width: 62px; font-size: 13px;
+}
+.role-chip:hover { color: var(--text); transform: translateY(-2px); }
+.role-chip[aria-checked="true"] {
+  color: var(--on-accent);
+  background: linear-gradient(150deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 18px var(--accent-soft);
+  transform: translateY(-2px) scale(1.04);
+}
+.role-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.role-chip svg { width: 15px; height: 15px; margin-right: 5px; }
+.role-chip--auto svg { margin-right: 5px; }
 
 /* ============================================================
    Расширенные настройки (progressive disclosure)
@@ -596,9 +642,25 @@ select.fld {
   border-radius: 99px; overflow: hidden;
 }
 .range-fill {
-  position: absolute; top: 0; bottom: 0;
+  position: absolute; top: 0; bottom: 0; overflow: hidden;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: left .18s var(--ease), width .18s var(--ease);
 }
+/* «Жидкость»: блик бесконечно течёт слева направо внутри залитого участка.
+   Двигается transform, а не background-position, поэтому анимация живёт на
+   композиторе и не заставляет перерисовывать градиент каждый кадр. */
+.range-fill::after {
+  content: ""; position: absolute; top: -50%; bottom: -50%; left: 0; width: 55%;
+  background: linear-gradient(100deg, transparent,
+              rgba(255, 255, 255, .55), transparent);
+  animation: liquid 2.6s linear infinite;
+}
+@keyframes liquid {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(320%); }
+}
+/* Окно выключено — течь незачем: анимация не должна работать вхолостую. */
+.range-wrap[data-off="true"] .range-fill::after { animation: none; }
 .range input[type="range"] {
   position: absolute; top: 0; left: 0; width: 100%; height: 36px; margin: 0;
   appearance: none; -webkit-appearance: none;
@@ -609,11 +671,29 @@ select.fld {
   -webkit-appearance: none; pointer-events: auto;
   width: 22px; height: 22px; border-radius: 50%;
   background: var(--bg); border: 2.5px solid var(--accent);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: grab;
-  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .35),
+              0 0 0 0 var(--accent-soft),
+              0 0 12px color-mix(in srgb, var(--accent) 55%, transparent);
+  cursor: grab;
+  transition: transform .3s var(--spring), box-shadow var(--dur) var(--ease);
 }
-.range input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
-.range input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.06); }
+.range input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .35), 0 0 0 6px var(--accent-soft),
+              0 0 18px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.range input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.1); }
+
+/* Подписи едут за ручками: цифра должна быть там, куда смотрит палец. */
+.range-bubble {
+  position: absolute; top: -6px; transform: translateX(-50%);
+  padding: 1px 7px; border-radius: 99px;
+  background: var(--accent); color: var(--on-accent);
+  font-size: 11px; font-weight: 680; font-variant-numeric: tabular-nums;
+  pointer-events: none; white-space: nowrap;
+  transition: left .18s var(--ease), opacity var(--dur) var(--ease);
+}
+.range-wrap[data-off="true"] .range-bubble { opacity: 0; }
 .range input[type="range"]:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 5px var(--accent-soft);
 }
@@ -968,11 +1048,14 @@ pre#promptText::-webkit-scrollbar-thumb {
         <div class="adv-inner">
           <div class="adv-pad">
             <div class="row row-auto">
-              <div class="field" data-only="match">
-                <span class="lbl"><label for="roleSelect" data-i18n="field.role"></label>
+              <div class="field field--roles" data-only="match">
+                <span class="lbl"><span id="roleLabel" data-i18n="field.role"></span>
                   <button type="button" class="info" data-hint="hint.role" aria-expanded="false">?</button>
                 </span>
-                <select class="fld" id="roleSelect"></select>
+                <div class="roles" id="roleIcons" role="radiogroup"
+                     aria-labelledby="roleLabel"></div>
+                <select class="fld sr-only" id="roleSelect" tabindex="-1"
+                        aria-hidden="true"></select>
               </div>
               <div class="field" data-only="match">
                 <span class="lbl"><label for="focus" data-i18n="field.focus"></label>
@@ -1034,6 +1117,8 @@ pre#promptText::-webkit-scrollbar-thumb {
                          data-i18n-title="window.start">
                   <input type="range" id="windowEnd" min="0" max="80" step="1" value="35"
                          data-i18n-title="window.end">
+                  <span class="range-bubble" id="bubbleStart" aria-hidden="true"></span>
+                  <span class="range-bubble" id="bubbleEnd" aria-hidden="true"></span>
                 </div>
                 <div class="range-ticks">
                   <span>0</span><span>20</span><span>40</span><span>60</span><span>80</span>
@@ -1320,6 +1405,17 @@ pre#promptText::-webkit-scrollbar-thumb {
     const max = Number(wStart.max);
     $("rangeFill").style.left = (100 * a / max) + "%";
     $("rangeFill").style.width = (100 * (b - a) / max) + "%";
+
+    // Ручка не доезжает до самых краёв дорожки — её центр гуляет в пределах
+    // (ширина - ширина ручки). Без этой поправки подпись уползает от ручки
+    // на краях диапазона.
+    const THUMB = 22;
+    const track = $("rangeFill").parentElement.clientWidth || 1;
+    const at = (v) => (THUMB / 2 + (track - THUMB) * (v / max)) + "px";
+    $("bubbleStart").style.left = at(a);
+    $("bubbleEnd").style.left = at(b);
+    $("bubbleStart").textContent = a;
+    $("bubbleEnd").textContent = b;
     $("windowValue").textContent = windowOn.checked
       ? t("window.range", { start: a, end: b })
       : t("window.off");
@@ -1336,6 +1432,75 @@ pre#promptText::-webkit-scrollbar-thumb {
   /* ============================================================
      Язык: перерисовываем подписи, плейсхолдеры и содержимое селектов
      ============================================================ */
+  /* Иконки позиций. Нативный select остаётся источником истины: на нём висит
+     вся логика role-aware фокусов, и дублировать её было бы способом
+     рассинхронизировать. Кнопки лишь пишут в него значение и шлют change. */
+  const ROLE_GLYPH = {
+    // Меч, молния, щит, крыло, крест — по смыслу обязанностей позиции.
+    "1": '<path d="M14.5 3.5 20 9l-9.5 9.5-3-3L17 6"/><path d="M5 19l3-3"/>',
+    "2": '<path d="M13 2 5 13h6l-1 9 8-11h-6z"/>',
+    "3": '<path d="M12 3l7 3v6c0 4-3 6.7-7 8-4-1.3-7-4-7-8V6z"/>',
+    "4": '<path d="M3 13c5-7 11-9 18-9-1 8-5 13-11 15-3 1-6-1-7-6z"/><path d="M3 21c3-4 6-6 9-7"/>',
+    "5": '<path d="M12 4v16M4 12h16"/>',
+  };
+
+  const renderRoleIcons = () => {
+    const host = $("roleIcons");
+    host.innerHTML = "";
+    const make = (code, label, title, glyph, extraClass) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "role-chip" + (extraClass || "");
+      b.dataset.role = code;
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(roleSel.value === code));
+      b.title = title;
+      b.innerHTML = (glyph
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${glyph}</svg>`
+        : "") + `<span>${label}</span>`;
+      host.append(b);
+      return b;
+    };
+    make("", t("role.auto.short"), t("role.auto"), "", " role-chip--auto");
+    for (const code of CFG.roles) {
+      make(code, code, t("role." + code), ROLE_GLYPH[code], "");
+    }
+  };
+
+  const syncRoleIcons = () => {
+    for (const chip of $("roleIcons").querySelectorAll(".role-chip")) {
+      chip.setAttribute("aria-checked", String(chip.dataset.role === roleSel.value));
+      // Roving tabindex: в радиогруппе Tab заходит на выбранный элемент, а
+      // дальше переключение идёт стрелками — так это и ожидается с клавиатуры.
+      chip.tabIndex = chip.dataset.role === roleSel.value ? 0 : -1;
+    }
+  };
+
+  const pickRole = (code) => {
+    if (roleSel.value === code) return;
+    roleSel.value = code;
+    roleSel.dispatchEvent(new Event("change"));
+    syncRoleIcons();
+  };
+
+  $("roleIcons").addEventListener("click", (e) => {
+    const chip = e.target.closest(".role-chip");
+    if (chip) pickRole(chip.dataset.role);
+  });
+
+  $("roleIcons").addEventListener("keydown", (e) => {
+    const keys = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const chips = [...$("roleIcons").querySelectorAll(".role-chip")];
+    const at = chips.findIndex((c) => c.dataset.role === roleSel.value);
+    const step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : -1;
+    const next = chips[(at + step + chips.length) % chips.length];
+    pickRole(next.dataset.role);
+    next.focus();
+  });
+
   const renderRoleOptions = () => {
     const keep = roleSel.value;
     roleSel.innerHTML = "";
@@ -1401,6 +1566,8 @@ pre#promptText::-webkit-scrollbar-thumb {
     });
 
     renderRoleOptions();
+    renderRoleIcons();
+    syncRoleIcons();
     renderFocusOptions(false);
     applyMode();
     syncRange();
@@ -1502,7 +1669,7 @@ pre#promptText::-webkit-scrollbar-thumb {
     // Подсказка поверх модалки — закрываем сначала её, окно остаётся.
     if (!hintEl.hidden) closeHint(); else closeInfo();
   });
-  window.addEventListener("resize", closeHint);
+  window.addEventListener("resize", () => { closeHint(); syncRange(); });
 
   /* ============================================================
      Форма
@@ -1906,6 +2073,7 @@ pre#promptText::-webkit-scrollbar-thumb {
 
   applyTheme();
   if (prefs.role && CFG.roles.includes(prefs.role)) roleSel.value = prefs.role;
+  // syncRoleIcons вызовется внутри applyLang -> renderRoleIcons ниже.
   if (prefs.roleFilter && CFG.roles.includes(prefs.roleFilter)) roleFilter.value = prefs.roleFilter;
   applyLang();
   if (prefs.focus && [...$("focus").options].some((o) => o.value === prefs.focus)) {

@@ -659,6 +659,7 @@ UI = {
     "field.mmr.ph": "e.g. 3500 / Legend (or 300 — no judgement)",
 
     "role.auto": "Auto — detect from match",
+    "role.auto.short": "Auto",
     "role.1": "Pos 1 — Carry",
     "role.2": "Pos 2 — Mid",
     "role.3": "Pos 3 — Offlane",
