@@ -504,17 +504,29 @@ form.card { padding: 0; overflow: clip; }
 /* ============================================================
    Поля
    ============================================================ */
-.row { display: grid; gap: 16px; }
+.row { display: grid; gap: var(--space-3); }
 .row-2 { grid-template-columns: 1fr 1fr; }
-.row-auto { grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); }
+/* Три колонки, а не auto-fit. Раньше колонок набиралось четыре, роли занимали
+   две, и «Модель» уезжала на вторую строку одна — справа от неё и под фокусом
+   зияла пустота в половину карточки. Три равные колонки заполняются ровно:
+   роли на всю ширину, под ними фокус | глубина | модель (в профиле —
+   герой | позиция | модель), дальше промежуток и вопрос. */
+.row-auto { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Подпись в узкой колонке может занять две строки, а соседняя — одну. Прижимаем
+   содержимое поля к низу: тогда сами КОНТРОЛЫ стоят на одной линии, сколько бы
+   строк ни заняли подписи над ними. */
+.row-auto > .field { justify-content: flex-end; }
 .row-note { grid-template-columns: 2fr 1fr; align-items: start; }
-.row + .row, .row + .field, .field + .row { margin-top: 16px; }
+.row + .row, .row + .field, .field + .row { margin-top: var(--space-3); }
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 [data-only][hidden] { display: none; }
 
+/* Перенос по строкам обязателен: в узкой колонке длинная подпись вроде
+   «Только эта позиция — необязательно ?» иначе ломается посередине, и значок
+   подсказки уезжает вертикально мимо текста. */
 .lbl {
-  display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px; row-gap: 2px;
   font-size: 12.5px; font-weight: 560; color: var(--muted);
 }
 .lbl .opt { color: var(--faint); font-weight: 500; }
@@ -641,9 +653,8 @@ select.fld {
 }
 
 .roles { display: flex; gap: 8px; flex-wrap: wrap; }
-/* Шесть фишек не влезают в обычную колонку сетки и переносятся на вторую
-   строку — отдаём им две колонки, там где они есть. */
-@media (min-width: 761px) { .field--roles { grid-column: span 2; } }
+/* Шесть фишек в колонку сетки не влезают — отдаём им всю строку. */
+@media (min-width: 761px) { .field--roles { grid-column: 1 / -1; } }
 
 /* ВСЕ шесть — один размер и одна форма, включая «Авто». Раньше «Авто» был
    скруглённым прямоугольником среди шестиугольников, и ряд не читался рядом.
