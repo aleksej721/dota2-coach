@@ -182,6 +182,13 @@ PROMPT = {
         "The sample is {matches} matches. That is small for statistics: do not present an "
         "observation as a law. If a conclusion rests on two or three matches, say so plainly "
         "and suggest how many games are needed to verify it.",
+    "profile.method.agency":
+        "CAUSE BEFORE BLAME applies here too. Before calling a repeating deviation the "
+        "player's habit, check against the stages block whether it falls on the stretches "
+        "where the team systematically loses its advantage. Low farm in losing positions is "
+        "a consequence, and \"fixing\" it is pointless: first one has to understand why the "
+        "positions are being lost. Call a habit what the player does THEMSELVES and what is "
+        "not dictated by the state of the game.",
     "profile.method.hero_pool":
         "The SAMPLE COMPOSITION BY HERO block shows how the player picks at all: the same "
         "hero in almost every match means a player who practises one hero and takes it into "
@@ -514,6 +521,52 @@ PROMPT = {
         "team had already covered and what it lacked). \"Item finished late\" only means "
         "something relative to something else: my income, the pace of the rest of my build, "
         "or the timing of an enemy item.",
+    "method.agency":
+        "CAUSE BEFORE BLAME. Before calling anything the player's mistake, work out whether "
+        "it was within their power. Separate the player's DECISION from a CONSEQUENCE of the "
+        "state of the game. Check it against data that is already above: the trajectory of "
+        "my team's gold and xp advantage and its swings (ECONOMY section); who took which "
+        "towers and when, who took Roshan and the Aegis (OBJECTIVES section); and the net "
+        "worth curves — mine against the enemy cores. If the team had already lost the map "
+        "by the time of the episode, \"slow farm\" and \"late item\" are a consequence, not "
+        "a mistake. Blame without that check is the most common and most useless thing a "
+        "review can contain.",
+    "method.pivot":
+        "Look for the main leak where the game was STILL ALIVE, not where the number is "
+        "biggest. The most striking deviation almost always sits at the end, once the "
+        "outcome is already settled, and analysing it is pointless: in a lost position "
+        "everything looks bad. Find the most controllable decision at a moment when it "
+        "still changed something, and state the state of the game at that moment with a "
+        "number from ECONOMY — for example \"it was only −2.5k here, the game was still "
+        "holding\". Explain the late collapse, but do not call it the leak.",
+    "method.context_frame":
+        "Read percentiles and averages through the state of the game, not in a vacuum. Low "
+        "GPM, late items and modest damage are symptoms of lost space if OBJECTIVES show "
+        "the map was gone. Write it that way: \"percentile N looks low, but after losing "
+        "the towers at minute M it is a normal figure\". Account for the team as well: the "
+        "allies' lanes and the combined threat of the enemy line-up. A core can be "
+        "structurally overloaded — that is not the same as \"dealt too little\".",
+    "method.hero_mechanics":
+        "Respect the mechanics of the specific hero. Do not question their standard core "
+        "items — they are standard for a reason. Remember that many heroes have their "
+        "effectiveness tied to an ability window or to accumulated farm: such a hero is not "
+        "\"useful for free\" at any minute, and demanding an even contribution across the "
+        "whole game is meaningless. If you are unsure what an item or ability does on this "
+        "hero, say so rather than invent it.",
+    "method.no_positional":
+        "There is NO positional or per-second data in this prompt. That means \"engaged "
+        "badly\", \"went in without vision\", \"stood in the wrong place\" are claims you "
+        "cannot make. This data cannot tell \"dived in\" from \"got caught on the way\": "
+        "name both versions, say which is more plausible and on what grounds, and ask the "
+        "player in the questions section.",
+    "method.zoom":
+        "The tool has a magnifier: the site's advanced settings take a time window, and "
+        "inside it the data comes UNDECIMATED — all ten heroes per minute, purchases, kills "
+        "and fights. If the review has come down to a specific episode, that is the "
+        "player's next step, and naming it with concrete minutes is mandatory (see the "
+        "answer format). Be honest about the limit: per-second timelines and coordinates do "
+        "not exist in the source and will not appear in the magnifier either — it gives "
+        "more DETAIL, not different data. Do not promise what the tool cannot deliver.",
     "method.anomalies":
         "The \"STATISTICALLY UNUSUAL IN THE DATA\" block already lists the deviations. Work "
         "through each one: either explain it with an in-game cause, or honestly dismiss it "
@@ -596,7 +649,11 @@ PROMPT = {
     "format.s3.title": "3. The main leak",
     "format.s3.body":
         "The single most expensive problem — with evidence: concrete timings, numbers and "
-        "their consequences in this match. Show the chain \"what happened → what it cost\".",
+        "their consequences in this match. Show the chain \"what happened → what it cost\". "
+        "Two mandatory conditions: it must be a decision that was WITHIN THEIR POWER, and "
+        "one taken while the game was still holding. State the state of the game at that "
+        "moment with a number. If the costliest thing by the numbers happened in an already "
+        "lost position — explain it separately and say plainly that it is not the leak.",
     "format.s4.title": "4. Draft and build",
     "format.s4.body":
         "Two mandatory parts, both short and grounded in the data. "
@@ -640,14 +697,20 @@ PROMPT = {
         "would confirm or refute it; (c) how confident you are. The hypotheses must differ "
         "in substance, not be restatements of one idea. If the data clearly points at one "
         "cause, say so — but still name what would refute it.",
-    "format.s8.title": "8. Questions for me",
+    "format.s8.title": "8. Questions for me and the next step",
     "format.s8.body":
-        "2–3 short diagnostic questions whose answers would narrow the analysis down. Ask "
-        "about what is NOT in the data: intent, the plan for the game, communication, what "
-        "was visible on screen. For example: \"did the game go wrong in a fight or already "
-        "in the draft?\", \"is there a moment you are unsure about yourself?\", \"did you "
-        "have the enemy carry in sight before that 28:00 engage?\". Do not ask about things "
-        "already answered by the numbers above.",
+        "First, 2–3 short diagnostic questions whose answers would narrow the analysis "
+        "down. Ask about what is NOT in the data: intent, the plan for the game, "
+        "communication, what was visible on screen, whether an ability window was up. For "
+        "example: \"did the game go wrong in a fight or already in the draft?\", \"did you "
+        "engage at 28:00 yourself or were you caught on the way?\". Do not ask about things "
+        "already answered by the numbers above.\n"
+        "Then ONE line about the next step, and it is mandatory: name a time window in "
+        "minutes around the decisive episode and suggest opening it in the site's advanced "
+        "settings and regenerating the review — inside the window the data comes "
+        "undecimated. Take the window with room on both sides of the episode and give it as "
+        "numbers, not words: \"set the window to 24–32 min\". If the match has no decisive "
+        "episode, say so — and suggest whatever makes sense instead.",
 }
 
 UI = {

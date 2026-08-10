@@ -43,6 +43,17 @@ def method_lines(policy: Policy, s: Strings) -> List[str]:
         rules.append(s(f"method.role.{policy.role}"))
     rules.append(s("method.evidence"))
     rules.append(s("method.no_generic"))
+    # Блок причинности. Стоит выше остального содержательного намеренно: без него
+    # разбор по умолчанию скатывается в перечисление низких перцентилей и винит
+    # игрока в симптомах уже проигранной карты. Порядок внутри блока — это
+    # порядок рассуждения: сначала «его ли это решение», затем «когда игра ещё
+    # была живой», затем «как читать цифры», затем «что за герой», и в конце
+    # граница того, чего по этим данным сказать нельзя вовсе.
+    rules.append(s("method.agency"))
+    rules.append(s("method.pivot"))
+    rules.append(s("method.context_frame"))
+    rules.append(s("method.hero_mechanics"))
+    rules.append(s("method.no_positional"))
     # Драфт и билд — единственные две оси, о которых модель молчит охотнее
     # всего: по ним нет готовых чисел, и без прямого требования разбор
     # сваливается в пересказ статистики. Правило про драфт заодно ставит
@@ -54,6 +65,10 @@ def method_lines(policy: Policy, s: Strings) -> List[str]:
     # а без диалогового правила модель выдаёт «финальный вердикт» и замолкает.
     rules.append(s("method.anomalies"))
     rules.append(s("method.dialogue"))
+    # Идёт следом за диалоговым правилом: оба про то, что разбор продолжается.
+    # Лупа — единственный способ добавить деталей, не выходя за пределы того, что
+    # источник вообще отдаёт, поэтому модель обязана про неё знать и предлагать её.
+    rules.append(s("method.zoom"))
     rules.append(s("method.impact_first"))
     rules.append(s("method.explain_why"))
     rules.append(s("method.balance"))
@@ -108,6 +123,10 @@ def profile_method_lines(policy: Policy, matches: int, s: Strings) -> List[str]:
         rules.append(s(f"method.role.{policy.role}"))
     rules.append(s("profile.method.repeating"))
     rules.append(s("profile.method.sample", matches=matches))
+    # Причинность нужна и здесь, иначе режимы разъедутся по строгости: разбор
+    # одного матча отделяет решение от следствия, а профиль по-прежнему выдаёт
+    # низкий фарм в проигранных позициях за привычку игрока.
+    rules.append(s("profile.method.agency"))
     # Что за игрок перед нами — тренирующий одного героя или подбирающий героя
     # под драфт — по одному матчу не видно вовсе, а по выборке видно сразу.
     # Поэтому правило про пул героев живёт только здесь.
