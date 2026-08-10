@@ -228,57 +228,61 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* Дуальность фракций в буквальном виде: солнце Radiant внизу слева и луна Dire
-   сверху справа. Обе фигуры очень тихие — это фон, а не иллюстрация, — и обе
-   медленно «дышат». Луна получается маской: круг с вырезанным кругом даёт
-   серп, и рисовать его вручную не приходится. */
-.sky { position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden; }
-.sky i { position: absolute; display: block; border-radius: 50%; }
-.sky .sun {
-  left: -9vmin; bottom: -12vmin; width: 48vmin; height: 48vmin;
-  background:
-    radial-gradient(circle,
-      color-mix(in srgb, var(--radiant) 30%, transparent) 0 34%,
-      transparent 36%),
-    radial-gradient(circle,
-      transparent 0 45%,
-      color-mix(in srgb, var(--radiant) 16%, transparent) 46% 47%,
-      transparent 48%);
-  animation: breathe 26s ease-in-out infinite;
-}
-.sky .moon {
-  right: -5vmin; top: -7vmin; width: 29vmin; height: 29vmin;
-  background: radial-gradient(circle,
-    color-mix(in srgb, var(--dire) 24%, transparent) 0 45%, transparent 47%);
-  -webkit-mask: radial-gradient(circle at 62% 66%, transparent 0 46%, #000 47%);
-  mask: radial-gradient(circle at 62% 66%, transparent 0 46%, #000 47%);
-  animation: breathe 34s ease-in-out -9s infinite;
-}
-/* На светлом фоне те же значения «звенят» так же, как чистые цвета фракций,
-   поэтому весь слой здесь тише. */
-:root[data-theme="light"] .sky { opacity: .62; }
-@keyframes breathe {
-  0%, 100% { transform: scale(1); opacity: .5; }
-  50%      { transform: scale(1.05); opacity: .8; }
-}
+/* Орбы: крупные размытые сгустки света, которые очень медленно проплывают по
+   экрану. Слой пришёл на смену буквальным солнцу, луне и глифам рун — те
+   читались как наклейки поверх фона, а не как его часть, и опознавались
+   именно как «дота-картинки», приклеенные к обычному интерфейсу.
 
-/* Дрейфующие глифы рун — второй новый слой. Рисуются штрихом в цвете своей
-   фракции, всплывают наискось и медленно поворачиваются. Живут в SVG прямо в
-   документе, а не в data-URI: только так глиф красится переменной темы. */
-.runes { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
-.runes svg {
-  position: absolute; left: var(--x); top: var(--y);
-  width: var(--s); height: var(--s);
-  fill: none; stroke: var(--radiant); stroke-width: 1.2;
-  opacity: 0;
-  animation: rune-drift var(--d) linear var(--delay) infinite;
+   Здесь нет ни одной узнаваемой формы: только цвет фракции и мягкость, а
+   узнаваемость держится на палитре — Radiant внизу слева, Dire сверху справа.
+   Размытие статичное, движется только transform, поэтому blur считается один
+   раз при растеризации слоя, а не каждый кадр. */
+.orbs { position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden; }
+.orbs i {
+  position: absolute; display: block;
+  left: var(--x); top: var(--y);
+  width: var(--s); height: var(--s); border-radius: 50%;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--radiant) 32%, transparent) 0 40%, transparent 70%);
+  /* Сильное размытие и низкая непрозрачность обязательны: карточки —
+     полупрозрачное стекло, и яркий сгусток за ними красит не фон, а сам текст.
+     Орб должен читаться как подсветка, а не как пятно под формой. */
+  filter: blur(52px);
+  opacity: .22;
+  animation: orb-float var(--d) ease-in-out var(--delay) infinite alternate;
 }
-.runes svg.dire { stroke: var(--dire); }
-@keyframes rune-drift {
-  0%   { transform: translate3d(0, 6vh, 0) rotate(-8deg); opacity: 0; }
-  18%  { opacity: .3; }
-  80%  { opacity: .18; }
-  100% { transform: translate3d(3vw, -34vh, 0) rotate(14deg); opacity: 0; }
+.orbs i.dire {
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--dire) 30%, transparent) 0 40%, transparent 70%);
+}
+.orbs i.calm {
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--accent) 28%, transparent) 0 40%, transparent 70%);
+}
+@keyframes orb-float {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(var(--dx), var(--dy), 0) scale(1.18); }
+}
+/* На светлом фоне те же значения «звенят» так же, как чистые цвета фракций. */
+:root[data-theme="light"] .orbs { opacity: .7; }
+
+/* Проход света по стеклу: одна очень широкая диагональная полоса, которая
+   раз в полторы минуты медленно пересекает экран. Ровно то, что делает
+   поверхность похожей на стекло, а не на бумагу, — и ровно один эффект,
+   без единой фигуры. */
+/* Полоса заведомо выше экрана: у наклонённого прямоугольника углы иначе
+   заезжают в кадр, и вместо прохода света видно резкую диагональную границу. */
+.sheen {
+  position: fixed; top: -70vh; bottom: -70vh; left: 0; width: 40vw;
+  z-index: -1; pointer-events: none;
+  background: linear-gradient(100deg, transparent,
+              color-mix(in srgb, var(--accent) 9%, transparent), transparent);
+  transform: translate3d(-60vw, 0, 0) rotate(12deg);
+  animation: sweep 92s linear infinite;
+}
+@keyframes sweep {
+  from { transform: translate3d(-60vw, 0, 0) rotate(12deg); }
+  to   { transform: translate3d(160vw, 0, 0) rotate(12deg); }
 }
 
 /* Дрейфующие искры: Radiant всплывает снизу слева, Dire оседает сверху справа.
@@ -1281,10 +1285,10 @@ pre#promptText::-webkit-scrollbar-thumb {
    слои убираются совсем (обнулённая длительность оставила бы искры застывшими
    посреди экрана), остальное становится мгновенным. */
 @media (prefers-reduced-motion: reduce) {
-  /* Искры и руны убираются целиком: движение — это и есть всё их содержание,
-     а застывшая посреди экрана искра выглядит грязью на стекле. Солнце и луна
-     остаются: у них движение — только «дыхание», а форма самоценна. */
-  .embers, .runes, .range-fill::after { display: none; }
+  /* Искры и световой проход убираются целиком: движение — это и есть всё их
+     содержание, а застывшая посреди экрана искра выглядит грязью на стекле.
+     Орбы остаются: они и в покое работают как мягкая подсветка фона. */
+  .embers, .sheen, .range-fill::after { display: none; }
   *, *::before, *::after {
     scroll-behavior: auto !important;
     animation-duration: .01ms !important;
@@ -1296,62 +1300,66 @@ pre#promptText::-webkit-scrollbar-thumb {
 </head>
 <body>
 <div class="glow"></div>
-<div class="sky" aria-hidden="true">
-  <i class="sun"></i>
-  <i class="moon"></i>
+<div class="orbs" aria-hidden="true">
+  <i style="--x:-12%;--y:46%;--s:54vmin;--dx:18vw;--dy:-16vh;--d:54s;--delay:-8s"></i>
+  <i style="--x:18%;--y:82%;--s:38vmin;--dx:-10vw;--dy:-22vh;--d:67s;--delay:-30s"></i>
+  <i class="dire" style="--x:74%;--y:-14%;--s:48vmin;--dx:-14vw;--dy:20vh;--d:61s;--delay:-19s"></i>
+  <i class="dire" style="--x:88%;--y:34%;--s:34vmin;--dx:-8vw;--dy:26vh;--d:73s;--delay:-44s"></i>
+  <i class="calm" style="--x:42%;--y:12%;--s:44vmin;--dx:12vw;--dy:18vh;--d:81s;--delay:-25s"></i>
+  <i class="calm" style="--x:30%;--y:58%;--s:30vmin;--dx:-16vw;--dy:-12vh;--d:69s;--delay:-51s"></i>
 </div>
+<div class="sheen" aria-hidden="true"></div>
 <div class="embers" aria-hidden="true">
-  <i style="--x:44%;--s:3px;--d:23s;--delay:-20s"></i>
-  <i class="dire" style="--x:9%;--s:2px;--d:30s;--delay:-17s"></i>
-  <i style="--x:15%;--s:3px;--d:26s;--delay:-1s"></i>
-  <i class="dire" style="--x:67%;--s:3px;--d:17s;--delay:-2s"></i>
-  <i style="--x:58%;--s:4px;--d:18s;--delay:-7s"></i>
-  <i class="dire" style="--x:14%;--s:4px;--d:17s;--delay:-18s"></i>
-  <i style="--x:18%;--s:3px;--d:27s;--delay:-20s"></i>
-  <i class="dire" style="--x:77%;--s:2px;--d:26s;--delay:-18s"></i>
-  <i style="--x:53%;--s:2px;--d:20s;--delay:-1s"></i>
-  <i class="dire" style="--x:74%;--s:3px;--d:21s;--delay:-13s"></i>
-  <i style="--x:21%;--s:2px;--d:26s;--delay:-9s"></i>
-  <i class="dire" style="--x:74%;--s:3px;--d:18s;--delay:-18s"></i>
-  <i style="--x:76%;--s:3px;--d:22s;--delay:-3s"></i>
-  <i class="dire" style="--x:73%;--s:2px;--d:26s;--delay:-1s"></i>
-  <i style="--x:5%;--s:2px;--d:24s;--delay:-11s"></i>
-  <i style="--x:31%;--s:4px;--d:19s;--delay:-4s"></i>
-  <i style="--x:38%;--s:2px;--d:29s;--delay:-24s"></i>
-  <i style="--x:26%;--s:3px;--d:21s;--delay:-15s"></i>
-  <i style="--x:47%;--s:2px;--d:31s;--delay:-6s"></i>
-  <i style="--x:11%;--s:3px;--d:25s;--delay:-22s"></i>
-  <i style="--x:64%;--s:2px;--d:28s;--delay:-9s"></i>
-  <i class="dire" style="--x:88%;--s:3px;--d:20s;--delay:-7s"></i>
-  <i class="dire" style="--x:95%;--s:2px;--d:27s;--delay:-14s"></i>
-  <i class="dire" style="--x:59%;--s:2px;--d:23s;--delay:-21s"></i>
-  <i class="dire" style="--x:82%;--s:4px;--d:19s;--delay:-5s"></i>
-  <i class="dire" style="--x:69%;--s:3px;--d:29s;--delay:-26s"></i>
-  <i class="dire" style="--x:91%;--s:2px;--d:22s;--delay:-10s"></i>
-  <i class="dire" style="--x:50%;--s:3px;--d:25s;--delay:-16s"></i>
-</div>
-<!-- Руны: гранёный ромб, «древний» с осью, кольцо с лучами и треугольник в
-     круге. Формы простые намеренно — на 30–46px и прозрачности .3 любая
-     детализация превращается в грязь. -->
-<div class="runes" aria-hidden="true">
-  <svg viewBox="0 0 40 40" style="--x:7%;--y:64%;--s:38px;--d:58s;--delay:-12s">
-    <path d="M20 4 34 20 20 36 6 20z"/><path d="M20 12 27 20 20 28 13 20z"/>
-  </svg>
-  <svg viewBox="0 0 40 40" style="--x:22%;--y:88%;--s:30px;--d:71s;--delay:-40s">
-    <path d="M20 5 33 12v16l-13 7-13-7V12z"/><path d="M20 5v30"/>
-  </svg>
-  <svg viewBox="0 0 40 40" style="--x:37%;--y:76%;--s:34px;--d:64s;--delay:-25s">
-    <circle cx="20" cy="20" r="9"/><path d="M20 3v6M20 31v6M4 20h6M30 20h6"/>
-  </svg>
-  <svg class="dire" viewBox="0 0 40 40" style="--x:79%;--y:30%;--s:36px;--d:67s;--delay:-8s">
-    <circle cx="20" cy="20" r="14"/><path d="M20 9 31 27H9z"/>
-  </svg>
-  <svg class="dire" viewBox="0 0 40 40" style="--x:92%;--y:58%;--s:28px;--d:55s;--delay:-31s">
-    <path d="M20 4 34 20 20 36 6 20z"/><path d="M6 20h28"/>
-  </svg>
-  <svg class="dire" viewBox="0 0 40 40" style="--x:63%;--y:92%;--s:32px;--d:74s;--delay:-52s">
-    <path d="M20 5 33 12v16l-13 7-13-7V12z"/><path d="M7 12l26 16M33 12 7 28"/>
-  </svg>
+  <i class="dire" style="--x:43%;--s:3px;--d:32s;--delay:-23s"></i>
+  <i style="--x:51%;--s:2px;--d:19s;--delay:-19s"></i>
+  <i class="dire" style="--x:95%;--s:4px;--d:29s;--delay:-13s"></i>
+  <i style="--x:6%;--s:2px;--d:30s;--delay:-6s"></i>
+  <i class="dire" style="--x:72%;--s:3px;--d:27s;--delay:-5s"></i>
+  <i style="--x:45%;--s:4px;--d:30s;--delay:-25s"></i>
+  <i class="dire" style="--x:93%;--s:3px;--d:19s;--delay:-6s"></i>
+  <i class="dire" style="--x:51%;--s:3px;--d:21s;--delay:-24s"></i>
+  <i class="dire" style="--x:78%;--s:3px;--d:18s;--delay:-7s"></i>
+  <i class="dire" style="--x:80%;--s:2px;--d:18s;--delay:-24s"></i>
+  <i style="--x:8%;--s:4px;--d:19s;--delay:-19s"></i>
+  <i style="--x:21%;--s:4px;--d:32s;--delay:-29s"></i>
+  <i class="dire" style="--x:47%;--s:2px;--d:22s;--delay:-5s"></i>
+  <i style="--x:50%;--s:3px;--d:21s;--delay:-30s"></i>
+  <i class="dire" style="--x:82%;--s:3px;--d:31s;--delay:-10s"></i>
+  <i style="--x:39%;--s:4px;--d:23s;--delay:-12s"></i>
+  <i style="--x:23%;--s:3px;--d:26s;--delay:-20s"></i>
+  <i class="dire" style="--x:38%;--s:4px;--d:21s;--delay:-18s"></i>
+  <i style="--x:22%;--s:2px;--d:29s;--delay:-21s"></i>
+  <i class="dire" style="--x:82%;--s:4px;--d:18s;--delay:-15s"></i>
+  <i style="--x:54%;--s:4px;--d:20s;--delay:-8s"></i>
+  <i class="dire" style="--x:53%;--s:3px;--d:29s;--delay:-30s"></i>
+  <i style="--x:4%;--s:4px;--d:21s;--delay:-10s"></i>
+  <i style="--x:53%;--s:3px;--d:19s;--delay:-27s"></i>
+  <i style="--x:21%;--s:4px;--d:22s;--delay:-4s"></i>
+  <i class="dire" style="--x:64%;--s:3px;--d:29s;--delay:-8s"></i>
+  <i style="--x:7%;--s:3px;--d:30s;--delay:-3s"></i>
+  <i class="dire" style="--x:63%;--s:3px;--d:20s;--delay:-16s"></i>
+  <i style="--x:39%;--s:2px;--d:23s;--delay:-2s"></i>
+  <i class="dire" style="--x:56%;--s:2px;--d:21s;--delay:-14s"></i>
+  <i style="--x:22%;--s:3px;--d:31s;--delay:-12s"></i>
+  <i class="dire" style="--x:46%;--s:3px;--d:25s;--delay:-23s"></i>
+  <i class="dire" style="--x:83%;--s:3px;--d:28s;--delay:-1s"></i>
+  <i class="dire" style="--x:77%;--s:2px;--d:32s;--delay:-2s"></i>
+  <i class="dire" style="--x:66%;--s:3px;--d:25s;--delay:-29s"></i>
+  <i style="--x:39%;--s:3px;--d:18s;--delay:-8s"></i>
+  <i class="dire" style="--x:98%;--s:3px;--d:28s;--delay:-6s"></i>
+  <i class="dire" style="--x:45%;--s:3px;--d:18s;--delay:-4s"></i>
+  <i style="--x:33%;--s:3px;--d:18s;--delay:-22s"></i>
+  <i style="--x:21%;--s:2px;--d:22s;--delay:-23s"></i>
+  <i class="dire" style="--x:91%;--s:4px;--d:22s;--delay:-9s"></i>
+  <i style="--x:28%;--s:2px;--d:20s;--delay:-19s"></i>
+  <i style="--x:46%;--s:3px;--d:32s;--delay:-19s"></i>
+  <i class="dire" style="--x:42%;--s:2px;--d:31s;--delay:-6s"></i>
+  <i style="--x:5%;--s:4px;--d:23s;--delay:-16s"></i>
+  <i style="--x:17%;--s:2px;--d:30s;--delay:-2s"></i>
+  <i style="--x:5%;--s:2px;--d:20s;--delay:-12s"></i>
+  <i class="dire" style="--x:52%;--s:2px;--d:17s;--delay:-16s"></i>
+  <i style="--x:6%;--s:4px;--d:27s;--delay:-11s"></i>
+  <i style="--x:42%;--s:4px;--d:18s;--delay:-19s"></i>
 </div>
 <div class="grain"></div>
 
