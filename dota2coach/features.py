@@ -410,10 +410,16 @@ class FeatureExtractor:
     def _items(self, match: Match, me: Player, policy: Policy,
                caveats: List[Tuple[str, Dict[str, Any]]]) -> List[Dict[str, Any]]:
         full_log = policy.at_least("items", FULL_LOG)
-        audience = self._audience(match, me, policy, "items")
+        # Единственная секция, где состав участников не зависит от уровня. Билд
+        # оценивается в контексте, а не в вакууме: Manta на 13:13 значит разное
+        # против Ursa с Blink и против Ursa без него, а BKB «поздно» или «вовремя»
+        # — это вопрос о том, когда у соперника появился контроль. Поэтому
+        # крупные предметы остальных девяти печатаются всегда, а уровень
+        # управляет подробностью МОЕЙ сборки: ключевые -> полный лог покупок.
+        # Цена решения — десяток коротких строк; сигнала в них несоизмеримо больше.
 
         out = []
-        for p in audience:
+        for p in match.players:
             if full_log and p is me:
                 timings, kind = self._full_purchases(p), "full"
             elif p is me:
