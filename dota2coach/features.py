@@ -215,14 +215,49 @@ class FeatureExtractor:
         if rows and not chronological:
             caveats.append(("caveat.draft_grouped", {"mode": match.game_mode}))
 
+        picks = [r for r in rows if r["is_pick"]]
         return {
             "mode": match.game_mode,
             "chronological": chronological,
             "rows": rows,
-            "picks": [r for r in rows if r["is_pick"]],
+            "picks": picks,
             "bans": [r for r in rows if not r["is_pick"]],
+            "my_pick": self._my_pick(picks, me),
             "radiant": [self._roster_row(p, me, policy) for p in match.radiant_players()],
             "dire": [self._roster_row(p, me, policy) for p in match.dire_players()],
+        }
+
+    def _my_pick(self, picks: List[Dict[str, Any]], me: Player) -> Optional[Dict[str, Any]]:
+        """Место моего героя в очереди пиков и то, что было видно к этому моменту.
+
+        Главный факт драфта для разбора. First pick выбирает вслепую и сам
+        становится мишенью для контрпика; последний пик видит почти весь состав
+        соперника, и «взял героя просто так» с него спрашивается строже.
+
+        Порядок доступен даже там, где OpenDota отдаёт пики и баны отдельными
+        группами: внутри пиков `order` — это очерёдность подтверждения выбора,
+        то есть ровно то, что игрок видел на экране, когда жал «выбрать».
+        Неизвестно только чередование пиков с банами — о нём и молчим.
+        """
+        my_side = "Radiant" if me.is_radiant else "Dire"
+        at = next((i for i, r in enumerate(picks)
+                   if r["hero"] == me.hero_name and r["side"] == my_side), None)
+        if at is None:
+            return None
+
+        before, after = picks[:at], picks[at + 1:]
+
+        def side_of(rows: List[Dict[str, Any]], mine: bool) -> List[str]:
+            return [r["hero"] for r in rows if (r["side"] == my_side) is mine]
+
+        return {
+            "order": at + 1,
+            "total": len(picks),
+            "tag": "first" if at == 0 else "last" if at == len(picks) - 1 else "mid",
+            "enemies_before": side_of(before, False),
+            "allies_before": side_of(before, True),
+            "enemies_after": side_of(after, False),
+            "allies_after": side_of(after, True),
         }
 
     def _roster_row(self, p: Player, me: Player, policy: Policy) -> Dict[str, Any]:

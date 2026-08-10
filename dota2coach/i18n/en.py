@@ -295,12 +295,23 @@ PROMPT = {
         "OpenDota does not expose draft stages (picks/bans) for this mode. Final line-ups:",
     "draft.chronological": "Draft order ({mode}), chronological:",
     "draft.grouped":
-        "Draft ({mode}). The source returns picks and bans as separate groups — "
-        "the true order between them is unknown.",
+        "Draft ({mode}). The source returns picks and bans as separate groups: the order "
+        "WITHIN the picks is real, how bans interleaved with them is unknown.",
     "draft.bans": "Bans",
     "draft.picks": "Picks",
+    "draft.picks_ordered": "Picks in the order they were locked in:",
     "draft.pick": "pick",
     "draft.ban": "BAN",
+    "draft.my_pick": "MY PICK — #{n} of {total} ({tag}).",
+    "draft.pick_tag.first":
+        "first pick: I picked blind, and it was the enemy who adapted to me",
+    "draft.pick_tag.mid":
+        "middle of the queue: part of the enemy line-up was already visible",
+    "draft.pick_tag.last":
+        "last pick: the enemy line-up was almost fully known",
+    "draft.enemies_before": "enemies visible when I picked: {heroes}",
+    "draft.allies_before": "allies visible when I picked: {heroes}",
+    "draft.enemies_after": "enemy heroes picked after mine: {heroes}",
 
     "sec.scoreboard": "SCOREBOARD (final)",
     "scoreboard.columns":
@@ -430,9 +441,11 @@ PROMPT = {
     "limit.unparsed":
         "- WARNING: the match is not fully parsed — some detailed fields may be empty.",
     "caveat.draft_grouped":
-        "- Mode \"{mode}\": OpenDota returns picks and bans as separate groups rather than in "
-        "true draft order. The DRAFT section shows them that way — do not draw conclusions "
-        "about what came after what.",
+        "- Mode \"{mode}\": OpenDota returns picks and bans as separate groups. The order "
+        "WITHIN the picks is real though — it is the order in which players locked their "
+        "choice in, so every hero above my pick was already on my screen. What is unknown "
+        "is how bans interleaved with picks: do not draw conclusions about which ban "
+        "followed which pick.",
     "caveat.items_filtered":
         "- Items: assembled ones only (mine from {mine} gold, others from {others}); "
         "components, consumables and wards are hidden.",

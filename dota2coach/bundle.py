@@ -252,14 +252,31 @@ class BundleBuilder:
                 out.append(f"  #{r['order']:>2} {r['side']:<7} {kind:<3} {r['hero']}")
         else:
             out.append(s("draft.grouped", mode=d["mode"]))
-            for label, rows in ((s("draft.bans"), d["bans"]), (s("draft.picks"), d["picks"])):
-                listed = ", ".join(f"{r['side'][0]}:{r['hero']}" for r in rows) or s("dash")
-                out.append(f"  {label}: {listed}")
+            listed = ", ".join(f"{r['side'][0]}:{r['hero']}" for r in d["bans"]) or s("dash")
+            out.append(f"  {s('draft.bans')}: {listed}")
+            # Пики — по одному в строку с номером: их очерёдность и есть главный
+            # факт драфта, а в слитой строке через запятую она не читается.
+            out.append(f"  {s('draft.picks_ordered')}")
+            for n, r in enumerate(d["picks"], 1):
+                out.append(f"    #{n:>2} {r['side'][0]} {r['hero']}")
+
+        out += self._my_pick(d.get("my_pick"), s)
 
         for side, rows in (("Radiant", d["radiant"]), ("Dire", d["dire"])):
             out.append(f"{side}:")
             out += [f"  - {p['hero']} | {self._position(s, p['position_key'], p['lane_key'])}"
                     for p in rows]
+        return out
+
+    def _my_pick(self, my: Optional[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        """Во что я пикнулся: что было на экране, когда я подтверждал выбор."""
+        if not my:
+            return []
+        out = ["", s("draft.my_pick", n=my["order"], total=my["total"],
+                     tag=s("draft.pick_tag." + my["tag"]))]
+        for key in ("enemies_before", "allies_before", "enemies_after"):
+            heroes = ", ".join(my[key]) or s("dash")
+            out.append(f"  {s('draft.' + key, heroes=heroes)}")
         return out
 
     def _scoreboard(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
