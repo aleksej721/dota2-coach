@@ -120,6 +120,12 @@
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
           system-ui, "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  /* Display-гарнитура ровно для одного элемента — заголовка. Веб-шрифт не
+     грузим сознательно: страница самодостаточна, а внешний запрос за шрифтом
+     стоил бы и скорости, и приватности. Засечные системные гарнитуры дают
+     нужную «эпичность» без единого байта по сети. */
+  --display: "Optima", "Iowan Old Style", "Palatino Linotype", Palatino,
+             "Hoefler Text", Georgia, serif;
 }
 
 /* Светлая тема: стекло становится светлым и НЕПРОЗРАЧНЕЕ — на светлом фоне
@@ -233,9 +239,62 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* Дуальность фракций в буквальном виде: солнце Radiant внизу слева и луна Dire
+   сверху справа. Обе фигуры очень тихие — это фон, а не иллюстрация, — и обе
+   медленно «дышат». Луна получается маской: круг с вырезанным кругом даёт
+   серп, и рисовать его вручную не приходится. */
+.sky { position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden; }
+.sky i { position: absolute; display: block; border-radius: 50%; }
+.sky .sun {
+  left: -9vmin; bottom: -12vmin; width: 48vmin; height: 48vmin;
+  background:
+    radial-gradient(circle,
+      color-mix(in srgb, var(--radiant) 30%, transparent) 0 34%,
+      transparent 36%),
+    radial-gradient(circle,
+      transparent 0 45%,
+      color-mix(in srgb, var(--radiant) 16%, transparent) 46% 47%,
+      transparent 48%);
+  animation: breathe 26s var(--ease) infinite;
+}
+.sky .moon {
+  right: -5vmin; top: -7vmin; width: 29vmin; height: 29vmin;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--dire) 24%, transparent) 0 45%, transparent 47%);
+  -webkit-mask: radial-gradient(circle at 62% 66%, transparent 0 46%, #000 47%);
+  mask: radial-gradient(circle at 62% 66%, transparent 0 46%, #000 47%);
+  animation: breathe 34s var(--ease) -9s infinite;
+}
+/* На светлом фоне те же значения «звенят» так же, как чистые цвета фракций,
+   поэтому весь слой здесь тише. */
+:root[data-theme="light"] .sky { opacity: .62; }
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: .5; }
+  50%      { transform: scale(1.05); opacity: .8; }
+}
+
+/* Дрейфующие глифы рун — второй новый слой. Рисуются штрихом в цвете своей
+   фракции, всплывают наискось и медленно поворачиваются. Живут в SVG прямо в
+   документе, а не в data-URI: только так глиф красится переменной темы. */
+.runes { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.runes svg {
+  position: absolute; left: var(--x); top: var(--y);
+  width: var(--s); height: var(--s);
+  fill: none; stroke: var(--radiant); stroke-width: 1.2;
+  opacity: 0;
+  animation: rune-drift var(--d) linear var(--delay) infinite;
+}
+.runes svg.dire { stroke: var(--dire); }
+@keyframes rune-drift {
+  0%   { transform: translate3d(0, 6vh, 0) rotate(-8deg); opacity: 0; }
+  18%  { opacity: .3; }
+  80%  { opacity: .18; }
+  100% { transform: translate3d(3vw, -34vh, 0) rotate(14deg); opacity: 0; }
+}
+
 /* Дрейфующие искры: Radiant всплывает снизу слева, Dire оседает сверху справа.
    Только opacity и transform — работа целиком на композиторе, без единой
-   перерисовки. Штук мало намеренно: атмосфера не должна стоить кадров. */
+   перерисовки. */
 .embers { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
 .embers i {
   position: absolute; bottom: -6vh; left: var(--x);
@@ -291,11 +350,15 @@ form.card { animation: rise .55s .14s var(--ease) both; }
    ============================================================ */
 header { position: relative; text-align: center; margin-bottom: var(--space-4); }
 
+/* Единственное место с display-гарнитурой. Заголовок — и только он: засечки в
+   подписях и кнопках превратили бы страницу в книгу, а нужен ровно один
+   «эпичный» акцент на весь экран. */
 .logo {
-  display: inline-flex; align-items: center; gap: 11px;
-  font-size: 27px; font-weight: 650; letter-spacing: -.022em;
+  display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--display);
+  font-size: 31px; font-weight: 700; letter-spacing: .004em;
 }
-.logo svg { width: 27px; height: 27px; }
+.logo svg { width: 29px; height: 29px; }
 .tagline { margin: 8px 0 0; color: var(--muted); font-size: 14.5px; }
 
 /* Язык и тема живут в шапке и видны всегда: это не поля формы, и убирать их
@@ -1256,7 +1319,10 @@ pre#promptText::-webkit-scrollbar-thumb {
    слои убираются совсем (обнулённая длительность оставила бы искры застывшими
    посреди экрана), остальное становится мгновенным. */
 @media (prefers-reduced-motion: reduce) {
-  .embers, .range-fill::after { display: none; }
+  /* Искры и руны убираются целиком: движение — это и есть всё их содержание,
+     а застывшая посреди экрана искра выглядит грязью на стекле. Солнце и луна
+     остаются: у них движение — только «дыхание», а форма самоценна. */
+  .embers, .runes, .range-fill::after { display: none; }
   *, *::before, *::after {
     scroll-behavior: auto !important;
     animation-duration: .01ms !important;
@@ -1268,6 +1334,10 @@ pre#promptText::-webkit-scrollbar-thumb {
 </head>
 <body>
 <div class="glow"></div>
+<div class="sky" aria-hidden="true">
+  <i class="sun"></i>
+  <i class="moon"></i>
+</div>
 <div class="embers" aria-hidden="true">
   <i style="--x:44%;--s:3px;--d:23s;--delay:-20s"></i>
   <i class="dire" style="--x:9%;--s:2px;--d:30s;--delay:-17s"></i>
@@ -1283,6 +1353,43 @@ pre#promptText::-webkit-scrollbar-thumb {
   <i class="dire" style="--x:74%;--s:3px;--d:18s;--delay:-18s"></i>
   <i style="--x:76%;--s:3px;--d:22s;--delay:-3s"></i>
   <i class="dire" style="--x:73%;--s:2px;--d:26s;--delay:-1s"></i>
+  <i style="--x:5%;--s:2px;--d:24s;--delay:-11s"></i>
+  <i style="--x:31%;--s:4px;--d:19s;--delay:-4s"></i>
+  <i style="--x:38%;--s:2px;--d:29s;--delay:-24s"></i>
+  <i style="--x:26%;--s:3px;--d:21s;--delay:-15s"></i>
+  <i style="--x:47%;--s:2px;--d:31s;--delay:-6s"></i>
+  <i style="--x:11%;--s:3px;--d:25s;--delay:-22s"></i>
+  <i style="--x:64%;--s:2px;--d:28s;--delay:-9s"></i>
+  <i class="dire" style="--x:88%;--s:3px;--d:20s;--delay:-7s"></i>
+  <i class="dire" style="--x:95%;--s:2px;--d:27s;--delay:-14s"></i>
+  <i class="dire" style="--x:59%;--s:2px;--d:23s;--delay:-21s"></i>
+  <i class="dire" style="--x:82%;--s:4px;--d:19s;--delay:-5s"></i>
+  <i class="dire" style="--x:69%;--s:3px;--d:29s;--delay:-26s"></i>
+  <i class="dire" style="--x:91%;--s:2px;--d:22s;--delay:-10s"></i>
+  <i class="dire" style="--x:50%;--s:3px;--d:25s;--delay:-16s"></i>
+</div>
+<!-- Руны: гранёный ромб, «древний» с осью, кольцо с лучами и треугольник в
+     круге. Формы простые намеренно — на 30–46px и прозрачности .3 любая
+     детализация превращается в грязь. -->
+<div class="runes" aria-hidden="true">
+  <svg viewBox="0 0 40 40" style="--x:7%;--y:64%;--s:38px;--d:58s;--delay:-12s">
+    <path d="M20 4 34 20 20 36 6 20z"/><path d="M20 12 27 20 20 28 13 20z"/>
+  </svg>
+  <svg viewBox="0 0 40 40" style="--x:22%;--y:88%;--s:30px;--d:71s;--delay:-40s">
+    <path d="M20 5 33 12v16l-13 7-13-7V12z"/><path d="M20 5v30"/>
+  </svg>
+  <svg viewBox="0 0 40 40" style="--x:37%;--y:76%;--s:34px;--d:64s;--delay:-25s">
+    <circle cx="20" cy="20" r="9"/><path d="M20 3v6M20 31v6M4 20h6M30 20h6"/>
+  </svg>
+  <svg class="dire" viewBox="0 0 40 40" style="--x:79%;--y:30%;--s:36px;--d:67s;--delay:-8s">
+    <circle cx="20" cy="20" r="14"/><path d="M20 9 31 27H9z"/>
+  </svg>
+  <svg class="dire" viewBox="0 0 40 40" style="--x:92%;--y:58%;--s:28px;--d:55s;--delay:-31s">
+    <path d="M20 4 34 20 20 36 6 20z"/><path d="M6 20h28"/>
+  </svg>
+  <svg class="dire" viewBox="0 0 40 40" style="--x:63%;--y:92%;--s:32px;--d:74s;--delay:-52s">
+    <path d="M20 5 33 12v16l-13 7-13-7V12z"/><path d="M7 12l26 16M33 12 7 28"/>
+  </svg>
 </div>
 <div class="grain"></div>
 
