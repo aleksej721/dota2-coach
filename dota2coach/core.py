@@ -86,10 +86,14 @@ def build_pipeline(api_key: Optional[str] = None, use_cache: bool = True,
     # Accept обязателен: без него посредник (CDN, WAF) вправе ответить
     # HTML-заглушкой, и вместо внятной ошибки мы получаем «не-JSON ответ».
     session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
+    # Ключ живёт на сессии, а не копией в каждом клиенте: requests сам добавит
+    # его к любому запросу, а отвергнутый ключ выключается один раз для всех
+    # (см. sources/base.drop_key).
+    session.params = {"api_key": api_key} if api_key else {}
     rate = RateLimiter(min_interval=OPENDOTA_MIN_INTERVAL_SEC)
 
-    constants = ConstantsRepo(session, rate, api_key=api_key)
-    source = OpenDotaSource(session, constants, rate, api_key=api_key, use_cache=use_cache)
+    constants = ConstantsRepo(session, rate)
+    source = OpenDotaSource(session, constants, rate, use_cache=use_cache)
     extractor = FeatureExtractor(constants)
     aggregator = ProfileAggregator(AnomalyDetector(constants), extractor)
     return Pipeline(source, extractor, BundleBuilder(), constants, aggregator,

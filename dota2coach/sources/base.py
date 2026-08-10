@@ -34,6 +34,35 @@ class DataSourceError(Exception):
         self.kind = kind
 
 
+# --- отвергнутый ключ API -----------------------------------------------------
+# Ключ НЕОБЯЗАТЕЛЕН: без него OpenDota отвечает так же, только лимиты ниже.
+# Значит, испорченный ключ не имеет права ронять сервис — а именно это и
+# происходило: в переменную окружения попадал плейсхолдер вместо ключа, OpenDota
+# отвечала 400 «Invalid API key format» на КАЖДЫЙ запрос, и разбор умирал
+# целиком. Ключ живёт в session.params — одном месте на весь процесс, — поэтому
+# и выключается один раз для всех, кто ходит через эту сессию.
+
+
+def key_rejected(session, resp) -> bool:
+    """Ответ означает «ключ негодный», а не «данных нет»."""
+    if not (session.params or {}).get("api_key"):
+        return False
+    if resp.status_code not in (400, 401, 403):
+        return False
+    body = (getattr(resp, "text", "") or "").lower()
+    return "api key" in body or "api_key" in body
+
+
+def drop_key(session) -> str:
+    """Выключает ключ до конца жизни процесса и объясняет это в лог."""
+    session.params.pop("api_key", None)
+    note = ("dota2coach: OpenDota отвергла OPENDOTA_API_KEY — продолжаю без ключа. "
+            "Проверь значение переменной (в неё легко попадает плейсхолдер); "
+            "без ключа лимиты запросов ниже.")
+    print(note, flush=True)
+    return note
+
+
 class DataSource(ABC):
     @abstractmethod
     def fetch_match(self, match_id: int, allow_parse: bool = True) -> Match:

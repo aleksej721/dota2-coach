@@ -18,20 +18,20 @@ from .. import config, normalize
 from ..constants import Constants
 from ..model import Match
 from .base import (KIND_NETWORK, KIND_NO_MATCHES, KIND_NOT_FOUND, KIND_RATE_LIMITED,
-                   KIND_UNAVAILABLE, DataSource, DataSourceError)
+                   KIND_UNAVAILABLE, DataSource, DataSourceError, drop_key, key_rejected)
 
 
 class OpenDotaSource(DataSource):
     BASE = "https://api.opendota.com/api"
 
     def __init__(self, session: requests.Session, constants: Constants, rate_limiter,
-                 api_key: Optional[str] = None,
                  parse_timeout: Optional[float] = None, poll_interval: float = 6.0,
                  use_cache: bool = True, cache_dir: Optional[str] = None):
+        # Ключ API сюда не передаётся: он лежит на сессии (см. core.build_pipeline),
+        # и requests добавляет его к каждому запросу сам.
         self._session = session
         self._constants = constants
         self._rate = rate_limiter
-        self._api_key = api_key
         # За обратным прокси хостинга трёхминутное ожидание не переживёт таймаут
         # соединения, поэтому значение приходит из окружения (см. config).
         self._parse_timeout = (parse_timeout if parse_timeout is not None
@@ -41,12 +41,6 @@ class OpenDotaSource(DataSource):
         self._cache_dir = pathlib.Path(cache_dir or config.cache_dir())
 
     # --- низкоуровневые HTTP-хелперы -----------------------------------------
-
-    def _params(self, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        params = dict(extra or {})
-        if self._api_key:
-            params["api_key"] = self._api_key
-        return params
 
     @staticmethod
     def _snippet(resp: requests.Response, limit: int = 200) -> str:
@@ -69,10 +63,14 @@ class OpenDotaSource(DataSource):
     def _get(self, path: str, query: Optional[Dict[str, Any]] = None) -> Any:
         self._rate.acquire()  # вежливость к API перед каждым запросом
         try:
-            resp = self._session.get(f"{self.BASE}{path}", params=self._params(query),
-                                     timeout=30)
+            resp = self._session.get(f"{self.BASE}{path}", params=query or {}, timeout=30)
         except requests.RequestException as e:
             raise DataSourceError(f"Сетевая ошибка при GET {path}: {e}", KIND_NETWORK)
+
+        # Повтор ровно один: ключа на сессии больше нет, и второй раз сюда не зайти.
+        if key_rejected(self._session, resp):
+            drop_key(self._session)
+            return self._get(path, query)
 
         if resp.status_code == 404:
             raise DataSourceError(f"OpenDota: ресурс не найден (404) для {path}.",
@@ -97,9 +95,12 @@ class OpenDotaSource(DataSource):
     def _post(self, path: str) -> Any:
         self._rate.acquire()
         try:
-            resp = self._session.post(f"{self.BASE}{path}", params=self._params(), timeout=30)
+            resp = self._session.post(f"{self.BASE}{path}", timeout=30)
         except requests.RequestException as e:
             raise DataSourceError(f"Сетевая ошибка при POST {path}: {e}", KIND_NETWORK)
+        if key_rejected(self._session, resp):
+            drop_key(self._session)
+            return self._post(path)
         if resp.status_code not in (200, 201):
             raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} на POST "
                                   f"{path}.{self._snippet(resp)}", KIND_UNAVAILABLE)

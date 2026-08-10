@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from . import config
+from .sources.base import drop_key, key_rejected
 
 # Токен локализации Valve вида {s:bonus_rot_slow} с необязательным знаком и
 # прилипшей единицей измерения сразу после скобки ("%" или "s" = секунды).
@@ -98,11 +99,11 @@ class ConstantsRepo(Constants):
     RESOURCES = ("heroes", "items", "abilities", "ability_ids",
                  "game_mode", "lobby_type", "patch", "permanent_buffs")
 
-    def __init__(self, session: requests.Session, rate_limiter, api_key: Optional[str] = None,
+    def __init__(self, session: requests.Session, rate_limiter,
                  cache_dir: Optional[str] = None):
+        # Ключ API лежит на сессии (см. core.build_pipeline) — своей копии здесь нет.
         self._session = session
         self._rate = rate_limiter
-        self._api_key = api_key
         self._cache_dir = pathlib.Path(cache_dir or config.cache_dir())
         # Каталог может быть недоступен для записи (read-only контейнер) — это
         # не повод падать на старте: кэш всего лишь оптимизация.
@@ -137,14 +138,14 @@ class ConstantsRepo(Constants):
             except (OSError, ValueError):
                 pass  # битый кэш — перекачаем
 
-        try:
-            self._rate.acquire()
-            params = {"api_key": self._api_key} if self._api_key else None
-            resp = self._session.get(f"{self.BASE}/{resource}", params=params, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception:
-            data = {}  # best-effort: без справочника используем fallback-имена
+        data = self._fetch(resource)
+        if not data:
+            # Молчать здесь нельзя. Пустой справочник не роняет разбор — он делает
+            # его бесполезным: герои становятся «hero_5», предметы «item_123».
+            # Раньше сбой глотался целиком, и в логе оставалось бодрое
+            # «справочники прогреты» при восьми упавших запросах подряд.
+            print(f"dota2coach: справочник «{resource}» не загружен — имена будут "
+                  f"техническими (hero_5 вместо Phantom Lancer)", flush=True)
 
         # Запись кэша — ОТДЕЛЬНО от загрузки. Иначе на read-only файловой системе
         # (обычное дело в контейнере) исключение записи обнулило бы уже успешно
@@ -155,8 +156,28 @@ class ConstantsRepo(Constants):
             except OSError:
                 pass
 
-        self._mem[resource] = data
+        # Пустой результат в память НЕ кладём: единичный сбой сети или отвергнутый
+        # ключ иначе застревали бы до перезапуска процесса, и весь сервис до конца
+        # жизни отдавал бы «hero_5». Следующий вызов попробует ещё раз.
+        if data:
+            self._mem[resource] = data
         return data
+
+    def _fetch(self, resource: str) -> Any:
+        """Один сетевой заход за справочником. Пустой ответ — не исключение."""
+        try:
+            self._rate.acquire()
+            resp = self._session.get(f"{self.BASE}/{resource}", timeout=30)
+            # Отвергнутый ключ — не повод остаться без справочников: выключаем его
+            # и повторяем без него. Ключ необязателен, а справочники — нет.
+            if key_rejected(self._session, resp):
+                drop_key(self._session)
+                self._rate.acquire()
+                resp = self._session.get(f"{self.BASE}/{resource}", timeout=30)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception:   # noqa: BLE001 — best-effort: см. комментарий у вызова
+            return {}
 
     def hero_name(self, hero_id: Optional[int]) -> str:
         heroes = self._load("heroes")
