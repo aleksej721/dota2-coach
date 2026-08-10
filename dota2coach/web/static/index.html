@@ -28,12 +28,6 @@
   --field-bg:      rgba(255, 255, 255, .04);
   --field-border:  rgba(255, 255, 255, .10);
   --field-hover:   rgba(255, 255, 255, .17);
-  /* Отдельная поверхность для фишек позиций. У них нет ни рамки, ни текста
-     рядом — только силуэт и глиф, поэтому общего --field-bg им мало: на
-     светлой теме почти белая фишка на почти белой карточке не читается вовсе. */
-  --chip-bg:       rgba(255, 255, 255, .07);
-  --chip-bd:       rgba(255, 255, 255, .14);
-  --chip-fg:       #c3c8d6;
   --solid:         rgba(10, 11, 15, .55);
   --code:          #dfe3ec;
 
@@ -142,11 +136,6 @@
   --field-bg:      rgba(255, 255, 255, .72);
   --field-border:  rgba(16, 20, 40, .14);
   --field-hover:   rgba(16, 20, 40, .26);
-  /* Здесь фишка, наоборот, ТЕМНЕЕ карточки: только так силуэт отделяется от
-     светлого стекла, а глиф внутри читается на нём с запасом по контрасту. */
-  --chip-bg:       rgba(22, 26, 46, .075);
-  --chip-bd:       rgba(16, 20, 40, .18);
-  --chip-fg:       #3a4054;
   --solid:         rgba(255, 255, 255, .86);
   --code:          #232838;
 
@@ -742,91 +731,49 @@ select.fld {
   padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
 
-.roles { display: flex; gap: 8px; flex-wrap: wrap; }
-/* Шесть фишек в колонку сетки не влезают — отдаём им всю строку. */
+/* Шесть ячеек в колонку сетки не влезают — отдаём им всю строку. */
 @media (min-width: 761px) { .field--roles { grid-column: 1 / -1; } }
 
-/* ВСЕ шесть — один размер и одна форма, включая «Авто». Раньше «Авто» был
-   скруглённым прямоугольником среди шестиугольников, и ряд не читался рядом.
-
-   Геометрия правильная: у регулярного шестиугольника с вершиной вверху
-   отношение ширины к высоте равно √3/2 ≈ 0.866, а боковые вершины лежат
-   ровно на 25% и 75% высоты. Было 42×44 с вершинами на 26/74 — отсюда
-   сплюснутость; хуже того, содержимое распирало кнопку по ширине, и чем
-   шире она становилась, тем площе выглядела. Теперь размер фиксирован. */
-.role-chip {
-  position: relative; flex: none;
-  display: inline-flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 1px;
-  width: 50px; height: 58px; padding: 0;   /* 50/58 = 0.862 ≈ √3/2 */
-  background: var(--chip-bg);
-  border: none;
-  color: var(--chip-fg);
-  font: inherit; font-size: 11px; font-weight: 700;
-  font-variant-numeric: tabular-nums; cursor: pointer;
-  /* Morph формы — приём M3 Expressive. Ключ к аккуратности в том, ЧТО именно
-     морфится. Прошлая версия растягивала шестиугольник в длинный: у фигуры
-     оставались острые макушка и низ на почти прямых боках, и она читалась как
-     прямоугольник с нашлёпками. Здесь морфится ОГРАНКА: у всех трёх состояний
-     двенадцать вершин, и вершины сходятся попарно ровно настолько, насколько
-     срезан угол. c=0 — чистый шестиугольник, c=.05 под курсором, c=.15 у
-     выбранной фишки. Силуэт при этом остаётся шестиугольным всегда — меняется
-     только «огранка самоцвета», и кривизне взяться неоткуда. Сильнее .15 брать
-     нельзя: на 50×58 фигура вырождается в овал и теряет узнаваемость.
-
-     Рамка — внутренней тенью: обычную border срезал бы clip-path. */
-  clip-path: polygon(50% 0%, 100% 25%, 100% 25%, 100% 75%,
-                     100% 75%, 50% 100%, 50% 100%, 0% 75%,
-                     0% 75%, 0% 25%, 0% 25%, 50% 0%);
-  box-shadow: inset 0 0 0 1px var(--chip-bd);
-  transition: clip-path var(--m3-medium) var(--spring-gentle),
-              color var(--m3-short) var(--m3-emphasized),
-              background var(--m3-short) var(--m3-emphasized),
-              filter var(--m3-short) var(--m3-emphasized),
-              transform var(--m3-medium) var(--spring-gentle);
+/* Позиции — сегментированный контрол M3, тот же приём, что у «Глубины» и у
+   переключателя режимов. Шестиугольники ушли: гранёные фишки требовали
+   clip-path, а с ним не работают ни рамка, ни внешняя тень, ни кольцо фокуса,
+   и каждое состояние приходилось изобретать заново. Здесь ничего изобретать не
+   нужно — выбор показывает СКОЛЬЗЯЩАЯ шайба, ровно как в двух соседних
+   контролах, и «выбрать одно из N» на всей странице выглядит одинаково. */
+.seg-roles {
+  position: relative;
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px;
+  padding: 4px;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-md);
 }
-.role-chip svg { width: 21px; height: 21px; }
-.role-chip span { line-height: 1; letter-spacing: .02em; }
-
-/* c = .05 — намёк на огранку: под курсором фишка «готовится» стать выбранной. */
-.role-chip:hover {
-  color: var(--text);
-  clip-path: polygon(52.5% 1.3%, 97.5% 23.8%, 100% 27.5%, 100% 72.5%,
-                     97.5% 76.2%, 52.5% 98.7%, 47.5% 98.7%, 2.5% 76.2%,
-                     0% 72.5%, 0% 27.5%, 2.5% 23.8%, 47.5% 1.3%);
-}
-/* c = .15 — огранённый самоцвет. */
-.role-chip[aria-checked="true"] {
-  color: var(--on-accent);
+.seg-thumb {
+  position: absolute; top: 4px; bottom: 4px; left: 4px;
+  width: calc((100% - 8px - 20px) / 6);   /* 8px паддингов + 5 зазоров по 4px */
+  border-radius: var(--r-sm);
   background: linear-gradient(150deg, var(--accent), var(--accent-2));
-  clip-path: polygon(57.5% 3.8%, 92.5% 21.2%, 100% 32.5%, 100% 67.5%,
-                     92.5% 78.8%, 57.5% 96.2%, 42.5% 96.2%, 7.5% 78.8%,
-                     0% 67.5%, 0% 32.5%, 7.5% 21.2%, 42.5% 3.8%);
-  box-shadow: none;
-  transform: translateY(-2px) scale(1.04);
-  /* Тень именно filter, а не box-shadow: box-shadow обрезался бы clip-path
-     вместе с элементом, а drop-shadow повторяет силуэт фигуры. */
-  filter: drop-shadow(0 6px 12px var(--accent-soft))
-          drop-shadow(0 2px 4px rgba(0, 0, 0, .28));
+  box-shadow: 0 6px 18px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .22);
+  /* Шайба едет ровно на ширину ячейки плюс зазор — номер выбранной ячейки
+     скрипт кладёт в --at, а раскладку целиком считает CSS. */
+  transform: translateX(calc(var(--at, 0) * (100% + 4px)));
+  transition: transform var(--m3-medium) var(--spring);
 }
-/* Кольцо фокуса — внутренней тенью: внешнюю срезал бы clip-path. */
-.role-chip:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 4px var(--accent-soft);
+.seg-item {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; min-height: 54px; padding: 7px 2px;
+  background: none; border: none; border-radius: var(--r-sm);
+  color: var(--muted);
+  font: inherit; font-size: 11px; font-weight: 650;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: color var(--m3-short) var(--m3-emphasized);
 }
-
-/* Реакция соседей: выбор одной фишки коротко подталкивает соседние — они
-   «расступаются». Класс вешает скрипт и снимает по окончании анимации. */
-.role-chip.nudge-l { animation: nudge-l .42s var(--spring-soft); }
-.role-chip.nudge-r { animation: nudge-r .42s var(--spring-soft); }
-@keyframes nudge-l {
-  0% { transform: translateX(0); } 45% { transform: translateX(-4px); }
-  100% { transform: translateX(0); }
-}
-@keyframes nudge-r {
-  0% { transform: translateX(0); } 45% { transform: translateX(4px); }
-  100% { transform: translateX(0); }
-}
+.seg-item svg { width: 20px; height: 20px; }
+.seg-item span { line-height: 1; letter-spacing: .01em; }
+.seg-item:hover { color: var(--text); }
+.seg-item[aria-checked="true"], .seg-item[aria-checked="true"]:hover { color: var(--on-accent); }
+.seg-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* ============================================================
    Расширенные настройки (progressive disclosure)
@@ -1304,13 +1251,11 @@ pre#promptText::-webkit-scrollbar-thumb {
 .foot { margin-top: 26px; text-align: center; color: var(--faint); font-size: 12.5px; }
 .foot code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
-/* На узком экране шесть фишек в строку не влезают и «5» уезжает вниз одна.
-   Поджимаем их, а не прячем иконки: иконка и есть визуальный язык позиций. */
+/* На узком экране шесть ячеек ужимаются, но остаются в одной строке: перенос
+   сломал бы и поездку шайбы, и сам смысл сегментированного контрола. */
 @media (max-width: 420px) {
-  .roles { gap: 5px; }
-  /* Пропорция √3/2 сохраняется и здесь — иначе шестиугольник снова поплывёт. */
-  .role-chip { width: 45px; height: 52px; }
-  .role-chip svg { width: 19px; height: 19px; }
+  .seg-item { min-height: 50px; gap: 3px; padding: 6px 0; font-size: 10.5px; }
+  .seg-item svg { width: 18px; height: 18px; }
 }
 
 @media (max-width: 760px) {
@@ -1530,7 +1475,7 @@ pre#promptText::-webkit-scrollbar-thumb {
                 <span class="lbl"><span id="roleLabel" data-i18n="field.role"></span>
                   <button type="button" class="info" data-hint="hint.role" aria-expanded="false">?</button>
                 </span>
-                <div class="roles" id="roleIcons" role="radiogroup"
+                <div class="seg-roles" id="roleIcons" role="radiogroup"
                      aria-labelledby="roleLabel"></div>
                 <select class="fld sr-only" id="roleSelect" tabindex="-1"
                         aria-hidden="true"></select>
@@ -1953,70 +1898,68 @@ pre#promptText::-webkit-scrollbar-thumb {
      вся логика role-aware фокусов, и дублировать её было бы способом
      рассинхронизировать. Кнопки лишь пишут в него значение и шлют change. */
   /* Иконки позиций. Читаемость важнее детализации: это ЗАЛИВНЫЕ силуэты, а не
-     контурные рисунки — на 21px тонкая линия сливается в кашу. Нарисованы
+     контурные рисунки — на 20px тонкая линия сливается в кашу. Нарисованы
      здесь же, никаких ассетов Valve.
 
-     Метафоры: искра — «определить само»; меч — кери (урон); лук — мид (дальний
-     бой и темп); щит — оффлейн (принимает на себя); капля-искра в ладони —
-     соft support (магия и роуминг); крест в ладони — хард support (лечение и
-     сейвы). Ладони у 4 и 5 сведены к одной простой чаше: кисть с пальцами на
-     таком размере не читается вовсе. */
+     Метафоры выбраны так, чтобы силуэты не путались между собой: искра —
+     «определить само»; меч — кери; молния — мид (темп); щит — оффлейн; глаз —
+     soft support (вижн и роуминг); сердце — hard support (сейвы и лечение).
+     Прежние «чаши ладоней» у 4 и 5 отличались друг от друга только начинкой и
+     на таком размере сливались в одно пятно. */
   const ROLE_GLYPH = {
-    // Искра: четырёхлучевая звезда — узнаётся мгновенно даже крошечной.
-    "": '<path d="M12 2.5 14 9l6.5 2-6.5 2-2 6.5-2-6.5L3.5 11 10 9z"/>',
-    // Меч ВЕРТИКАЛЬНО: остриё вверх, широкая гарда, рукоять, навершие.
-    // Первая версия была диагональной и читалась как молот — силуэт меча
-    // держится на длинной оси и поперечной гарде, их и рисуем.
+    // Искра: крупная четырёхлучевая звезда и маленькая рядом — «подберётся само».
+    "": '<path d="M11 2.2 12.9 7.9 18.6 9.8 12.9 11.7 11 17.4 9.1 11.7 3.4 9.8 9.1 7.9z"/>'
+      + '<path d="M18 14.2 18.9 16.9 21.6 17.8 18.9 18.7 18 21.4 17.1 18.7 14.4 17.8 17.1 16.9z"/>',
+    // Меч: остриё вверх, широкая гарда, рукоять, навершие. Силуэт меча держится
+    // на длинной оси и поперечной гарде — их и рисуем.
     "1": '<path d="M12 1.4 14.8 6.9v5.5H9.2V6.9z"/>'
        + '<path d="M5.6 12.4h12.8v2.7H5.6z"/>'
        + '<path d="M10.6 15.1h2.8v4.1h-2.8z"/>'
        + '<path d="M12 18.7a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/>',
-    // Молния: темп, руны, ранний импакт. Лук на 21px превращался в кирку —
-    // дуга со стрелой требует трёх тонких элементов, которые сливаются.
-    // Молния — сплошной силуэт, читается безошибочно.
+    // Молния: темп, руны, ранний импакт.
     "2": '<path d="M13.6 1.8 5.2 13.2h5.2l-1 9 9.4-12h-5.6z"/>',
-    // Щит: сплошной силуэт. Молнию внутри убрал — на 21px она превращала
-    // фигуру в пятно; щит и без неё читается как «принимаю удар».
+    // Щит: «принимаю удар на себя».
     "3": '<path d="M12 2.2 20.2 5.4v6.1c0 4.7-3.3 8.4-8.2 10.3C7.1 19.9 3.8 16.2 3.8 11.5V5.4z"/>',
-    // Чаша ладони с искрой НАД ней: помощь и магия. Между искрой и чашей
-    // оставлен зазор — слипшись, они читались как «кубок с чем-то».
-    "4": '<path d="M12 1.6 13.4 5.9 17.7 7.3 13.4 8.7 12 13 10.6 8.7 6.3 7.3 10.6 5.9z"/>'
-       + '<path d="M3.8 14.6h16.4c0 4.5-3.7 8.2-8.2 8.2s-8.2-3.7-8.2-8.2z"/>',
-    // Та же чаша, но с крестом: лечение и сейвы.
-    "5": '<path d="M10.3 1.8h3.4v3.4h3.4v3.4h-3.4V12h-3.4V8.6H6.9V5.2h3.4z"/>'
-       + '<path d="M3.8 14.6h16.4c0 4.5-3.7 8.2-8.2 8.2s-8.2-3.7-8.2-8.2z"/>',
+    // Глаз: вижн и роуминг. Веко — кольцо через evenodd, зрачок — отдельный круг:
+    // сплошной глаз без выреза читался бы как линза.
+    "4": '<path fill-rule="evenodd" d="M12 4.6C7.2 4.6 3.1 8 1.4 12c1.7 4 5.8 7.4 10.6 7.4S20.9 16 22.6 12C20.9 8 16.8 4.6 12 4.6zm0 11.7a4.3 4.3 0 1 1 0-8.6 4.3 4.3 0 0 1 0 8.6z"/>'
+       + '<circle cx="12" cy="12" r="2.2"/>',
+    // Сердце: сейвы и лечение. Один сплошной силуэт — самый читаемый из всех.
+    "5": '<path d="M12 21.4 3.9 13.3a5.1 5.1 0 0 1 7.3-7.1l.8.8.8-.8a5.1 5.1 0 0 1 7.3 7.1z"/>',
   };
+
+  const roleCells = () => [...$("roleIcons").querySelectorAll(".seg-item")];
 
   const renderRoleIcons = () => {
     const host = $("roleIcons");
-    host.innerHTML = "";
-    const make = (code, label, title, glyph, extraClass) => {
+    // Шайба живёт вне цикла перерисовки подписей: пересоздавать её при смене
+    // языка значило бы каждый раз проигрывать её поездку от нулевой позиции.
+    host.innerHTML = '<span class="seg-thumb" aria-hidden="true"></span>';
+    for (const code of ["", ...CFG.roles]) {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "role-chip ripple" + (extraClass || "");
+      b.className = "seg-item ripple";
       b.dataset.role = code;
       b.setAttribute("role", "radio");
-      b.setAttribute("aria-checked", String(roleSel.value === code));
-      b.title = title;
+      b.title = code === "" ? t("role.auto") : t("role." + code);
       b.innerHTML =
-        `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${glyph}</svg>`
-        + `<span>${label}</span>`;
+        `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${ROLE_GLYPH[code]}</svg>`
+        + `<span>${code === "" ? t("role.auto.short") : code}</span>`;
       host.append(b);
-      return b;
-    };
-    for (const code of ["", ...CFG.roles]) {
-      make(code, code === "" ? t("role.auto.short") : code,
-           code === "" ? t("role.auto") : t("role." + code), ROLE_GLYPH[code], "");
     }
   };
 
   const syncRoleIcons = () => {
-    for (const chip of $("roleIcons").querySelectorAll(".role-chip")) {
-      chip.setAttribute("aria-checked", String(chip.dataset.role === roleSel.value));
+    const cells = roleCells();
+    for (const cell of cells) {
+      cell.setAttribute("aria-checked", String(cell.dataset.role === roleSel.value));
       // Roving tabindex: в радиогруппе Tab заходит на выбранный элемент, а
       // дальше переключение идёт стрелками — так это и ожидается с клавиатуры.
-      chip.tabIndex = chip.dataset.role === roleSel.value ? 0 : -1;
+      cell.tabIndex = cell.dataset.role === roleSel.value ? 0 : -1;
     }
+    // Раскладку считает CSS, скрипт сообщает только номер выбранной ячейки.
+    const at = cells.findIndex((c) => c.dataset.role === roleSel.value);
+    $("roleIcons").style.setProperty("--at", Math.max(at, 0));
   };
 
   const pickRole = (code) => {
@@ -2024,39 +1967,21 @@ pre#promptText::-webkit-scrollbar-thumb {
     roleSel.value = code;
     roleSel.dispatchEvent(new Event("change"));
     syncRoleIcons();
-    nudgeNeighbours(code);
-  };
-
-  /* Соседи выбранной фишки коротко расступаются — приём M3 Expressive:
-     интерфейс отвечает не только там, где нажали. */
-  const nudgeNeighbours = (code) => {
-    if (calmMotion.matches) return;
-    const chips = [...$("roleIcons").querySelectorAll(".role-chip")];
-    const at = chips.findIndex((c) => c.dataset.role === code);
-    for (const [index, cls] of [[at - 1, "nudge-l"], [at + 1, "nudge-r"]]) {
-      const chip = chips[index];
-      if (!chip) continue;
-      chip.classList.remove(cls);
-      void chip.offsetWidth;          // перезапуск анимации при быстрых кликах
-      chip.classList.add(cls);
-      chip.addEventListener("animationend",
-                            () => chip.classList.remove(cls), { once: true });
-    }
   };
 
   $("roleIcons").addEventListener("click", (e) => {
-    const chip = e.target.closest(".role-chip");
-    if (chip) pickRole(chip.dataset.role);
+    const cell = e.target.closest(".seg-item");
+    if (cell) pickRole(cell.dataset.role);
   });
 
   $("roleIcons").addEventListener("keydown", (e) => {
     const keys = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"];
     if (!keys.includes(e.key)) return;
     e.preventDefault();
-    const chips = [...$("roleIcons").querySelectorAll(".role-chip")];
-    const at = chips.findIndex((c) => c.dataset.role === roleSel.value);
+    const cells = roleCells();
+    const at = cells.findIndex((c) => c.dataset.role === roleSel.value);
     const step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : -1;
-    const next = chips[(at + step + chips.length) % chips.length];
+    const next = cells[(at + step + cells.length) % cells.length];
     pickRole(next.dataset.role);
     next.focus();
   });
