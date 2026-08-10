@@ -158,6 +158,23 @@ class AnalyzeResponse(BaseModel):
     warning: Optional[str] = None
 
 
+def _source_failure(e: DataSourceError) -> HTTPException:
+    """Сбой источника: в лог — техническую причину, пользователю — локализованную.
+
+    Печать в stdout здесь не отладочный мусор, а единственный след сбоя на
+    хостинге: FastAPI пишет в лог только код ответа, а страница показывает текст,
+    выбранный по `kind`, — по нему не отличить исчерпанный лимит от блокировки
+    клиента или HTML-заглушки вместо JSON. Без этой строки разбирать «OpenDota
+    недоступна» на проде не по чему.
+
+    detail отдаём объектом: страница локализует текст по `kind`, а `message`
+    нужен там, где в нём есть данные (например, список игроков матча).
+    """
+    print(f"dota2coach: сбой источника [{e.kind}] {e}", flush=True)
+    return HTTPException(STATUS_BY_KIND.get(e.kind, 502),
+                         {"kind": e.kind, "message": str(e)})
+
+
 def _index_html() -> str:
     """Страница с подставленными словарями интерфейса.
 
@@ -220,10 +237,7 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     except asyncio.TimeoutError:
         raise HTTPException(504, {"kind": "parse_timeout", "message": ""})
     except DataSourceError as e:
-        # detail отдаём объектом: страница локализует текст по `kind`, а `message`
-        # нужен там, где в нём есть данные (например, список игроков матча).
-        raise HTTPException(STATUS_BY_KIND.get(e.kind, 502),
-                            {"kind": e.kind, "message": str(e)})
+        raise _source_failure(e)
 
     return AnalyzeResponse(
         prompt=result.text,
@@ -292,8 +306,7 @@ async def profile(req: ProfileRequest) -> ProfileResponse:
     except asyncio.TimeoutError:
         raise HTTPException(504, {"kind": "profile_timeout", "message": ""})
     except DataSourceError as e:
-        raise HTTPException(STATUS_BY_KIND.get(e.kind, 502),
-                            {"kind": e.kind, "message": str(e)})
+        raise _source_failure(e)
 
     # Одно предупреждение, а не два: неполнота данных важнее недобора выборки,
     # и два баннера подряд читаются как «всё сломалось».

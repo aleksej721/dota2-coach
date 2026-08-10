@@ -48,6 +48,24 @@ class OpenDotaSource(DataSource):
             params["api_key"] = self._api_key
         return params
 
+    @staticmethod
+    def _snippet(resp: requests.Response, limit: int = 200) -> str:
+        """Начало тела ответа — единственная зацепка, когда сбой не воспроизводится.
+
+        «HTTP 403» сам по себе не отличает исчерпанный лимит от блокировки
+        клиента, а страж вроде Cloudflare вообще отдаёт HTML-заглушку вместо
+        JSON — по одному коду этого не видно. Тело обрезаем: в лог нужен
+        признак, а не дамп страницы.
+        """
+        try:
+            body = " ".join((resp.text or "").split())
+        except Exception:        # noqa: BLE001 — диагностика не должна ронять разбор
+            return ""
+        if not body:
+            return ""
+        ctype = resp.headers.get("Content-Type", "?")
+        return f" [{ctype}] {body[:limit]}"
+
     def _get(self, path: str, query: Optional[Dict[str, Any]] = None) -> Any:
         self._rate.acquire()  # вежливость к API перед каждым запросом
         try:
@@ -64,15 +82,16 @@ class OpenDotaSource(DataSource):
                 "OpenDota: превышен лимит запросов (429). Подожди минуту или задай "
                 "OPENDOTA_API_KEY для более высоких лимитов.", KIND_RATE_LIMITED)
         if resp.status_code >= 500:
-            raise DataSourceError(f"OpenDota временно недоступна (HTTP {resp.status_code}). "
-                                  f"Попробуй ещё раз чуть позже.", KIND_UNAVAILABLE)
+            raise DataSourceError(f"OpenDota временно недоступна (HTTP {resp.status_code}) "
+                                  f"на GET {path}.{self._snippet(resp)}", KIND_UNAVAILABLE)
         if resp.status_code != 200:
-            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} для {path}.",
-                                  KIND_UNAVAILABLE)
+            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} на GET "
+                                  f"{path}.{self._snippet(resp)}", KIND_UNAVAILABLE)
         try:
             return resp.json()
         except ValueError:
-            raise DataSourceError(f"OpenDota вернула не-JSON ответ для {path}.",
+            raise DataSourceError(f"OpenDota вернула не-JSON ответ на GET {path} "
+                                  f"(HTTP {resp.status_code}).{self._snippet(resp)}",
                                   KIND_UNAVAILABLE)
 
     def _post(self, path: str) -> Any:
@@ -82,8 +101,8 @@ class OpenDotaSource(DataSource):
         except requests.RequestException as e:
             raise DataSourceError(f"Сетевая ошибка при POST {path}: {e}", KIND_NETWORK)
         if resp.status_code not in (200, 201):
-            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} для POST {path}.",
-                                  KIND_UNAVAILABLE)
+            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} на POST "
+                                  f"{path}.{self._snippet(resp)}", KIND_UNAVAILABLE)
         try:
             return resp.json()
         except ValueError:

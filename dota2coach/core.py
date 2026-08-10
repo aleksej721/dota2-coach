@@ -24,7 +24,10 @@ from .profile import ProfileAggregator, ProfileFeatures
 from .ratelimit import RateLimiter
 from .sources.opendota import OpenDotaSource
 
-USER_AGENT = "dota2coach/0.1 (personal use)"
+# Клиент называет себя честно и оставляет адрес проекта: так у владельцев API
+# есть с кем связаться, если наш трафик им мешает. «personal use» перестало быть
+# правдой в тот момент, когда инструмент уехал на хостинг.
+USER_AGENT = "dota2coach/0.1 (+https://github.com/aleksej721/dota2-coach)"
 OPENDOTA_MIN_INTERVAL_SEC = 1.0
 
 
@@ -80,7 +83,9 @@ def build_pipeline(api_key: Optional[str] = None, use_cache: bool = True,
         api_key = Config.load().api_key
 
     session = requests.Session()
-    session.headers.update({"User-Agent": USER_AGENT})
+    # Accept обязателен: без него посредник (CDN, WAF) вправе ответить
+    # HTML-заглушкой, и вместо внятной ошибки мы получаем «не-JSON ответ».
+    session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
     rate = RateLimiter(min_interval=OPENDOTA_MIN_INTERVAL_SEC)
 
     constants = ConstantsRepo(session, rate, api_key=api_key)
