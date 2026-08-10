@@ -105,12 +105,12 @@
   --spring-soft: linear(0, 0.0418, 0.1482, 0.2933, 0.455, 0.6159, 0.7635, 0.8897, 0.9903, 1.0642, 1.113, 1.1395, 1.1477, 1.142, 1.1265, 1.1052, 1.0814, 1.0576, 1.0357, 1.0169, 1.0019, 0.9908, 0.9835, 0.9795, 0.9782, 0.979, 0.9812, 0.9843, 0.9878, 0.9914, 0.9946, 0.9974, 0.9996, 1.0013, 1.0024, 1.003, 1);
   --spring-gentle: linear(0, 0.0337, 0.1174, 0.2292, 0.3529, 0.4767, 0.5927, 0.6962, 0.7848, 0.8578, 0.9157, 0.9599, 0.992, 1.014, 1.0279, 1.0355, 1.0383, 1.0377, 1.035, 1.031, 1.0263, 1.0215, 1.0169, 1.0128, 1.0092, 1.0062, 1.0038, 1.002, 1.0006, 0.9997, 0.9991, 0.9987, 0.9985, 0.9985, 0.9986, 0.9988, 1);
 
-  --ease: cubic-bezier(.22, .8, .28, 1);
-  /* Лёгкий перелёт: тумблеры и ручки ползунка «доезжают» с отскоком, а не
+  /* Лёгкий перелёт: скользящие шайбы сегментов «доезжают» с отскоком, а не
      тормозят в упор. Перелёт маленький — интерфейс должен быть живым, а не
-     развязным. */
+     развязным.
+     Прежние --ease и --dur убраны: они дублировали --m3-emphasized и
+     --m3-short, и одна и та же моторика жила в интерфейсе под двумя именами. */
   --spring: cubic-bezier(.34, 1.56, .48, 1);
-  --dur: .2s;
   --space-1: 6px;
   --space-2: 10px;
   --space-3: 16px;
@@ -211,7 +211,7 @@ body {
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  transition: background var(--m3-short) var(--m3-emphasized), color var(--m3-short) var(--m3-emphasized);
 }
 
 /* Фон — фракционная дуальность: сияние Radiant внизу слева (природное,
@@ -255,7 +255,7 @@ body {
       transparent 0 45%,
       color-mix(in srgb, var(--radiant) 16%, transparent) 46% 47%,
       transparent 48%);
-  animation: breathe 26s var(--ease) infinite;
+  animation: breathe 26s ease-in-out infinite;
 }
 .sky .moon {
   right: -5vmin; top: -7vmin; width: 29vmin; height: 29vmin;
@@ -263,7 +263,7 @@ body {
     color-mix(in srgb, var(--dire) 24%, transparent) 0 45%, transparent 47%);
   -webkit-mask: radial-gradient(circle at 62% 66%, transparent 0 46%, #000 47%);
   mask: radial-gradient(circle at 62% 66%, transparent 0 46%, #000 47%);
-  animation: breathe 34s var(--ease) -9s infinite;
+  animation: breathe 34s ease-in-out -9s infinite;
 }
 /* На светлом фоне те же значения «звенят» так же, как чистые цвета фракций,
    поэтому весь слой здесь тише. */
@@ -335,11 +335,11 @@ body::after { right: 0; background: linear-gradient(180deg, var(--dire), transpa
 
 /* Появление лестницей: шапка, режимы, форма. Двигаем только opacity и
    transform, поэтому композитор справляется без перерисовок. */
-header { animation: rise .5s var(--ease) both; }
-.modes { animation: rise .5s .06s var(--ease) both; }
-.modes-note { animation: rise .5s .1s var(--ease) both; }
-form.card { animation: rise .55s .14s var(--ease) both; }
-.foot { animation: rise .5s .22s var(--ease) both; }
+header { animation: rise .5s var(--m3-decelerate) both; }
+.modes { animation: rise .5s .06s var(--m3-decelerate) both; }
+.modes-note { animation: rise .5s .1s var(--m3-decelerate) both; }
+form.card { animation: rise .55s .14s var(--m3-decelerate) both; }
+.foot { animation: rise .5s .22s var(--m3-decelerate) both; }
 @keyframes rise {
   from { opacity: 0; transform: translateY(14px) scale(.994); }
   to { opacity: 1; transform: none; }
@@ -378,7 +378,7 @@ header { position: relative; text-align: center; margin-bottom: var(--space-4); 
   font: inherit; font-size: 13px; font-weight: 550;
   cursor: pointer;
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  transition: border-color var(--m3-short) var(--m3-emphasized), background var(--m3-short) var(--m3-emphasized);
 }
 .ctl:hover { border-color: var(--field-hover); }
 .ctl:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -427,7 +427,7 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   padding: 24px;
   background: rgba(4, 5, 9, .62);
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-  animation: fade-in .18s var(--ease) both;
+  animation: fade-in .18s var(--m3-decelerate) both;
 }
 .modal-backdrop[hidden] { display: none; }
 :root[data-theme="light"] .modal-backdrop { background: rgba(20, 26, 60, .34); }
@@ -438,7 +438,7 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   width: min(640px, 100%); max-height: min(82vh, 760px);
   padding: 26px 28px 24px;
   overflow-y: auto;
-  animation: modal-in .26s var(--ease) both;
+  animation: modal-in .26s var(--m3-decelerate) both;
   scrollbar-color: var(--scroll) transparent;
 }
 @keyframes modal-in {
@@ -478,10 +478,13 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   background: var(--field-bg); border: 1px solid var(--field-border);
   border-radius: 50%; color: var(--muted);
   font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
-  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
-              transform var(--dur) var(--ease);
+  transition: color var(--m3-short) var(--m3-emphasized), border-color var(--m3-short) var(--m3-emphasized),
+              transform var(--m3-short) var(--m3-emphasized);
 }
-.modal-close:hover { color: var(--text); border-color: var(--field-hover); transform: rotate(90deg); }
+/* Ховер — только цвет и рамка. Разворот на 90° был единственным вращением на
+   всей странице: приём симпатичный, но ни на что больше не похожий, а разнобой
+   стоит дороже находки. Отклик на нажатие даёт state layer класса .ripple. */
+.modal-close:hover { color: var(--text); border-color: var(--field-hover); }
 .modal-close:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* ============================================================
@@ -514,10 +517,10 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   padding: 9px 12px; border: none; border-radius: var(--r-md);
   background: none; color: var(--muted);
   font: inherit; cursor: pointer; text-align: center;
-  transition: color .24s var(--ease);
+  transition: color var(--m3-short) var(--m3-emphasized);
 }
 .mode-name { font-size: 14.5px; font-weight: 600; }
-.mode-sub { font-size: 11.5px; color: var(--faint); transition: color .24s var(--ease); }
+.mode-sub { font-size: 11.5px; color: var(--faint); transition: color var(--m3-short) var(--m3-emphasized); }
 .mode:hover { color: var(--text); }
 .mode[aria-selected="true"], .mode[aria-selected="true"]:hover { color: var(--on-accent); }
 .mode[aria-selected="true"] .mode-sub { color: rgba(255, 255, 255, .82); }
@@ -535,7 +538,7 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
   box-shadow: var(--shadow), var(--elev-1);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
   backdrop-filter: blur(22px) saturate(150%);
-  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  transition: border-color var(--m3-short) var(--m3-emphasized), box-shadow var(--m3-short) var(--m3-emphasized);
 }
 .card::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
@@ -613,8 +616,8 @@ input[type="text"], textarea, select.fld {
   border-radius: var(--r-md);
   color: var(--text);
   font-family: inherit; font-size: 15px; line-height: 1.45;
-  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
-              box-shadow var(--dur) var(--ease);
+  transition: border-color var(--m3-short) var(--m3-emphasized), background var(--m3-short) var(--m3-emphasized),
+              box-shadow var(--m3-short) var(--m3-emphasized);
   min-height: 44px;
 }
 input::placeholder, textarea::placeholder { color: var(--faint); }
@@ -628,7 +631,7 @@ input[type="text"]:focus, textarea:focus, select.fld:focus {
   border-color: var(--accent);
   /* Кольцо + мягкое свечение: поле под курсором должно быть видно сразу,
      даже поверх стекла и фоновых эффектов. */
-  box-shadow: 0 0 0 3.5px var(--accent-soft),
+  box-shadow: 0 0 0 3px var(--accent-soft),
               0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 textarea { resize: vertical; min-height: 74px; }
@@ -647,9 +650,15 @@ select.fld {
   padding: 0; background: none; border: none;
   color: var(--faint); font: inherit; font-size: 12.5px; cursor: pointer;
   border-bottom: 1px dashed var(--field-hover);
-  transition: color var(--dur) var(--ease);
+  transition: color var(--m3-short) var(--m3-emphasized);
 }
 .hint-link:hover { color: var(--muted); }
+/* Своё кольцо вместо дефолтной рамки браузера — как у всего остального
+   на странице; ссылка-подсказка была единственной, кому его не досталось. */
+.hint-link:focus-visible {
+  outline: none; border-radius: var(--r-xs);
+  box-shadow: 0 0 0 3px var(--accent-soft); color: var(--muted);
+}
 #heroField[hidden] { display: none; }
 #heroField { margin-top: 16px; }
 .field-note { margin-top: 2px; color: var(--warn); font-size: 11.5px; line-height: 1.4; }
@@ -662,16 +671,19 @@ select.fld {
   background: none; border: 1px solid var(--field-hover); border-radius: 50%;
   color: var(--muted); font: inherit; font-size: 10px; font-weight: 700;
   line-height: 1; cursor: pointer;
-  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  transition: color var(--m3-short) var(--m3-emphasized),
+              border-color var(--m3-short) var(--m3-emphasized),
+              box-shadow var(--m3-short) var(--m3-emphasized),
+              transform var(--m3-medium) var(--spring-gentle);
 }
-.info {
-  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
-              transform .26s var(--spring), box-shadow var(--dur) var(--ease);
-}
+/* Цель крошечная, state layer на ней не читается — его роль здесь играет
+   небольшое увеличение. Было 1.18: значок подпрыгивал заметнее, чем реагирует
+   что-либо ещё на странице. Раскрытая подсказка помечается кольцом
+   --accent-soft, тем же, что у фокуса, а не отдельным свечением. */
 .info:hover, .info[aria-expanded="true"] {
-  color: var(--accent); border-color: var(--accent); transform: scale(1.18);
+  color: var(--accent); border-color: var(--accent); transform: scale(1.1);
 }
-.info[aria-expanded="true"] { box-shadow: 0 0 12px var(--accent-soft); }
+.info[aria-expanded="true"] { box-shadow: 0 0 0 3px var(--accent-soft); }
 .info:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 
 #hint {
@@ -684,7 +696,7 @@ select.fld {
   color: var(--text); font-size: 13.5px; line-height: 1.5;
   -webkit-backdrop-filter: blur(26px) saturate(160%);
   backdrop-filter: blur(26px) saturate(160%);
-  animation: pop .16s var(--ease) both;
+  animation: pop .16s var(--m3-decelerate) both;
 }
 /* Подложка: подсказка — мелкий длинный текст, поверх чистого блюра он плывёт. */
 #hint::before {
@@ -712,12 +724,12 @@ select.fld {
 .segment label {
   position: relative; z-index: 1; padding: 7px 0; text-align: center;
   font-size: 14px; font-weight: 560; color: var(--muted); cursor: pointer;
-  transition: color var(--dur) var(--ease);
+  transition: color var(--m3-short) var(--m3-emphasized);
   -webkit-user-select: none; user-select: none;
 }
 .segment input { position: absolute; opacity: 0; pointer-events: none; }
 .segment input:checked + span { color: var(--on-accent); }
-.segment:focus-within { box-shadow: 0 0 0 3.5px var(--accent-soft); }
+.segment:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* ============================================================
    Иконки позиций 1–5
@@ -869,7 +881,7 @@ select.fld {
 
 /* Раскрытие через grid-template-rows: 0fr -> 1fr анимируется, в отличие от
    height:auto, и не требует измерять содержимое скриптом. */
-.adv-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .26s var(--ease); }
+.adv-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--m3-medium) var(--m3-emphasized); }
 .adv[data-open="true"] .adv-body { grid-template-rows: 1fr; }
 .adv-inner { overflow: hidden; }
 .adv-pad { padding: 4px 26px 24px; }
@@ -888,13 +900,13 @@ select.fld {
 .switch-track {
   position: relative; flex: none; width: 38px; height: 22px;
   background: var(--field-bg); border: 1px solid var(--field-border);
-  border-radius: var(--r-full); transition: background var(--dur) var(--ease),
-                                   border-color var(--dur) var(--ease);
+  border-radius: var(--r-full); transition: background var(--m3-short) var(--m3-emphasized),
+                                   border-color var(--m3-short) var(--m3-emphasized);
 }
 .switch-dot {
   position: absolute; top: 3px; left: 3px; width: 14px; height: 14px;
   background: var(--muted); border-radius: 50%;
-  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+  transition: transform var(--m3-short) var(--m3-emphasized), background var(--m3-short) var(--m3-emphasized);
 }
 .switch input:checked + .switch-track {
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -923,7 +935,7 @@ select.fld {
 
 .range-wrap {
   margin-top: 14px;
-  transition: opacity var(--dur) var(--ease), filter var(--dur) var(--ease);
+  transition: opacity var(--m3-short) var(--m3-emphasized), filter var(--m3-short) var(--m3-emphasized);
 }
 .range-wrap[data-off="true"] { opacity: .4; filter: saturate(.2); }
 
@@ -958,7 +970,8 @@ select.fld {
   position: absolute; top: 0; bottom: 0; z-index: 2; overflow: hidden;
   border-radius: var(--r-full);
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  transition: left .18s var(--ease), width .18s var(--ease);
+  transition: left var(--m3-short) var(--m3-emphasized),
+              width var(--m3-short) var(--m3-emphasized);
 }
 /* «Жидкость»: блик бесконечно течёт слева направо внутри залитого участка.
    Двигается transform, а не background-position, поэтому анимация живёт на
@@ -1084,7 +1097,7 @@ select.fld {
   transform: translateX(0); opacity: 0;
   pointer-events: none;
 }
-.btn:hover:not(:disabled)::after { animation: sheen .72s var(--ease); }
+.btn:hover:not(:disabled)::after { animation: sheen .72s var(--m3-decelerate); }
 @keyframes sheen {
   from { transform: translateX(0); opacity: 0; }
   20% { opacity: 1; }
@@ -1097,15 +1110,18 @@ select.fld {
 }
 .btn:active:not(:disabled) { transform: translateY(0) scale(.988); }
 .btn:disabled { opacity: .62; cursor: default; }
-.btn:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--accent-soft); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .btn-ghost {
   background: var(--field-bg); border-color: var(--field-border);
   box-shadow: none; color: var(--text); font-size: 13.5px; font-weight: 550;
   padding: 8px 15px;
 }
-.btn-ghost:hover:not(:disabled) { background: var(--accent-soft); transform: translateY(-1px); }
-.btn-ghost:active:not(:disabled) { transform: scale(.975); }
+/* Подсветку даёт state layer класса .ripple — подменять ещё и фон значило бы
+   накладывать один и тот же отклик дважды. Кнопке остаётся рамка и подъём,
+   тот же на 1px, что у основной кнопки. */
+.btn-ghost:hover:not(:disabled) { border-color: var(--field-hover); transform: translateY(-1px); }
+.btn-ghost:active:not(:disabled) { transform: translateY(0) scale(.988); }
 /* Подтверждение действия: кнопка коротко «кивает» и зеленеет по-радиантски. */
 .btn-ghost.done {
   color: var(--radiant);
@@ -1146,7 +1162,7 @@ select.fld {
 .status {
   text-align: center; color: var(--muted);
   font-size: 13px; font-variant-numeric: tabular-nums; min-height: 0;
-  transition: opacity var(--dur) var(--ease);
+  transition: opacity var(--m3-short) var(--m3-emphasized);
 }
 .status:empty { display: none; }
 
@@ -1165,8 +1181,9 @@ select.fld {
    применение дуальности: по одному взгляду видно, за кого играл. */
 #result {
   margin-top: 20px; padding: 18px; overflow: hidden;
-  transition: transform .32s var(--ease), box-shadow .32s var(--ease),
-              border-color var(--dur) var(--ease);
+  transition: transform var(--m3-medium) var(--m3-emphasized),
+              box-shadow var(--m3-medium) var(--m3-emphasized),
+              border-color var(--m3-short) var(--m3-emphasized);
 }
 /* Лифт только у результата: форму, в которой печатают, дёргать нельзя. */
 #result:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
@@ -1179,7 +1196,7 @@ select.fld {
 #result[data-side]::before {
   padding-top: 2px;
   background: linear-gradient(90deg, var(--side), transparent 62%);
-  animation: edge .5s .1s var(--ease) both;
+  animation: edge .5s .1s var(--m3-decelerate) both;
 }
 @keyframes edge { from { opacity: 0; transform: scaleX(.4); transform-origin: left; }
                   to { opacity: 1; transform: none; } }
@@ -1205,7 +1222,7 @@ select.fld {
   border: 1px solid var(--field-border); border-radius: var(--r-full);
   font-size: 12.5px; font-weight: 550; color: var(--text);
   font-variant-numeric: tabular-nums;
-  animation: chip-in .34s var(--ease) both;
+  animation: chip-in .34s var(--m3-decelerate) both;
 }
 /* Чипы выезжают по очереди — мелочь, но именно она делает появление результата
    похожим на «собралось», а не на «мигнуло». Задержка задана по позиции. */
@@ -1260,10 +1277,10 @@ pre#promptText::-webkit-scrollbar-thumb {
   background: var(--field-bg); border: 1px solid var(--field-border);
   border-radius: var(--r-sm);
   font-size: 17px; line-height: 1; cursor: pointer;
-  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease),
-              background var(--dur) var(--ease);
+  transition: transform var(--m3-short) var(--m3-emphasized), border-color var(--m3-short) var(--m3-emphasized),
+              background var(--m3-short) var(--m3-emphasized);
 }
-.fb-btn:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--field-hover); }
+.fb-btn:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--field-hover); }
 .fb-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .fb-btn:disabled { cursor: default; }
 /* Выбранная оценка красится в свою фракцию: согласие — Radiant, несогласие — Dire. */
@@ -1281,7 +1298,7 @@ pre#promptText::-webkit-scrollbar-thumb {
 .fb-note[hidden] { display: none; }
 .fb-note[data-state="error"] { color: var(--danger); }
 
-.reveal { animation: reveal .3s var(--ease) both; }
+.reveal { animation: reveal .3s var(--m3-decelerate) both; }
 @keyframes reveal { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
 
 .foot { margin-top: 26px; text-align: center; color: var(--faint); font-size: 12.5px; }
