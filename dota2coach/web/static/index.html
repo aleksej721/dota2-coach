@@ -574,19 +574,23 @@ form.card { padding: 0; overflow: clip; }
 /* ============================================================
    Поля
    ============================================================ */
-.row { display: grid; gap: var(--space-3); }
-.row-2 { grid-template-columns: 1fr 1fr; }
-/* Три колонки, а не auto-fit. Раньше колонок набиралось четыре, роли занимали
-   две, и «Модель» уезжала на вторую строку одна — справа от неё и под фокусом
-   зияла пустота в половину карточки. Три равные колонки заполняются ровно:
-   роли на всю ширину, под ними фокус | глубина | модель (в профиле —
-   герой | позиция | модель), дальше промежуток и вопрос. */
-.row-auto { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-/* Подпись в узкой колонке может занять две строки, а соседняя — одну. Прижимаем
-   содержимое поля к низу: тогда сами КОНТРОЛЫ стоят на одной линии, сколько бы
-   строк ни заняли подписи над ними. */
-.row-auto > .field { justify-content: flex-end; }
-.row-note { grid-template-columns: 2fr 1fr; align-items: start; }
+/* ОДНА сетка на всю форму: три равные колонки, поля занимают по одной или по
+   несколько. Раньше рядов было три разных (1fr 1fr, auto-fit и 2fr 1fr), и
+   вертикальные швы между полями не совпадали ни в одном месте — глаз ловит
+   расхождение в пять пикселей не хуже, чем в пятьдесят.
+
+   Раскладка: ID матча ×2 | account_id ×1; роли ×3; фокус | глубина | модель
+   (в профиле — герой | позиция | модель); промежуток ×3; вопрос ×2 | MMR ×1. */
+.row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+       gap: var(--space-3); align-items: start;
+       container-type: inline-size; }
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: 1 / -1; }
+/* Широкое поле в первом ряду разное у режимов: в матче это ID матча (туда
+   вставляют ссылку целиком), в профиле ID матча нет вовсе, и широким становится
+   account_id. Решает режим формы, а не разметка ряда. */
+form[data-mode="match"] .field--match-id { grid-column: span 2; }
+form[data-mode="profile"] .field--account { grid-column: span 2; }
 .row + .row, .row + .field, .field + .row { margin-top: var(--space-3); }
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -600,6 +604,15 @@ form.card { padding: 0; overflow: clip; }
   font-size: 12.5px; font-weight: 560; color: var(--muted);
 }
 .lbl .opt { color: var(--faint); font-weight: 500; }
+
+/* Подпись «Только эта позиция — необязательно ?» в колонку не помещается и
+   переносится, а соседняя — нет: подписи в ряду становятся разной высоты, и
+   ряд сразу выглядит рваным. Прижимать содержимое к низу — лечение симптома:
+   тогда разъезжаются уже сами подписи. Лечим причину: в узком ряду подписи
+   немного мельче и помещаются в строку ВСЕ разом, а не выборочно. */
+@container (max-width: 880px) {
+  .lbl { font-size: 11.5px; }
+}
 
 input[type="text"], textarea, select.fld {
   width: 100%;
@@ -736,8 +749,6 @@ select.fld {
 }
 
 /* Шесть ячеек в колонку сетки не влезают — отдаём им всю строку. */
-@media (min-width: 761px) { .field--roles { grid-column: 1 / -1; } }
-
 /* Позиции — сегментированный контрол M3, тот же приём, что у «Глубины» и у
    переключателя режимов. Шестиугольники ушли: гранёные фишки требовали
    clip-path, а с ним не работают ни рамка, ни внешняя тень, ни кольцо фокуса,
@@ -1163,9 +1174,13 @@ select.fld {
 .side-badge[hidden] { display: none; }
 .side-badge svg { width: 13px; height: 13px; flex: none; }
 
+/* Сетка, а не flex-wrap: чипов бывает много, и при переносе кнопки уезжали на
+   отдельную третью строку, хотя место справа от чипов оставалось. Теперь у
+   кнопок своя колонка у правого края, а переносятся внутри своей колонки
+   только чипы. */
 .result-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 14px; flex-wrap: wrap; margin-bottom: 13px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start; gap: var(--space-3); margin-bottom: 13px;
 }
 .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .chip {
@@ -1264,7 +1279,11 @@ pre#promptText::-webkit-scrollbar-thumb {
 
 @media (max-width: 760px) {
   body { padding: 24px 14px 54px; }
-  .row-2, .row-auto, .row-note { grid-template-columns: 1fr; }
+  /* Одна колонка: спаны на узком экране смысла не имеют. */
+  .row { grid-template-columns: 1fr; }
+  .span-2, .span-3,
+  form[data-mode="match"] .field--match-id,
+  form[data-mode="profile"] .field--account { grid-column: auto; }
   header { text-align: left; }
   .controls { position: static; justify-content: flex-start; margin-top: 12px; }
   .ctl { height: 44px; }
@@ -1275,7 +1294,8 @@ pre#promptText::-webkit-scrollbar-thumb {
   .adv-summary { display: none; }
   .submit-zone { padding: 20px 17px; }
   .submit-row, .submit-row .btn { width: 100%; }
-  .result-bar { align-items: stretch; }
+  /* На узком экране кнопки встают под чипами во всю ширину. */
+  .result-bar { grid-template-columns: 1fr; }
   .actions { width: 100%; }
   .actions .btn { flex: 1; padding-inline: 12px; }
   pre#promptText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55vh; }
@@ -1429,14 +1449,14 @@ pre#promptText::-webkit-scrollbar-thumb {
       <h2 class="section-head" id="groupBasics">
         <span class="section-index" aria-hidden="true">01</span><span id="groupBasicsText"></span>
       </h2>
-      <div class="row row-2">
-        <div class="field" data-only="match">
+      <div class="row">
+        <div class="field field--match-id" data-only="match">
           <span class="lbl"><label for="matchId" data-i18n="field.match"></label>
             <button type="button" class="info" data-hint="hint.match" aria-expanded="false">?</button>
           </span>
           <input id="matchId" type="text" data-i18n-ph="field.match.ph">
         </div>
-        <div class="field">
+        <div class="field field--account">
           <span class="lbl"><label for="accountId" data-i18n="field.account"></label>
             <button type="button" class="info" data-hint="hint.account" aria-expanded="false">?</button>
           </span>
@@ -1478,8 +1498,8 @@ pre#promptText::-webkit-scrollbar-thumb {
       <div class="adv-body" id="advBody">
         <div class="adv-inner">
           <div class="adv-pad">
-            <div class="row row-auto">
-              <div class="field field--roles" data-only="match">
+            <div class="row">
+              <div class="field span-3" data-only="match">
                 <span class="lbl"><span id="roleLabel" data-i18n="field.role"></span>
                   <button type="button" class="info" data-hint="hint.role" aria-expanded="false">?</button>
                 </span>
@@ -1560,8 +1580,8 @@ pre#promptText::-webkit-scrollbar-thumb {
               </div>
             </div>
 
-            <div class="row row-note">
-              <div class="field">
+            <div class="row">
+              <div class="field span-2">
                 <span class="lbl"><label for="note" data-i18n="field.note"></label>
                   <span class="opt" data-i18n="field.note.optional"></span>
                   <button type="button" class="info" data-hint="hint.note" aria-expanded="false">?</button>
@@ -1778,8 +1798,10 @@ pre#promptText::-webkit-scrollbar-thumb {
       el.hidden = el.dataset.only !== mode;
     }
     // Положение скользящей шайбы задаётся атрибутом, а не инлайн-стилем:
-    // анимацию описывает CSS, скрипт только сообщает состояние.
+    // анимацию описывает CSS, скрипт только сообщает состояние. Тем же
+    // атрибутом на форме раскладка выбирает, какое поле первого ряда широкое.
     $("modes").dataset.mode = mode;
+    form.dataset.mode = mode;
     // У поля героя есть своё состояние: оно раскрывается по ссылке «не знаю ID»,
     // и общий цикл по режимам не должен показывать его сам.
     $("heroField").hidden = mode !== "match" || !heroOpen;
