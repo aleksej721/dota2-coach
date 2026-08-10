@@ -792,22 +792,28 @@ select.fld {
 
 /* ============================================================
    Расширенные настройки (progressive disclosure)
+
+   Классы и id здесь называются more-*, хотя блок — «расширенные настройки».
+   Причина не в стиле: `##.adv` и `###adv` — буквальные косметические фильтры
+   EasyList, и блокировщики рекламы вырезали блок ЦЕЛИКОМ на любом сайте.
+   Локально этого не видно (в браузере без расширений всё на месте), а у
+   пользователя половина формы просто исчезала. Обратно переименовывать нельзя.
    ============================================================ */
-.adv { border-top: 1px solid var(--glass-border); }
+.more { border-top: 1px solid var(--glass-border); }
 /* Номер блока стоит РЯДОМ с кнопкой, а не внутри неё: 01 и 02 обязаны
    выстроиться в одну колонку по левому краю секций — иначе нумерация не
    читается как система. Внутри пилюли шестиугольник ещё и жался к кромке:
    его силуэт шире всего по середине высоты, и одинаковый padding со всех
    сторон выглядел неодинаковым. */
-.adv-head {
+.more-head {
   display: flex; align-items: center; gap: var(--space-2);
   padding: 14px 26px; min-width: 0;
 }
-.adv-head .section-index { flex: none; }
+.more-head .section-index { flex: none; }
 /* Кнопка-пилюля в духе M3 assist chip: ширина по содержимому, поэтому
    state layer и ripple накрывают ровно кликабельную область. Раньше кнопка
    растягивалась на всю строку, и ховер подсвечивал полосу во весь блок. */
-.adv-toggle {
+.more-toggle {
   flex: none;
   display: inline-flex; align-items: center; gap: 9px;
   min-height: 44px; padding: 0 16px;
@@ -818,35 +824,35 @@ select.fld {
   transition: background var(--m3-short) var(--m3-emphasized),
               border-color var(--m3-short) var(--m3-emphasized);
 }
-.adv-toggle:hover { border-color: var(--field-hover); }
+.more-toggle:hover { border-color: var(--field-hover); }
 /* Раскрытое состояние — тональное, как у выбранного чипа M3. */
-.adv-toggle[aria-expanded="true"] {
+.more-toggle[aria-expanded="true"] {
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 42%, transparent);
 }
-.adv-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
-.adv-chevron {
+.more-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.more-chevron {
   flex: none; width: 15px; height: 15px; color: var(--muted);
   transition: transform var(--m3-medium) var(--m3-emphasized),
               color var(--m3-short) var(--m3-emphasized);
 }
-.adv-toggle[aria-expanded="true"] .adv-chevron { transform: rotate(90deg); color: var(--accent); }
+.more-toggle[aria-expanded="true"] .more-chevron { transform: rotate(90deg); color: var(--accent); }
 /* Сводка живёт снаружи кнопки: это подпись к блоку, а не орган управления.
    Пропадает она чистой прозрачностью — ширину кнопки это не трогает. */
-.adv-summary {
+.more-summary {
   flex: 1; min-width: 0;
   color: var(--faint); font-size: 12px; font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   transition: opacity var(--m3-short) var(--m3-emphasized);
 }
-.adv[data-open="true"] .adv-summary { opacity: 0; }
+.more[data-open="true"] .more-summary { opacity: 0; }
 
 /* Раскрытие через grid-template-rows: 0fr -> 1fr анимируется, в отличие от
    height:auto, и не требует измерять содержимое скриптом. */
-.adv-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--m3-medium) var(--m3-emphasized); }
-.adv[data-open="true"] .adv-body { grid-template-rows: 1fr; }
-.adv-inner { overflow: hidden; }
-.adv-pad { padding: 4px 26px 24px; }
+.more-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--m3-medium) var(--m3-emphasized); }
+.more[data-open="true"] .more-body { grid-template-rows: 1fr; }
+.more-inner { overflow: hidden; }
+.more-pad { padding: 4px 26px 24px; }
 
 /* ============================================================
    Ползунок тайм-рейнджа
@@ -1289,9 +1295,9 @@ pre#promptText::-webkit-scrollbar-thumb {
   .ctl { height: 44px; }
   .modes { max-width: none; }
   .form-section { padding: 20px 17px; }
-  .adv-head { padding: 14px 17px; }
-  .adv-pad { padding: 4px 17px 20px; }
-  .adv-summary { display: none; }
+  .more-head { padding: 14px 17px; }
+  .more-pad { padding: 4px 17px 20px; }
+  .more-summary { display: none; }
   .submit-zone { padding: 20px 17px; }
   .submit-row, .submit-row .btn { width: 100%; }
   /* На узком экране кнопки встают под чипами во всю ширину. */
@@ -1478,26 +1484,26 @@ pre#promptText::-webkit-scrollbar-thumb {
       </div>
     </section>
 
-    <div class="adv" id="adv" data-open="false">
+    <div class="more" id="more" data-open="false">
       <!-- Кликабельна ровно кнопка, а не строка во всю ширину: подсветка обязана
            совпадать по геометрии с тем, что нажимается. Сводка вынесена из
            кнопки наружу — она подпись к блоку, а не часть управления, и её
            исчезновение при раскрытии не должно дёргать ширину кнопки. -->
-      <div class="adv-head">
+      <div class="more-head">
         <span class="section-index" aria-hidden="true">02</span>
-        <button type="button" class="adv-toggle ripple" id="advToggle" aria-expanded="false"
-                aria-controls="advBody">
+        <button type="button" class="more-toggle ripple" id="moreToggle" aria-expanded="false"
+                aria-controls="moreBody">
           <span data-i18n="advanced.toggle"></span>
-          <svg class="adv-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          <svg class="more-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 6l6 6-6 6"/>
           </svg>
         </button>
-        <span class="adv-summary" id="advSummary"></span>
+        <span class="more-summary" id="moreSummary"></span>
       </div>
-      <div class="adv-body" id="advBody">
-        <div class="adv-inner">
-          <div class="adv-pad">
+      <div class="more-body" id="moreBody">
+        <div class="more-inner">
+          <div class="more-pad">
             <div class="row">
               <div class="field span-3" data-only="match">
                 <span class="lbl"><span id="roleLabel" data-i18n="field.role"></span>
@@ -1707,8 +1713,8 @@ pre#promptText::-webkit-scrollbar-thumb {
   const form = $("form"), statusEl = $("status"), errorEl = $("error"),
         warnEl = $("warning"), resultEl = $("result"), promptEl = $("promptText"),
         submitBtn = $("submitBtn"), depthSeg = $("depth"), hintEl = $("hint"),
-        roleSel = $("roleSelect"), focusNote = $("focusNote"), advEl = $("adv"),
-        advToggle = $("advToggle"), roleFilter = $("roleFilter"),
+        roleSel = $("roleSelect"), focusNote = $("focusNote"), moreEl = $("more"),
+        moreToggle = $("moreToggle"), roleFilter = $("roleFilter"),
         windowOn = $("windowOn"), wStart = $("windowStart"), wEnd = $("windowEnd");
 
   const STORE = "dota2coach:prefs";
@@ -1750,7 +1756,10 @@ pre#promptText::-webkit-scrollbar-thumb {
     try {
       localStorage.setItem(STORE, JSON.stringify({
         v: PREFS_VERSION, lang, theme, mode,
-        advOpen: advEl.dataset.open === "true",
+        // Имя поля в localStorage менять незачем: блокировщики видят только
+        // разметку, а переименование молча сбросило бы состояние блока у тех,
+        // у кого он был раскрыт.
+        advOpen: moreEl.dataset.open === "true",
         accountId: $("accountId").value.trim(),
         matches: $("matches").value.trim(),
         depth: depthTouched ? depthSeg.dataset.value : null,
@@ -1812,7 +1821,7 @@ pre#promptText::-webkit-scrollbar-thumb {
       t(mode === "profile" ? "group.profile" : "group.player");
     // Перечень в свёрнутом виде должен называть поля ТЕКУЩЕГО режима: в профиле
     // нет ни фокуса, ни глубины, ни промежутка.
-    $("advSummary").textContent =
+    $("moreSummary").textContent =
       t(mode === "profile" ? "advanced.summary.profile" : "advanced.summary");
     $("footCmd").textContent = mode === "profile"
       ? "python -m dota2coach profile <account_id> -n 10"
@@ -1835,12 +1844,12 @@ pre#promptText::-webkit-scrollbar-thumb {
      Расширенные настройки
      ============================================================ */
   const setAdvanced = (open) => {
-    advEl.dataset.open = String(open);
-    advToggle.setAttribute("aria-expanded", String(open));
+    moreEl.dataset.open = String(open);
+    moreToggle.setAttribute("aria-expanded", String(open));
   };
 
-  advToggle.addEventListener("click", () => {
-    const open = advEl.dataset.open !== "true";
+  moreToggle.addEventListener("click", () => {
+    const open = moreEl.dataset.open !== "true";
     setAdvanced(open);
     // У свёрнутого блока ширина дорожки равна нулю, и позиции ручек считались
     // бы по нулю. Пересчитываем ровно в тот момент, когда дорожку стало видно.
