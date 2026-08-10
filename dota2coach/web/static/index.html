@@ -775,9 +775,13 @@ select.fld {
 
 /* Два нативных input[type=range] лежат друг на друге: доступность с клавиатуры
    и на мобильном достаётся бесплатно, а «двуручечность» даёт наложение. */
-.range { position: relative; height: 36px; }
+/* Раньше подпись стояла на top:-6px внутри блока высотой 36px, а ручка
+   занимала y≈7..29 — они физически пересекались, и цифры лежали на треке.
+   Теперь у подписей СВОЯ дорожка сверху, трек ниже, и пересечься нечему. */
+.range { position: relative; height: 62px; }
+.range-lane { position: absolute; top: 0; left: 0; right: 0; height: 22px; }
 .range-track {
-  position: absolute; top: 16px; left: 0; right: 0; height: 5px;
+  position: absolute; top: 42px; left: 0; right: 0; height: 5px;
   background: var(--field-bg); border: 1px solid var(--field-border);
   border-radius: 99px; overflow: hidden;
 }
@@ -802,7 +806,7 @@ select.fld {
 /* Окно выключено — течь незачем: анимация не должна работать вхолостую. */
 .range-wrap[data-off="true"] .range-fill::after { animation: none; }
 .range input[type="range"] {
-  position: absolute; top: 0; left: 0; width: 100%; height: 36px; margin: 0;
+  position: absolute; top: 26px; left: 0; width: 100%; height: 36px; margin: 0;
   appearance: none; -webkit-appearance: none;
   background: none; pointer-events: none;
 }
@@ -826,13 +830,29 @@ select.fld {
 
 /* Подписи едут за ручками: цифра должна быть там, куда смотрит палец. */
 .range-bubble {
-  position: absolute; top: -6px; transform: translateX(-50%);
-  padding: 1px 7px; border-radius: 99px;
+  position: absolute; top: 0; transform: translateX(-50%);
+  padding: 2px 9px; border-radius: 99px;
   background: var(--accent); color: var(--on-accent);
-  font-size: 11px; font-weight: 680; font-variant-numeric: tabular-nums;
-  pointer-events: none; white-space: nowrap;
-  transition: left .18s var(--ease), opacity var(--dur) var(--ease);
+  font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1.5; pointer-events: none; white-space: nowrap;
+  box-shadow: var(--elev-1);
+  transition: left var(--m3-short) var(--m3-emphasized),
+              opacity var(--m3-short) var(--m3-emphasized),
+              transform var(--m3-medium) var(--spring-soft);
 }
+/* Хвостик к своей ручке — иначе при двух подписях непонятно, чья какая. */
+.range-bubble::after {
+  content: ""; position: absolute; left: 50%; top: 100%;
+  width: 2px; height: 8px; margin-left: -1px;
+  background: var(--accent); opacity: .45;
+}
+/* Скрываем через visibility, а НЕ display/hidden: у скрытого через display
+   элемента offsetWidth равен нулю, и порог схлопывания подписей выродился бы
+   в константу — именно так подписи и наезжали друг на друга у краёв. */
+.range-bubble.is-off { opacity: 0; visibility: hidden; }
+/* Слипшиеся подписи схлопываются в одну общую — так они не наезжают друг на
+   друга ни в одном положении ручек. */
+.range-bubble--merged { transform: translateX(-50%); }
 .range-wrap[data-off="true"] .range-bubble { opacity: 0; }
 .range input[type="range"]:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 5px var(--accent-soft);
@@ -1317,8 +1337,11 @@ pre#promptText::-webkit-scrollbar-thumb {
                          data-i18n-title="window.start">
                   <input type="range" id="windowEnd" min="0" max="80" step="1" value="35"
                          data-i18n-title="window.end">
-                  <span class="range-bubble" id="bubbleStart" aria-hidden="true"></span>
-                  <span class="range-bubble" id="bubbleEnd" aria-hidden="true"></span>
+                  <span class="range-lane" aria-hidden="true">
+                    <span class="range-bubble" id="bubbleStart"></span>
+                    <span class="range-bubble" id="bubbleEnd"></span>
+                    <span class="range-bubble range-bubble--merged is-off" id="bubbleBoth"></span>
+                  </span>
                 </div>
                 <div class="range-ticks">
                   <span>0</span><span>20</span><span>40</span><span>60</span><span>80</span>
@@ -1611,11 +1634,35 @@ pre#promptText::-webkit-scrollbar-thumb {
     // на краях диапазона.
     const THUMB = 22;
     const track = $("rangeFill").parentElement.clientWidth || 1;
-    const at = (v) => (THUMB / 2 + (track - THUMB) * (v / max)) + "px";
-    $("bubbleStart").style.left = at(a);
-    $("bubbleEnd").style.left = at(b);
-    $("bubbleStart").textContent = a;
-    $("bubbleEnd").textContent = b;
+    const at = (v) => THUMB / 2 + (track - THUMB) * (v / max);
+    const posA = at(a), posB = at(b);
+
+    const one = $("bubbleStart"), two = $("bubbleEnd"), both = $("bubbleBoth");
+    // Текст ставим ДО замеров: ширина зависит от него («100» шире «8»), а
+    // решение о схлопывании — от ширины.
+    one.textContent = a;
+    two.textContent = b;
+    both.textContent = a + "\u2013" + b;
+
+    const halfA = one.offsetWidth / 2, halfB = two.offsetWidth / 2;
+    // Две подписи рядом наезжают друг на друга. Порог — по их фактической
+    // ширине плюс зазор, а не по угаданному числу.
+    const merged = posB - posA < halfA + halfB + 8;
+
+    one.classList.toggle("is-off", merged);
+    two.classList.toggle("is-off", merged);
+    both.classList.toggle("is-off", !merged);
+
+    // Зажим по краям, чтобы подпись не вылезла за габарит дорожки на 0 и на
+    // максимуме — там ручка стоит вплотную к краю, а подпись шире неё.
+    const clamp = (x, half) => Math.min(Math.max(x, half), track - half);
+    if (merged) {
+      const halfBoth = both.offsetWidth / 2;
+      both.style.left = clamp((posA + posB) / 2, halfBoth) + "px";
+    } else {
+      one.style.left = clamp(posA, halfA) + "px";
+      two.style.left = clamp(posB, halfB) + "px";
+    }
     $("windowValue").textContent = windowOn.checked
       ? t("window.range", { start: a, end: b })
       : t("window.off");
