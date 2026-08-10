@@ -182,6 +182,13 @@ PROMPT = {
         "The sample is {matches} matches. That is small for statistics: do not present an "
         "observation as a law. If a conclusion rests on two or three matches, say so plainly "
         "and suggest how many games are needed to verify it.",
+    "profile.method.hero_pool":
+        "The SAMPLE COMPOSITION BY HERO block shows how the player picks at all: the same "
+        "hero in almost every match means a player who practises one hero and takes it into "
+        "any draft; many different heroes mean a player who picks to the situation. These "
+        "are different players and they need different advice: the first one — how to drag "
+        "out drafts that are awkward for that hero; the second — what to pick by. If the "
+        "sample does not make this obvious, ask rather than assume.",
     "profile.method.no_raw":
         "Full match data is not in this prompt. Do not invent timings, per-minute values or "
         "fight details: there is nowhere here to get them. If they are needed — name the "
@@ -487,6 +494,26 @@ PROMPT = {
         "Player's level: {level}. Calibrate the advice to it — suggest what is realistically "
         "executable at that level, and if you recommend something above it, explain why it "
         "matters and where to start.",
+    "method.draft":
+        "Analyse the DRAFT, not just the execution. The anchor is the \"MY PICK\" block in "
+        "the DRAFT section. A first pick was made blind, and it was the enemy who adapted to "
+        "it: cover such a pick briefly. If the pick was not first — you must analyse WHAT "
+        "the player picked into: which enemy heroes were already on screen and what the "
+        "choice meant against them. For a core, look at both synergy with my team and the "
+        "match-up against specific enemy heroes; for a support, look first at synergy with "
+        "my core and the other support. Reason from general Dota 2 knowledge. If you are "
+        "unsure about a specific match-up or about how the hero plays in this patch, say "
+        "\"not sure\" outright and name what would settle it. Inventing meta you do not know "
+        "is strictly forbidden: an honest \"I don't know\" is worth more than a confident "
+        "mistake. A single match cannot tell whether the player is practising this hero or "
+        "picking to the draft — do not assume, ask it in \"Questions for me\".",
+    "method.build":
+        "Judge the build in CONTEXT, not in a vacuum. The ITEMS section carries all ten "
+        "heroes' builds with timings: check my items against what the enemies built (what I "
+        "was building against, and whether I was in time) and what my allies built (what the "
+        "team had already covered and what it lacked). \"Item finished late\" only means "
+        "something relative to something else: my income, the pace of the rest of my build, "
+        "or the timing of an enemy item.",
     "method.anomalies":
         "The \"STATISTICALLY UNUSUAL IN THE DATA\" block already lists the deviations. Work "
         "through each one: either explain it with an in-game cause, or honestly dismiss it "
@@ -570,37 +597,51 @@ PROMPT = {
     "format.s3.body":
         "The single most expensive problem — with evidence: concrete timings, numbers and "
         "their consequences in this match. Show the chain \"what happened → what it cost\".",
-    "format.s4.title": "4. Stage-by-stage review — ordered by impact",
+    "format.s4.title": "4. Draft and build",
     "format.s4.body":
+        "Two mandatory parts, both short and grounded in the data. "
+        "DRAFT: where my pick sat in the queue and what that meant. If it was not the first "
+        "pick — name the enemy heroes that were already visible and judge whether the hero "
+        "was taken FOR an idea (against a specific hero, for a combo with my team) or simply "
+        "as the usual comfort pick. Then check against the facts of the match whether that "
+        "idea was actually carried out: if the hero was taken against the enemy carry, point "
+        "at damage, fights and timings rather than general words. "
+        "BUILD: what was bought, when, and how appropriate it was AGAINST THIS line-up — "
+        "with an eye on the enemies' and allies' items from the ITEMS section. A line about "
+        "the build is mandatory every time, even when the build was not a problem: "
+        "\"standard build, timings fine, no questions\" is a conclusion too, and the player "
+        "must see it.",
+    "format.s5.title": "5. Stage-by-stage review — ordered by impact",
+    "format.s5.body":
         "Not chronologically, but from the most influential to the least. Every claim carries "
         "a number or a timestamp. A stage that went fine gets one line and you move on.",
-    "format.s5.title": "5. What to do in the next games",
-    "format.s5.body":
+    "format.s6.title": "6. What to do in the next games",
+    "format.s6.body":
         "2–4 measurable actions. Bad: \"farm better\". Good: \"CS@10 ≥ 55 — by staying on your "
         "own creep wave after the support leaves instead of walking into the jungle\". "
         "Each action carries a number the player can check themselves against.",
-    "format.s5.body.role.3":
+    "format.s6.body.role.3":
         "2–4 measurable offlane actions: first-entry timing, targets controlled, damage "
         "absorbed or a favorable trade. Each action needs a number/timing from this match; "
         "do not make simply dying less the goal.",
-    "format.s5.body.role.4":
+    "format.s6.body.role.4":
         "2–4 measurable soft-support actions: a rotation/stack timing, participation, "
         "control, vision or a utility item. Each needs a number/timing from this match. "
         "Do not set CS or GPM targets; they are irrelevant to this role.",
-    "format.s5.body.role.5":
+    "format.s6.body.role.5":
         "2–4 measurable hard-support actions: a stack/ward timing, participation, healing, "
         "control or a defensive item. Each needs a number/timing from this match. Do not "
         "set CS/GPM targets or demand fewer deaths without context.",
-    "format.s6.title": "6. Hypotheses: why the match ended this way",
-    "format.s6.body":
+    "format.s7.title": "7. Hypotheses: why the match ended this way",
+    "format.s7.body":
         "2–3 COMPETING explanations of the outcome, drawn from different areas: draft, "
         "build and timings, key fights, farm, positioning. Each needs: (a) evidence from "
         "the data — a number or a timing, preferably tied to the deviations block; (b) what "
         "would confirm or refute it; (c) how confident you are. The hypotheses must differ "
         "in substance, not be restatements of one idea. If the data clearly points at one "
         "cause, say so — but still name what would refute it.",
-    "format.s7.title": "7. Questions for me",
-    "format.s7.body":
+    "format.s8.title": "8. Questions for me",
+    "format.s8.body":
         "2–3 short diagnostic questions whose answers would narrow the analysis down. Ask "
         "about what is NOT in the data: intent, the plan for the game, communication, what "
         "was visible on screen. For example: \"did the game go wrong in a fight or already "
