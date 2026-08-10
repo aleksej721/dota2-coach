@@ -28,6 +28,12 @@
   --field-bg:      rgba(255, 255, 255, .04);
   --field-border:  rgba(255, 255, 255, .10);
   --field-hover:   rgba(255, 255, 255, .17);
+  /* Отдельная поверхность для фишек позиций. У них нет ни рамки, ни текста
+     рядом — только силуэт и глиф, поэтому общего --field-bg им мало: на
+     светлой теме почти белая фишка на почти белой карточке не читается вовсе. */
+  --chip-bg:       rgba(255, 255, 255, .07);
+  --chip-bd:       rgba(255, 255, 255, .14);
+  --chip-fg:       #c3c8d6;
   --solid:         rgba(10, 11, 15, .55);
   --code:          #dfe3ec;
 
@@ -130,6 +136,11 @@
   --field-bg:      rgba(255, 255, 255, .72);
   --field-border:  rgba(16, 20, 40, .14);
   --field-hover:   rgba(16, 20, 40, .26);
+  /* Здесь фишка, наоборот, ТЕМНЕЕ карточки: только так силуэт отделяется от
+     светлого стекла, а глиф внутри читается на нём с запасом по контрасту. */
+  --chip-bg:       rgba(22, 26, 46, .075);
+  --chip-bd:       rgba(16, 20, 40, .18);
+  --chip-fg:       #3a4054;
   --solid:         rgba(255, 255, 255, .86);
   --code:          #232838;
 
@@ -669,9 +680,9 @@ select.fld {
   display: inline-flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 1px;
   width: 50px; height: 58px; padding: 0;   /* 50/58 = 0.862 ≈ √3/2 */
-  background: var(--field-bg);
+  background: var(--chip-bg);
   border: none;
-  color: var(--muted);
+  color: var(--chip-fg);
   font: inherit; font-size: 11px; font-weight: 700;
   font-variant-numeric: tabular-nums; cursor: pointer;
   /* Morph формы — приём M3 Expressive. Ключ к аккуратности в том, ЧТО именно
@@ -688,7 +699,7 @@ select.fld {
   clip-path: polygon(50% 0%, 100% 25%, 100% 25%, 100% 75%,
                      100% 75%, 50% 100%, 50% 100%, 0% 75%,
                      0% 75%, 0% 25%, 0% 25%, 50% 0%);
-  box-shadow: inset 0 0 0 1px var(--field-border);
+  box-shadow: inset 0 0 0 1px var(--chip-bd);
   transition: clip-path var(--m3-medium) var(--spring-gentle),
               color var(--m3-short) var(--m3-emphasized),
               background var(--m3-short) var(--m3-emphasized),
@@ -742,17 +753,23 @@ select.fld {
    Расширенные настройки (progressive disclosure)
    ============================================================ */
 .adv { border-top: 1px solid var(--glass-border); }
+/* Номер блока стоит РЯДОМ с кнопкой, а не внутри неё: 01 и 02 обязаны
+   выстроиться в одну колонку по левому краю секций — иначе нумерация не
+   читается как система. Внутри пилюли шестиугольник ещё и жался к кромке:
+   его силуэт шире всего по середине высоты, и одинаковый padding со всех
+   сторон выглядел неодинаковым. */
 .adv-head {
   display: flex; align-items: center; gap: var(--space-2);
   padding: 14px 26px; min-width: 0;
 }
+.adv-head .section-index { flex: none; }
 /* Кнопка-пилюля в духе M3 assist chip: ширина по содержимому, поэтому
    state layer и ripple накрывают ровно кликабельную область. Раньше кнопка
    растягивалась на всю строку, и ховер подсвечивал полосу во весь блок. */
 .adv-toggle {
   flex: none;
   display: inline-flex; align-items: center; gap: 9px;
-  min-height: 44px; padding: 4px 15px 4px 4px;
+  min-height: 44px; padding: 0 16px;
   background: var(--field-bg); border: 1px solid var(--field-border);
   border-radius: var(--r-full);
   color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600;
@@ -1321,9 +1338,9 @@ pre#promptText::-webkit-scrollbar-thumb {
            кнопки наружу — она подпись к блоку, а не часть управления, и её
            исчезновение при раскрытии не должно дёргать ширину кнопки. -->
       <div class="adv-head">
+        <span class="section-index" aria-hidden="true">02</span>
         <button type="button" class="adv-toggle ripple" id="advToggle" aria-expanded="false"
                 aria-controls="advBody">
-          <span class="section-index" aria-hidden="true">02</span>
           <span data-i18n="advanced.toggle"></span>
           <svg class="adv-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
