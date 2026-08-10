@@ -464,6 +464,13 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
 .modal ol li { padding-left: 4px; }
 .modal ol li::before { content: none; }
 .modal ol li::marker { color: var(--accent); font-weight: 700; }
+/* Оговорка после списка: тише основного текста, но не мельче — это честная
+   граница возможностей, а не сноска, которую можно не читать. */
+.modal-note {
+  margin-top: 10px; padding-left: 11px;
+  border-left: 2px solid var(--field-border);
+  color: var(--faint); font-size: 13.5px; line-height: 1.55;
+}
 .modal-close {
   position: absolute; top: 16px; right: 16px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -1692,6 +1699,19 @@ pre#promptText::-webkit-scrollbar-thumb {
 
     <h3 data-i18n="info.important.title"></h3>
     <p data-i18n="info.important.body"></p>
+
+    <!-- Коуч-цикл. Стоит перед советами намеренно: это не совет, а способ
+         пользоваться инструментом, и без него тайм-окно остаётся незамеченной
+         галкой в расширенных настройках. -->
+    <h3 data-i18n="info.deep.title"></h3>
+    <p data-i18n="info.deep.intro"></p>
+    <ol>
+      <li data-i18n="info.deep.1"></li>
+      <li data-i18n="info.deep.2"></li>
+      <li data-i18n="info.deep.3"></li>
+      <li data-i18n="info.deep.4"></li>
+    </ol>
+    <p class="modal-note" data-i18n="info.deep.limit"></p>
 
     <h3 data-i18n="info.tips.title"></h3>
     <ol>

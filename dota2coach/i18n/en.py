@@ -911,6 +911,23 @@ UI = {
         "The tool gives you DATA and a prompt; the quality of the analysis depends on the "
         "AI you paste it into. The first answer is the start of a conversation, not the "
         "end: the AI will ask you follow-up questions itself.",
+    "info.deep.title": "How to get the most out of it",
+    "info.deep.intro": "The analysis works as a loop, not as a single request. Four steps:",
+    "info.deep.1": "Run a general review of the match — it gives you the whole picture.",
+    "info.deep.2":
+        "The AI will point at the decisive moment itself: a fight, or the stretch where the "
+        "advantage slipped away.",
+    "info.deep.3":
+        "Open that window in the advanced settings and regenerate the prompt — inside the "
+        "window the data comes undecimated: all ten heroes per minute, purchases, kills "
+        "and fights.",
+    "info.deep.4":
+        "Answer the AI's follow-up questions. It asks about what the data does not "
+        "contain: whether an ability window was up, whether you engaged or got caught.",
+    "info.deep.limit":
+        "Per-second analysis with coordinates does not exist yet for anyone — the source "
+        "does not provide that data. It will come later, with a replay parser of our own. "
+        "Until then, zooming into a window plus your answers is as deep as it gets.",
     "info.tips.title": "3 tips",
     "info.tips.1":
         "Use a strong model (ChatGPT Plus / Claude Pro / Gemini Advanced) — a weak bot gets "
