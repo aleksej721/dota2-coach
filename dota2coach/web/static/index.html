@@ -909,6 +909,9 @@ select.fld {
 }
 
 .range-wrap {
+  /* Диаметр ручки живёт здесь, а не на .range: по нему считают позиции и
+     сам трек, и подписи шкалы, а они соседи, а не потомки друг друга. */
+  --thumb: 20px;
   margin-top: 14px;
   transition: opacity var(--m3-short) var(--m3-emphasized), filter var(--m3-short) var(--m3-emphasized);
 }
@@ -923,7 +926,7 @@ select.fld {
    него два инпута высотой 40 с центром на 46 — ручки и трек соосны, а подписи
    лежат выше и пересечься с ними не могут.
    --thumb читает скрипт: от диаметра ручки зависит, куда ставить подпись. */
-.range { position: relative; height: 62px; --thumb: 20px; }
+.range { position: relative; height: 62px; }
 .range-lane { position: absolute; top: 0; left: 0; right: 0; height: 22px; }
 /* Толстый трек с полностью скруглёнными концами — форма слайдера M3. */
 .range-track {
@@ -939,8 +942,8 @@ select.fld {
   width: 4px; height: 4px; margin-top: -2px; border-radius: var(--r-full);
   background: color-mix(in srgb, var(--accent) 42%, transparent);
 }
-.range-track::before { left: 5px; }
-.range-track::after { right: 5px; }
+.range-track::before { left: calc(var(--thumb) / 2 - 2px); }
+.range-track::after { right: calc(var(--thumb) / 2 - 2px); }
 .range-fill {
   position: absolute; top: 0; bottom: 0; z-index: 2; overflow: hidden;
   border-radius: var(--r-full);
@@ -1041,10 +1044,21 @@ select.fld {
 }
 .range input[type="range"]::-moz-range-track { background: none; }
 
+/* Подписи шкалы стоят там же, где останавливается ЦЕНТР ручки, — по той же
+   формуле, что и сами ручки: центр гуляет в пределах (ширина − диаметр), а не
+   по всей ширине. Прежний space-between растягивал подписи на полную ширину, и
+   они разъезжались с ручками до семи пикселей, причём вразнобой: «0» уходил
+   влево, «20» вправо, «60» совпадал случайно. Именно это и читалось как
+   перекошенность. Проценты в calc умножаются на число — этого достаточно,
+   чтобы повторить формулу без единой строки скрипта. */
 .range-ticks {
-  display: flex; justify-content: space-between;
-  margin-top: 2px;
+  position: relative; height: 15px; margin-top: 4px;
   color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.range-ticks span {
+  position: absolute; top: 0;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--v));
+  transform: translateX(-50%);
 }
 
 /* ============================================================
@@ -1587,8 +1601,12 @@ pre#promptText::-webkit-scrollbar-thumb {
                     <span class="range-bubble range-bubble--merged is-off" id="bubbleBoth"></span>
                   </span>
                 </div>
-                <div class="range-ticks">
-                  <span>0</span><span>20</span><span>40</span><span>60</span><span>80</span>
+                <!-- --v: доля от шкалы 0–80. Позицию считает CSS по той же
+                     формуле, что и ход ручки, — см. .range-ticks span. -->
+                <div class="range-ticks" aria-hidden="true">
+                  <span style="--v:0">0</span><span style="--v:.25">20</span><span
+                  style="--v:.5">40</span><span style="--v:.75">60</span><span
+                  style="--v:1">80</span>
                 </div>
               </div>
             </div>
