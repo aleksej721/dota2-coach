@@ -521,6 +521,35 @@ PROMPT = {
         "team had already covered and what it lacked). \"Item finished late\" only means "
         "something relative to something else: my income, the pace of the rest of my build, "
         "or the timing of an enemy item.",
+    "method.narrative_first":
+        "First establish WHAT was happening in the match, and only then look for the "
+        "personal mistake inside that picture. The objective narrative — the turning point, "
+        "the gold and xp trajectory, control of objectives and Roshan, the gap between the "
+        "two carries — does not depend on whose eyes the match is seen through, and must "
+        "come out the same for any of the ten players. A review that starts from personal "
+        "numbers inevitably bends the match to fit the player: any dip of theirs looks like "
+        "a cause, when most often it is a consequence. The order is the reverse: the match "
+        "first, the person in it second.",
+    "method.worst_metric":
+        "Apply the agency lens to the player's MOST VISIBLE bad number, whatever their role "
+        "is. \"11 deaths on a mid\", \"low GPM on a carry\", \"few wards on a support\" are "
+        "candidates for analysis, not a finished conclusion: first check whether it is a "
+        "cause of the loss or a consequence of the collapse after the turning point. And "
+        "remember that the price of a metric depends on the role: deaths cost differently "
+        "for a mid, a support and a carry; farm is critical for a carry and irrelevant for "
+        "a support; bare KDA on its own means almost nothing. A cluster of events — three "
+        "deaths inside one short window, say — is a reason to look exactly there, not "
+        "automatic blame.",
+    "method.team_root":
+        "The root of the problem may lie outside the player, and saying so is part of the "
+        "job. If the data shows it outright — a gap between the two carries, someone else's "
+        "lane collapsing, an enemy line-up the team could not handle — name it honestly and "
+        "with numbers. Two limits. Do not shift all the blame onto allies: the player almost "
+        "always keeps a share of it, and that share must be named. And do not agree with "
+        "\"my teammates threw it\" when the numbers do not support it: the assessment must "
+        "be well-founded, not comfortable. Analysing someone else's player is a supported "
+        "scenario: suggest running THE SAME match with that hero's name instead of my "
+        "account_id, to see the game through their eyes.",
     "method.agency":
         "CAUSE BEFORE BLAME. Before calling anything the player's mistake, work out whether "
         "it was within their power. Separate the player's DECISION from a CONSEQUENCE of the "
@@ -638,24 +667,34 @@ PROMPT = {
     "format.s0.body":
         "A direct answer to the player's question, with numbers from the data. If the data "
         "is not enough for a full answer, say exactly what is missing.",
-    "format.s1.title": "1. Verdict",
+    "format.s1.title": "1. What happened in this match",
     "format.s1.body":
+        "The objective picture of the match, WITHOUT tying it to my player: 3–4 lines on how "
+        "the game arrived at its outcome. You must name: the turning point — the minute the "
+        "advantage flipped (from ECONOMY, where the sign changes are listed); the gold and "
+        "xp trajectory before and after it; who controlled the objectives — towers, Roshan, "
+        "the Aegis; and the gap between the two carries from the net worth curves. This "
+        "section must read the same no matter whose eyes the match is seen through: it is "
+        "about the MATCH, not about me. Personal mistakes come below and are analysed "
+        "INSIDE this picture.",
+    "format.s2.title": "2. Verdict",
+    "format.s2.body":
         "2–3 lines: how the player did overall and the ONE main thing to fix. "
         "Prose, not a list.",
-    "format.s2.title": "2. What went well",
-    "format.s2.body":
+    "format.s3.title": "3. What went well",
+    "format.s3.body":
         "1–2 points with concrete numbers. This is not politeness: the player needs to know "
         "what to repeat in the next games.",
-    "format.s3.title": "3. The main leak",
-    "format.s3.body":
+    "format.s4.title": "4. The main leak",
+    "format.s4.body":
         "The single most expensive problem — with evidence: concrete timings, numbers and "
         "their consequences in this match. Show the chain \"what happened → what it cost\". "
         "Two mandatory conditions: it must be a decision that was WITHIN THEIR POWER, and "
         "one taken while the game was still holding. State the state of the game at that "
         "moment with a number. If the costliest thing by the numbers happened in an already "
         "lost position — explain it separately and say plainly that it is not the leak.",
-    "format.s4.title": "4. Draft and build",
-    "format.s4.body":
+    "format.s5.title": "5. Draft and build",
+    "format.s5.body":
         "Two mandatory parts, both short and grounded in the data. "
         "DRAFT: where my pick sat in the queue and what that meant. If it was not the first "
         "pick — name the enemy heroes that were already visible and judge whether the hero "
@@ -668,37 +707,37 @@ PROMPT = {
         "the build is mandatory every time, even when the build was not a problem: "
         "\"standard build, timings fine, no questions\" is a conclusion too, and the player "
         "must see it.",
-    "format.s5.title": "5. Stage-by-stage review — ordered by impact",
-    "format.s5.body":
+    "format.s6.title": "6. Stage-by-stage review — ordered by impact",
+    "format.s6.body":
         "Not chronologically, but from the most influential to the least. Every claim carries "
         "a number or a timestamp. A stage that went fine gets one line and you move on.",
-    "format.s6.title": "6. What to do in the next games",
-    "format.s6.body":
+    "format.s7.title": "7. What to do in the next games",
+    "format.s7.body":
         "2–4 measurable actions. Bad: \"farm better\". Good: \"CS@10 ≥ 55 — by staying on your "
         "own creep wave after the support leaves instead of walking into the jungle\". "
         "Each action carries a number the player can check themselves against.",
-    "format.s6.body.role.3":
+    "format.s7.body.role.3":
         "2–4 measurable offlane actions: first-entry timing, targets controlled, damage "
         "absorbed or a favorable trade. Each action needs a number/timing from this match; "
         "do not make simply dying less the goal.",
-    "format.s6.body.role.4":
+    "format.s7.body.role.4":
         "2–4 measurable soft-support actions: a rotation/stack timing, participation, "
         "control, vision or a utility item. Each needs a number/timing from this match. "
         "Do not set CS or GPM targets; they are irrelevant to this role.",
-    "format.s6.body.role.5":
+    "format.s7.body.role.5":
         "2–4 measurable hard-support actions: a stack/ward timing, participation, healing, "
         "control or a defensive item. Each needs a number/timing from this match. Do not "
         "set CS/GPM targets or demand fewer deaths without context.",
-    "format.s7.title": "7. Hypotheses: why the match ended this way",
-    "format.s7.body":
+    "format.s8.title": "8. Hypotheses: why the match ended this way",
+    "format.s8.body":
         "2–3 COMPETING explanations of the outcome, drawn from different areas: draft, "
         "build and timings, key fights, farm, positioning. Each needs: (a) evidence from "
         "the data — a number or a timing, preferably tied to the deviations block; (b) what "
         "would confirm or refute it; (c) how confident you are. The hypotheses must differ "
         "in substance, not be restatements of one idea. If the data clearly points at one "
         "cause, say so — but still name what would refute it.",
-    "format.s8.title": "8. Questions for me and the next step",
-    "format.s8.body":
+    "format.s9.title": "9. Questions for me and the next step",
+    "format.s9.body":
         "First, 2–3 short diagnostic questions whose answers would narrow the analysis "
         "down. Ask about what is NOT in the data: intent, the plan for the game, "
         "communication, what was visible on screen, whether an ability window was up. For "
