@@ -35,6 +35,8 @@
   --accent-2:      #a274f5;
   --accent-soft:   rgba(109, 109, 240, .16);
   --on-accent:     #fff;
+  /* Кольцо-хват внутри ручки ползунка: отделяет её от непрерывной заливки. */
+  --knob-grip:     rgba(255, 255, 255, .55);
 
   --danger:        #ff8080;
   --danger-bg:     rgba(255, 90, 90, .10);
@@ -142,6 +144,7 @@
   --accent:        #5757e0;
   --accent-2:      #8f56e8;
   --accent-soft:   rgba(87, 87, 224, .16);
+  --knob-grip:     rgba(255, 255, 255, .72);
 
   --danger:        #b3261e;
   --danger-bg:     rgba(220, 60, 50, .09);
@@ -918,19 +921,21 @@ select.fld {
 .range-wrap[data-off="true"] { opacity: .4; filter: saturate(.2); }
 
 /* Два нативных input[type=range] лежат друг на друге: доступность с клавиатуры
-   и на мобильном достаётся бесплатно, а «двуручечность» даёт наложение. */
-/* Раньше подпись стояла на top:-6px внутри блока высотой 36px, а ручка
-   занимала y≈7..29 — они физически пересекались, и цифры лежали на треке.
-   Теперь у подписей СВОЯ дорожка сверху, трек ниже, и пересечься нечему. */
-/* Геометрия: дорожка подписей сверху (0–22), трек по центру (40–52), поверх
-   него два инпута высотой 40 с центром на 46 — ручки и трек соосны, а подписи
-   лежат выше и пересечься с ними не могут.
-   --thumb читает скрипт: от диаметра ручки зависит, куда ставить подпись. */
-.range { position: relative; height: 62px; }
-.range-lane { position: absolute; top: 0; left: 0; right: 0; height: 22px; }
+   и на мобильном достаётся бесплатно, а «двуручечность» даёт наложение.
+
+   Геометрия по вертикали: подписи 0–20, зазор 5, ручки 25–45 (центр 35), трек
+   29–41 (тот же центр 35), инпуты высотой 40 с верхом на 15 — центр опять 35.
+   Всё соосно, а подпись стоит в пяти пикселях над своей ручкой: раньше между
+   ними было восемнадцать плюс хвостик, и цифра читалась как отдельный объект,
+   висящий сам по себе.
+
+   --thumb читает и скрипт, и подписи шкалы: от диаметра ручки зависит, где
+   останавливается её центр. */
+.range { position: relative; height: 58px; }
+.range-lane { position: absolute; top: 0; left: 0; right: 0; height: 20px; }
 /* Толстый трек с полностью скруглёнными концами — форма слайдера M3. */
 .range-track {
-  position: absolute; top: 40px; left: 0; right: 0; height: 12px;
+  position: absolute; top: 29px; left: 0; right: 0; height: 12px;
   background: var(--field-bg);
   box-shadow: inset 0 0 0 1px var(--field-border);
   border-radius: var(--r-full); overflow: hidden;
@@ -951,6 +956,16 @@ select.fld {
   transition: left var(--m3-short) var(--m3-emphasized),
               width var(--m3-short) var(--m3-emphasized);
 }
+/* Во время перетаскивания переходов быть не должно ВООБЩЕ. Нативная ручка идёт
+   за курсором в том же кадре, в котором меняется значение, а заливка с
+   transition догоняет её ещё 200 мс — ровно это и читается как «ручка едет
+   быстрее заливки». Позиции у них считаются из одного значения в одном
+   обработчике input, так что рассинхрону больше взяться неоткуда.
+
+   Сглаживание остаётся для клавиатуры и программных изменений: там шаг
+   дискретный, и мгновенный скачок выглядел бы рвано. */
+.range-wrap[data-dragging="true"] .range-fill,
+.range-wrap[data-dragging="true"] .range-bubble { transition: none; }
 /* «Жидкость»: блик бесконечно течёт слева направо внутри залитого участка.
    Двигается transform, а не background-position, поэтому анимация живёт на
    композиторе и не заставляет перерисовывать градиент каждый кадр. */
@@ -967,7 +982,7 @@ select.fld {
 /* Окно выключено — течь незачем: анимация не должна работать вхолостую. */
 .range-wrap[data-off="true"] .range-fill::after { animation: none; }
 .range input[type="range"] {
-  position: absolute; top: 26px; left: 0; width: 100%; height: 40px; margin: 0;
+  position: absolute; top: 15px; left: 0; width: 100%; height: 40px; margin: 0;
   appearance: none; -webkit-appearance: none;
   background: none; pointer-events: none;
 }
@@ -982,23 +997,31 @@ select.fld {
   width: var(--thumb); height: var(--thumb); border-radius: 50%;
   background: linear-gradient(150deg, var(--accent), var(--accent-2));
   border: none;
-  box-shadow: var(--elev-1), 0 0 0 0 var(--accent-soft);
+  /* Кольцо-хват внутри ручки. Зазора между заливкой и ручкой больше нет —
+     полоса непрерывная, — поэтому отделять ручку приходится не разрывом, а
+     светлым кольцом внутри неё: так это читается одним компонентом с двумя
+     захватами, а не тремя отдельными кусками. */
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 0 var(--accent-soft);
   cursor: grab;
   transition: transform var(--m3-medium) var(--spring-gentle),
               box-shadow var(--m3-short) var(--m3-emphasized);
 }
 .range input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.06);
-  box-shadow: var(--elev-1), 0 0 0 9px var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 9px var(--accent-soft);
 }
 .range input[type="range"]:active::-webkit-slider-thumb {
   cursor: grabbing; transform: scale(.92);
-  box-shadow: var(--elev-1), 0 0 0 12px var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 12px var(--accent-soft);
 }
 /* Свой focus-visible вместо дефолтной рамки браузера: два кольца, оба в
    акцентных ролях, поэтому фокус видно и на стекле, и на любой теме. */
 .range input[type="range"]:focus-visible::-webkit-slider-thumb {
-  box-shadow: var(--elev-1), 0 0 0 4px var(--accent-soft),
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 4px var(--accent-soft),
               0 0 0 6px color-mix(in srgb, var(--accent) 62%, transparent);
 }
 
@@ -1006,19 +1029,14 @@ select.fld {
 .range-bubble {
   position: absolute; top: 0; transform: translateX(-50%);
   padding: 2px 9px; border-radius: var(--r-full);
-  background: var(--accent); color: var(--on-accent);
+  background: linear-gradient(150deg, var(--accent), var(--accent-2));
+  color: var(--on-accent);
   font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
   line-height: 1.5; pointer-events: none; white-space: nowrap;
-  box-shadow: var(--elev-1);
+  box-shadow: var(--elev-2);
   transition: left var(--m3-short) var(--m3-emphasized),
               opacity var(--m3-short) var(--m3-emphasized),
               transform var(--m3-medium) var(--spring-soft);
-}
-/* Хвостик к своей ручке — иначе при двух подписях непонятно, чья какая. */
-.range-bubble::after {
-  content: ""; position: absolute; left: 50%; top: 100%;
-  width: 2px; height: 8px; margin-left: -1px;
-  background: var(--accent); opacity: .45;
 }
 /* Скрываем через visibility, а НЕ display/hidden: у скрытого через display
    элемента offsetWidth равен нулю, и порог схлопывания подписей выродился бы
@@ -1032,7 +1050,8 @@ select.fld {
   pointer-events: auto;
   width: var(--thumb); height: var(--thumb); border-radius: 50%;
   background: var(--accent); border: none; cursor: grab;
-  box-shadow: var(--elev-1), 0 0 0 0 var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 0 var(--accent-soft);
   transition: box-shadow var(--m3-short) var(--m3-emphasized);
 }
 .range input[type="range"]:hover::-moz-range-thumb {
@@ -1922,12 +1941,11 @@ pre#promptText::-webkit-scrollbar-thumb {
     const at = (v) => THUMB / 2 + (track - THUMB) * (v / max);
     const posA = at(a), posB = at(b);
 
-    // Зазор между активным треком и ручкой — форма слайдера M3. Без него
-    // ручка того же цвета сливается с заливкой в одно пятно, и непонятно,
-    // где вообще браться. В зазоре видно неактивный трек.
-    const GAP = 6;
-    $("rangeFill").style.left = (posA + GAP) + "px";
-    $("rangeFill").style.width = Math.max(0, posB - posA - 2 * GAP) + "px";
+    // Заливка идёт от центра одной ручки до центра другой, без зазоров. Зазор
+    // был данью форме слайдера M3, но с двумя ручками он резал полосу на три
+    // отдельных куска; отделяет ручку теперь кольцо-хват внутри неё.
+    $("rangeFill").style.left = posA + "px";
+    $("rangeFill").style.width = Math.max(0, posB - posA) + "px";
 
     const one = $("bubbleStart"), two = $("bubbleEnd"), both = $("bubbleBoth");
     // Текст ставим ДО замеров: ширина зависит от него («100» шире «8»), а
@@ -1963,6 +1981,24 @@ pre#promptText::-webkit-scrollbar-thumb {
 
   wStart.addEventListener("input", syncRange);
   wEnd.addEventListener("input", syncRange);
+
+  /* Пока ручку тащат, у заливки и подписей не должно быть ни одного перехода:
+     нативная ручка идёт за курсором в том же кадре, а всё, что анимируется,
+     догоняет её и выглядит как рассинхрон. Отпустили — переходы возвращаются,
+     они нужны шагам с клавиатуры.
+
+     pointerup слушаем на окне, а не на инпуте: палец или курсор почти всегда
+     уходит за пределы ручки, и событие до неё уже не долетит. */
+  const setDragging = (on) => {
+    if (on) $("rangeWrap").dataset.dragging = "true";
+    else delete $("rangeWrap").dataset.dragging;
+  };
+  for (const el of [wStart, wEnd]) {
+    el.addEventListener("pointerdown", () => setDragging(true));
+  }
+  for (const ev of ["pointerup", "pointercancel"]) {
+    window.addEventListener(ev, () => setDragging(false));
+  }
   windowOn.addEventListener("change", () => {
     syncRange();
     if (windowOn.checked) wStart.focus({ preventScroll: true });
