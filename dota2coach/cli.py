@@ -5,6 +5,7 @@ core.build_pipeline() — там же, откуда его берёт веб-и�
 """
 
 import argparse
+import json
 import pathlib
 import sys
 from typing import Optional, Sequence, Tuple
@@ -14,6 +15,7 @@ from .i18n import DEFAULT_LANG, LANGUAGES
 from .policy import DEPTHS, FOCUSES, ROLES, Policy
 from .profile import DEFAULT_MATCHES, MAX_MATCHES, MIN_MATCHES
 from .render import DEFAULT_MODEL, MODELS, resolve_depth
+from .replay import ReplayInputError, inspect_replay_file
 from .sources.base import DataSourceError
 
 
@@ -80,6 +82,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--port", type=int, default=None,
                    help="по умолчанию $PORT, иначе 8000")
     s.add_argument("--reload", action="store_true", help="автоперезапуск при правках (dev)")
+
+    r = sub.add_parser("replay", help="инструменты собственного replay engine")
+    replay_sub = r.add_subparsers(dest="replay_command", required=True)
+    inspect = replay_sub.add_parser("inspect", help="безопасно проверить и идентифицировать .dem")
+    inspect.add_argument("path", help="путь к Source 2 replay (.dem)")
+    inspect.add_argument("--json", action="store_true", help="вывести machine-readable JSON")
     return parser
 
 
@@ -184,6 +192,32 @@ def run_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_replay(args: argparse.Namespace) -> int:
+    if args.replay_command != "inspect":
+        return 2
+    try:
+        info = inspect_replay_file(args.path)
+    except ReplayInputError as exc:
+        print(f"Replay отклонён: {exc}", file=sys.stderr)
+        return 1
+    payload = {
+        "path": str(info.path),
+        "size_bytes": info.size_bytes,
+        "content_sha256": info.content_sha256,
+        "magic": info.magic,
+        "status": "ready_for_decoder",
+    }
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    else:
+        print("Replay подходит для Source 2 decoder:")
+        print(f"  файл: {payload['path']}")
+        print(f"  размер: {payload['size_bytes']} байт")
+        print(f"  SHA-256: {payload['content_sha256']}")
+        print("  следующий этап: decoder bake-off (Manta / Clarity)")
+    return 0
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -193,6 +227,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return run_profile(args)
     if args.command == "serve":
         return run_serve(args)
+    if args.command == "replay":
+        return run_replay(args)
     parser.print_help()
     return 2
 
