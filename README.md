@@ -602,6 +602,7 @@ CLI и веб — две тонкие обёртки над `core.generate_promp
 | [`policy.py`](dota2coach/policy.py) | что показывать: роль, тиры, глубина, focus, окно и заметка |
 | [`features.py`](dota2coach/features.py) | отбор фактов и производные (переломы, сборки, исходы боёв) |
 | [`overview.py`](dota2coach/overview.py) | versioned JSON-проекция скорборда, рядов и событий для Match Explorer |
+| [`replay/`](dota2coach/replay) | decoder-independent contracts и reference store для точных replay-фактов и time-range queries |
 | [`bundle.py`](dota2coach/bundle.py) | форматирование промпта |
 | [`web/app.py`](dota2coach/web/app.py) | FastAPI: страница, `POST /api/analyze` и `POST /api/profile` |
 | [`web/static/index.html`](dota2coach/web/static/index.html) | вся страница: вёрстка, стили и скрипт в одном файле |
