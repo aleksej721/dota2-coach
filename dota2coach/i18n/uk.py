@@ -876,6 +876,9 @@ UI = {
     "explorer.draft.final": "Підсумковий склад",
     "explorer.draft.pick": "пік #{order}",
     "explorer.draft.ban": "бан #{order}",
+    "explorer.draft.picks": "Піки",
+    "explorer.draft.bans": "Бани",
+    "explorer.draft.grouped_note": "точне чергування недоступне",
     "explorer.builds.title": "Збірки",
     "explorer.builds.sub": "Предмети всіх гравців у контексті",
     "explorer.builds.empty": "В OpenDota немає надійних таймінгів предметів для цього матчу.",
@@ -897,6 +900,7 @@ UI = {
     "explorer.metric.xp_per_min": "XPM",
     "explorer.metric.last_hits_per_min": "Добивання за хвилину",
     "explorer.metric.hero_damage_per_min": "Шкода героям за хвилину",
+    "explorer.metric.hero_healing_per_min": "Лікування за хвилину",
     "explorer.metric.tower_damage": "Шкода спорудам",
 
     "feedback.question": "Розбір вийшов корисним?",

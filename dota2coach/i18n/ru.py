@@ -912,6 +912,9 @@ UI = {
     "explorer.draft.final": "Итоговый состав",
     "explorer.draft.pick": "пик #{order}",
     "explorer.draft.ban": "бан #{order}",
+    "explorer.draft.picks": "Пики",
+    "explorer.draft.bans": "Баны",
+    "explorer.draft.grouped_note": "точное чередование недоступно",
     "explorer.builds.title": "Сборки",
     "explorer.builds.sub": "Предметы всех игроков в контексте",
     "explorer.builds.empty": "В OpenDota нет надёжных таймингов предметов для этого матча.",
@@ -933,6 +936,7 @@ UI = {
     "explorer.metric.xp_per_min": "XPM",
     "explorer.metric.last_hits_per_min": "Добивания в минуту",
     "explorer.metric.hero_damage_per_min": "Урон героям в минуту",
+    "explorer.metric.hero_healing_per_min": "Лечение в минуту",
     "explorer.metric.tower_damage": "Урон строениям",
 
     # --- фидбэк ---

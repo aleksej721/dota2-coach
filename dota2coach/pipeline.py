@@ -9,11 +9,11 @@ DataSource -> (нормализация внутри источника) -> Feat
 """
 
 import pathlib
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .bundle import BundleBuilder, ProfileBundleBuilder
 from .constants import Constants
-from .features import FeatureExtractor
+from .features import KEY_ITEM_COST, MAJOR_ITEM_COST, FeatureExtractor
 from .model import Match, Player
 from .policy import Policy
 from .profile import (MAX_MATCHES, MIN_MATCHES, ROLE_TO_LANE_ROLE, ProfileAggregator,
@@ -73,6 +73,21 @@ class Pipeline:
     def warm(self) -> None:
         """Прогревает справочники. Сеть трогает, данные матчей — нет."""
         self._constants.warm()
+
+    def overview_items(self, match: Match, me: Player) -> Dict[int, List[Dict[str, Any]]]:
+        """Собранные предметы для UI: мои ключевые и крупные у остальных.
+
+        Match Explorer использует тот же алгоритм поглощения компонентов, что
+        и prompt. Поэтому Branch/рецепты/расходники не превращают обзор в сырой
+        журнал покупок, а оценка билда по-прежнему видит контекст всех героев.
+        """
+        return {
+            player.player_slot: self._extractor.assembled_purchases(
+                player, KEY_ITEM_COST if player.player_slot == me.player_slot
+                else MAJOR_ITEM_COST,
+            )
+            for player in match.players
+        }
 
     # --- профиль (кросс-матчевый разбор) --------------------------------------
 

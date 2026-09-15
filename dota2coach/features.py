@@ -117,7 +117,7 @@ class FeatureExtractor:
             # min_cost=0: детектору нужна вся сборка, иначе накопленная
             # стоимость поедет и «ожидаемый» тайминг станет фикцией.
             f.anomalies = self._anomalies.detect(
-                match, me, self._assembled_purchases(me, min_cost=0))
+                match, me, self.assembled_purchases(me, min_cost=0))
 
         if policy.shows("role_impact"):
             f.role_impact = self._role_impact(match, me, policy)
@@ -366,7 +366,7 @@ class FeatureExtractor:
 
     # --- ITEMS ----------------------------------------------------------------
 
-    def _assembled_purchases(self, p: Player, min_cost: int) -> List[Dict[str, Any]]:
+    def assembled_purchases(self, p: Player, min_cost: int) -> List[Dict[str, Any]]:
         """Оставляет только реально собранные предметы дороже порога.
 
         Идём по логу покупок; когда встречаем собранный предмет, помечаем его
@@ -423,9 +423,9 @@ class FeatureExtractor:
             if full_log and p is me:
                 timings, kind = self._full_purchases(p), "full"
             elif p is me:
-                timings, kind = self._assembled_purchases(p, KEY_ITEM_COST), "key"
+                timings, kind = self.assembled_purchases(p, KEY_ITEM_COST), "key"
             else:
-                timings, kind = self._assembled_purchases(p, MAJOR_ITEM_COST), "major"
+                timings, kind = self.assembled_purchases(p, MAJOR_ITEM_COST), "major"
             out.append({"who": self._tag(p, me), "kind": kind, "timings": timings})
 
         if not full_log:
@@ -595,7 +595,7 @@ class FeatureExtractor:
                         for key, value in metrics_by_role.get(role, [])],
             "early_kill_times": [mmss(t) for t in early_kills],
             "late_death_times": [mmss(t) for t in death_times if t >= 40 * 60],
-            "key_items": self._assembled_purchases(me, KEY_ITEM_COST)
+            "key_items": self.assembled_purchases(me, KEY_ITEM_COST)
                          if role in ("1", "2") else [],
             "utility_items": self._utility_purchases(me)
                              if role in ("3", "4", "5") else [],

@@ -138,7 +138,7 @@ class ProfileAggregator:
         anomalies_by_match: List[List[Anomaly]] = []
         for match, me in pairs:
             found = self._detector.detect(
-                match, me, self._extractor._assembled_purchases(me, min_cost=0))
+                match, me, self._extractor.assembled_purchases(me, min_cost=0))
             anomalies_by_match.append(found)
             out.digests.append(self._digest(match, me, found))
 

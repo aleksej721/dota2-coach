@@ -233,7 +233,7 @@ def check_item_absorption():
         {"time": 120, "key": "gloves"}, {"time": 180, "key": "belt"},
         {"time": 240, "key": "power_treads"}, {"time": 300, "key": "recipe_nothing"},
     ]
-    rows = FeatureExtractor(ItemAwareConstants())._assembled_purchases(p, min_cost=1000)
+    rows = FeatureExtractor(ItemAwareConstants()).assembled_purchases(p, min_cost=1000)
     assert [r["item"] for r in rows] == ["power_treads"], rows
     assert rows[0]["time"] == "4:00", rows
 
@@ -637,8 +637,11 @@ def main():
     assert me.lane_efficiency_pct == 88
     assert me.seconds_dead == 180
 
-    overview = build_match_overview(match, me)
-    assert overview["schema_version"] == 1
+    overview_items = {
+        me.player_slot: FeatureExtractor(constants).assembled_purchases(me, min_cost=0)
+    }
+    overview = build_match_overview(match, me, overview_items)
+    assert overview["schema_version"] == 2
     assert overview["quality"]["source"] == "opendota"
     assert overview["quality"]["timeline_granularity"] == "minute"
     assert overview["quality"]["has_tick_data"] is False
@@ -646,9 +649,11 @@ def main():
     assert overview["perspective"]["kill_participation_pct"] == 100
     assert len(overview["players"]) == 3
     assert overview["players"][0]["series"]["last_hits"][10] == 90
+    assert all("name" in item for item in overview["players"][0]["items"])
     assert overview["economy"]["radiant_gold_adv"][10] == 2200
     assert overview["objectives"][2]["kind"] == "roshan"
     assert overview["teamfights"][0]["me"]["damage"] == 1500
+    assert set(overview["draft"]) == {"chronological", "picks", "bans"}
 
     check_opendota_recovery(constants)
     check_loc_tokens()

@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>dota2coach</title>
+<script>
+  if (location.protocol === "file:") document.documentElement.dataset.directFile = "true";
+</script>
 <!--I18N-->
 <style>
 /* ============================================================
@@ -328,6 +331,36 @@ body::before { left: 0; background: linear-gradient(180deg, transparent, var(--r
 body::after { right: 0; background: linear-gradient(180deg, var(--dire), transparent 70%); opacity: .45; }
 
 .wrap { max-width: 1040px; margin: 0 auto; }
+.direct-file-notice { display: none; }
+html[data-direct-file="true"] body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+html[data-direct-file="true"] body > :not(.direct-file-notice) { display: none !important; }
+html[data-direct-file="true"] .direct-file-notice {
+  display: grid;
+  gap: 12px;
+  width: min(560px, 100%);
+  padding: 28px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  background: var(--glass-bg);
+  box-shadow: var(--elev-3);
+  backdrop-filter: blur(24px) saturate(145%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+}
+.direct-file-notice h1 { margin: 0; font-size: 24px; }
+.direct-file-notice p { margin: 0; color: var(--muted); line-height: 1.6; }
+.direct-file-notice code {
+  display: block;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  color: var(--code);
+  background: var(--field-bg);
+  user-select: all;
+}
 
 /* Появление лестницей: шапка, режимы, форма. Двигаем только opacity и
    transform, поэтому композитор справляется без перерисовок. */
@@ -1812,6 +1845,16 @@ pre#promptText { border-radius: var(--r-sm); }
   font-variant-numeric: tabular-nums;
 }
 .draft-side { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.draft-group-label {
+  padding: 10px 16px 7px;
+  border-top: 1px solid var(--field-border);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.draft-group-note { color: var(--faint); font-weight: 500; letter-spacing: 0; text-transform: none; }
 .build-list { display: grid; }
 .build-row {
   display: grid;
@@ -1871,6 +1914,13 @@ pre#promptText { border-radius: var(--r-sm); }
 </style>
 </head>
 <body>
+<section class="direct-file-notice" role="alert">
+  <h1>Откройте dota2coach через локальный сервер</h1>
+  <p>HTML-файл не является самостоятельной страницей: сервер добавляет переводы и подключает API. Запустите команду в папке проекта, затем откройте адрес ниже.</p>
+  <code>python -m dota2coach serve</code>
+  <code>http://127.0.0.1:8000</code>
+  <p>Open dota2coach through the local server. The server injects translations and provides the API.</p>
+</section>
 <div class="glow"></div>
 <div class="orbs" aria-hidden="true">
   <i style="--x:-12%;--y:46%;--s:54vmin;--dx:18vw;--dy:-16vh;--d:54s;--delay:-8s"></i>
@@ -2383,6 +2433,8 @@ pre#promptText { border-radius: var(--r-sm); }
 <script>
 (() => {
   "use strict";
+
+  if (document.documentElement.dataset.directFile === "true") return;
 
   const CFG = window.I18N;
   const $ = (id) => document.getElementById(id);
@@ -3251,22 +3303,55 @@ pre#promptText { border-radius: var(--r-sm); }
   function renderDraft(overview) {
     const host = $("draftList");
     host.replaceChildren();
-    const draft = [...(overview.draft || [])].sort((a, b) => Number(a.order) - Number(b.order));
-    if (draft.length) {
-      for (const action of draft) {
+    const rawDraft = overview.draft || {};
+    const legacy = Array.isArray(rawDraft) ? rawDraft : null;
+    const picks = legacy
+      ? legacy.filter((action) => action.is_pick)
+      : [...(rawDraft.picks || [])];
+    const bans = legacy
+      ? legacy.filter((action) => !action.is_pick)
+      : [...(rawDraft.bans || [])];
+    const chronological = legacy ? true : Boolean(rawDraft.chronological);
+
+    function appendActions(actions, kind, preserveOrder) {
+      const ordered = [...actions].sort((a, b) => Number(a.order) - Number(b.order));
+      for (const [index, action] of ordered.entries()) {
         const row = makeNode("div", "event-row");
         const body = makeNode("div");
+        const sideKey = "result.side." + action.side;
+        const sideLabel = t(sideKey) === sideKey ? (action.side || "—") : t(sideKey);
         body.append(
           makeNode("div", "event-main", action.hero || "—"),
-          makeNode("span", "event-note", action.side || "—"),
+          makeNode("span", "event-note", sideLabel),
         );
         row.append(
-          makeNode("span", "draft-side", t(action.is_pick ? "explorer.draft.pick" : "explorer.draft.ban", {
-            order: Number(action.order) + 1,
+          makeNode("span", "draft-side", t(kind === "pick" ? "explorer.draft.pick" : "explorer.draft.ban", {
+            order: preserveOrder ? Number(action.order) + 1 : index + 1,
           })),
           body,
         );
         host.append(row);
+      }
+    }
+
+    if (picks.length || bans.length) {
+      if (chronological) {
+        const actions = [
+          ...picks.map((action) => ({ ...action, kind: "pick" })),
+          ...bans.map((action) => ({ ...action, kind: "ban" })),
+        ].sort((a, b) => Number(a.order) - Number(b.order));
+        for (const action of actions) appendActions([action], action.kind, true);
+      } else {
+        if (picks.length) {
+          const label = makeNode("div", "draft-group-label", t("explorer.draft.picks"));
+          label.append(makeNode("span", "draft-group-note", " · " + t("explorer.draft.grouped_note")));
+          host.append(label);
+          appendActions(picks, "pick", false);
+        }
+        if (bans.length) {
+          host.append(makeNode("div", "draft-group-label", t("explorer.draft.bans")));
+          appendActions(bans, "ban", false);
+        }
       }
       return;
     }
@@ -3305,7 +3390,7 @@ pre#promptText { border-radius: var(--r-sm); }
         const chip = makeNode("span", "item-chip");
         chip.append(
           makeNode("time", "", formatClock(item.time)),
-          makeNode("span", "", String(item.key).replaceAll("_", " ")),
+          makeNode("span", "", item.name || String(item.key).replaceAll("_", " ")),
         );
         flow.append(chip);
       }

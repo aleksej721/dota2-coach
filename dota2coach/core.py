@@ -121,7 +121,7 @@ def generate_prompt(match_id: int, account_id: Optional[int] = None,
         parsed=match.parsed,
         side="radiant" if me.is_radiant else "dire",
         win=me.win,
-        overview=build_match_overview(match, me),
+        overview=build_match_overview(match, me, pipeline.overview_items(match, me)),
     )
 
 

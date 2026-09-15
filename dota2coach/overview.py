@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from .model import Match, Player
 
 
-OVERVIEW_SCHEMA_VERSION = 1
+OVERVIEW_SCHEMA_VERSION = 2
 
 
 def _ints(values) -> List[int]:
@@ -77,7 +77,8 @@ def _benchmark_signals(me: Player) -> List[Dict[str, Any]]:
     return signals
 
 
-def _player(player: Player, me: Player) -> Dict[str, Any]:
+def _player(player: Player, me: Player,
+            items: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     return {
         "player_slot": player.player_slot,
         "hero_id": player.hero_id,
@@ -107,8 +108,12 @@ def _player(player: Player, me: Player) -> Dict[str, Any]:
             "denies": _ints(player.dn_t),
         },
         "items": [
-            {"time": int(item.get("time", 0) or 0), "key": str(item.get("key") or "")}
-            for item in (player.purchase_log or []) if item.get("key")
+            {
+                "time": int(item.get("t", 0) or 0),
+                "key": str(item.get("key") or ""),
+                "name": str(item.get("item") or item.get("key") or ""),
+            }
+            for item in (items or []) if item.get("key")
         ],
     }
 
@@ -156,7 +161,9 @@ def _teamfights(match: Match, me: Player) -> List[Dict[str, Any]]:
     return result
 
 
-def build_match_overview(match: Match, me: Player) -> Dict[str, Any]:
+def build_match_overview(match: Match, me: Player,
+                         item_timings: Optional[Dict[int, List[Dict[str, Any]]]] = None
+                         ) -> Dict[str, Any]:
     """Возвращает versioned JSON-ready обзор без UI-строк и AI-выводов."""
     radiant = match.radiant_players()
     dire = match.dire_players()
@@ -197,7 +204,10 @@ def build_match_overview(match: Match, me: Player) -> Dict[str, Any]:
             )),
         },
         "signals": _benchmark_signals(me),
-        "players": [_player(player, me) for player in match.players],
+        "players": [
+            _player(player, me, (item_timings or {}).get(player.player_slot))
+            for player in match.players
+        ],
         "economy": {
             "radiant_gold_adv": gold,
             "radiant_xp_adv": xp,
@@ -206,15 +216,24 @@ def build_match_overview(match: Match, me: Player) -> Dict[str, Any]:
             "gold_turning_points": _turning_points(gold),
             "xp_turning_points": _turning_points(xp),
         },
-        "draft": [
-            {
-                "order": pick.order,
-                "is_pick": pick.is_pick,
-                "hero": pick.hero_name,
-                "side": pick.side.lower(),
-            }
-            for pick in sorted(match.picks_bans, key=lambda item: item.order)
-        ],
+        "draft": {
+            # Captains Mode хранит настоящую хронологию. All Draft обычно
+            # группирует сначала пики, затем баны; UI обязан показать их двумя
+            # честными группами, а не выдумывать последовательность действий.
+            "chronological": match.draft_is_chronological,
+            "picks": [
+                {"order": pick.order, "hero": pick.hero_name,
+                 "side": pick.side.lower()}
+                for pick in sorted(match.picks_bans, key=lambda item: item.order)
+                if pick.is_pick
+            ],
+            "bans": [
+                {"order": pick.order, "hero": pick.hero_name,
+                 "side": pick.side.lower()}
+                for pick in sorted(match.picks_bans, key=lambda item: item.order)
+                if not pick.is_pick
+            ],
+        },
         "objectives": [
             {
                 "time": objective.time,

@@ -898,6 +898,9 @@ UI = {
     "explorer.draft.final": "Final lineup",
     "explorer.draft.pick": "pick #{order}",
     "explorer.draft.ban": "ban #{order}",
+    "explorer.draft.picks": "Picks",
+    "explorer.draft.bans": "Bans",
+    "explorer.draft.grouped_note": "exact interleaving unavailable",
     "explorer.builds.title": "Builds",
     "explorer.builds.sub": "Every player's items in context",
     "explorer.builds.empty": "OpenDota has no reliable item timings for this match.",
@@ -919,6 +922,7 @@ UI = {
     "explorer.metric.xp_per_min": "XPM",
     "explorer.metric.last_hits_per_min": "Last hits per minute",
     "explorer.metric.hero_damage_per_min": "Hero damage per minute",
+    "explorer.metric.hero_healing_per_min": "Hero healing per minute",
     "explorer.metric.tower_damage": "Tower damage",
 
     "feedback.question": "Was this analysis useful?",
