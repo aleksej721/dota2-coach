@@ -1362,6 +1362,256 @@ pre#promptText::-webkit-scrollbar-thumb {
     transition-duration: .01ms !important;
   }
 }
+
+/* ============================================================
+   Analysis workspace foundation
+
+   Новый продуктовый этап начинается с отказа от glass-first presentation.
+   Старые селекторы пока сохранены ради обратной совместимости поведения, но
+   визуальный контракт уже другой: плотные поверхности, спокойная глубина,
+   строгая сетка и семантический цвет. Этот слой намеренно переопределяет
+   предыдущие декоративные правила до поэтапного удаления legacy CSS.
+   ============================================================ */
+:root {
+  --bg: #0b0e13;
+  --text: #eef1f6;
+  --muted: #9aa5b5;
+  --faint: #697587;
+  --glass-bg: #131821;
+  --glass-border: #27303d;
+  --glass-hi: transparent;
+  --field-bg: #0f141c;
+  --field-border: #2a3442;
+  --field-hover: #435166;
+  --solid: #0b1017;
+  --code: #dbe2ec;
+  --accent: #8e96ff;
+  --accent-2: #8e96ff;
+  --accent-soft: rgba(142, 150, 255, .14);
+  --surface-raised: #181e28;
+  --surface-muted: #10151d;
+  --surface-selected: #202741;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .32), 0 14px 36px rgba(0, 0, 0, .18);
+  --shadow-lift: var(--shadow);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, .28);
+  --elev-2: 0 2px 7px rgba(0, 0, 0, .26);
+  --elev-3: 0 10px 30px rgba(0, 0, 0, .32);
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --display: var(--font);
+}
+
+:root[data-theme="light"] {
+  --bg: #f3f5f7;
+  --text: #171b22;
+  --muted: #586577;
+  --faint: #818c9b;
+  --glass-bg: #ffffff;
+  --glass-border: #d9dee6;
+  --glass-hi: transparent;
+  --field-bg: #f7f8fa;
+  --field-border: #d6dce5;
+  --field-hover: #a9b3c1;
+  --solid: #f5f7fa;
+  --code: #222a36;
+  --accent: #5962d9;
+  --accent-2: #5962d9;
+  --accent-soft: rgba(89, 98, 217, .12);
+  --surface-raised: #ffffff;
+  --surface-muted: #eef1f4;
+  --surface-selected: #e8eafd;
+  --shadow: 0 1px 2px rgba(20, 29, 43, .07), 0 12px 30px rgba(20, 29, 43, .06);
+  --shadow-lift: var(--shadow);
+  --elev-1: 0 1px 2px rgba(20, 29, 43, .09);
+  --elev-2: 0 2px 7px rgba(20, 29, 43, .11);
+  --elev-3: 0 10px 30px rgba(20, 29, 43, .14);
+}
+
+body {
+  padding: 28px 32px 72px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent 260px),
+    var(--bg);
+}
+
+.glow {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--radiant) 6%, transparent), transparent 22%,
+      transparent 78%, color-mix(in srgb, var(--dire) 5%, transparent)),
+    linear-gradient(color-mix(in srgb, var(--glass-border) 26%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--glass-border) 26%, transparent) 1px, transparent 1px);
+  background-size: auto, 48px 48px, 48px 48px;
+  opacity: .32;
+}
+.orbs, .sheen, .embers, .grain { display: none; }
+body::before, body::after { display: none; }
+
+.wrap { max-width: 1240px; }
+
+header {
+  min-height: 54px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  text-align: left;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.logo {
+  gap: 10px;
+  font-family: var(--font);
+  font-size: 21px;
+  font-weight: 720;
+  letter-spacing: -.025em;
+}
+.logo svg { width: 24px; height: 24px; }
+.tagline { margin: 3px 0 0 34px; font-size: 13px; }
+.controls { position: static; margin-left: auto; }
+.ctl {
+  height: 38px;
+  background-color: var(--surface-raised);
+  border-color: var(--glass-border);
+  border-radius: var(--r-sm);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.modes {
+  max-width: 440px;
+  margin: 0 0 20px;
+  padding: 3px;
+  gap: 3px;
+  background: var(--surface-muted);
+  border-color: var(--glass-border);
+  border-radius: var(--r-md);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.modes-thumb {
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 4.5px);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(var(--r-md) - 3px);
+  background: var(--surface-raised);
+  box-shadow: var(--elev-1);
+}
+.modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(100% + 3px)); }
+.mode { min-height: 50px; padding: 7px 12px; border-radius: calc(var(--r-md) - 3px); }
+.mode[aria-selected="true"], .mode[aria-selected="true"]:hover { color: var(--text); }
+.mode[aria-selected="true"] .mode-sub { color: var(--muted); }
+.modes-note { justify-content: flex-start; margin: -12px 0 18px 4px; }
+
+.card {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.card::before, .card::after { display: none; }
+
+.form-section { padding: 25px 28px 27px; }
+.section-head {
+  gap: 9px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.section-index {
+  width: auto;
+  height: auto;
+  min-width: 23px;
+  padding-right: 8px;
+  clip-path: none;
+  border-right: 1px solid var(--field-border);
+  color: var(--accent);
+  background: none;
+  font-size: 11px;
+}
+
+input[type="text"], textarea, select.fld {
+  background-color: var(--field-bg);
+  border-radius: var(--r-sm);
+}
+input[type="text"]:focus, textarea:focus, select.fld:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.segment, .seg-roles { background: var(--surface-muted); border-radius: var(--r-sm); }
+.segment .thumb, .seg-thumb {
+  background: var(--surface-selected);
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--field-border));
+  box-shadow: none;
+}
+.segment input:checked + span,
+.seg-item[aria-checked="true"],
+.seg-item[aria-checked="true"]:hover { color: var(--text); }
+
+.more { border-color: var(--glass-border); }
+.more-head { padding: 15px 28px; }
+.more-toggle {
+  border-radius: var(--r-sm);
+  background: var(--field-bg);
+}
+.more-toggle[aria-expanded="true"] { background: var(--surface-selected); }
+.more-pad { padding: 5px 28px 28px; }
+
+.submit-zone {
+  grid-template-columns: 1fr auto;
+  justify-items: stretch;
+  align-items: center;
+  padding: 18px 28px;
+  background: var(--surface-muted);
+  border-color: var(--glass-border);
+}
+.submit-row { justify-content: flex-end; grid-column: 2; }
+.status { grid-column: 1; grid-row: 1; text-align: left; }
+.btn {
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  box-shadow: var(--elev-1);
+  font-weight: 650;
+}
+.btn::after { display: none; }
+.btn:hover:not(:disabled) { box-shadow: var(--elev-2); }
+.btn-ghost { background: var(--field-bg); }
+
+#result { border-radius: var(--r-lg); }
+#result:hover { transform: none; box-shadow: var(--shadow); }
+.chip, .side-badge { border-radius: var(--r-xs); }
+pre#promptText { border-radius: var(--r-sm); }
+.feedback { border-color: var(--glass-border); }
+.modal-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.modal { border-radius: var(--r-lg); }
+.modal li::before { border-radius: 50%; transform: none; background: var(--accent); }
+
+@media (max-width: 760px) {
+  body { padding: 18px 14px 48px; }
+  header { display: block; min-height: 0; }
+  .tagline { margin-left: 34px; }
+  .controls { margin-top: 14px; }
+  .modes { max-width: none; }
+  .form-section { padding: 21px 18px 23px; }
+  .more-head { padding: 14px 18px; }
+  .more-pad { padding: 4px 18px 22px; }
+  .submit-zone { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 17px 18px; }
+  .submit-row, .status { grid-column: 1; }
+  .submit-row { grid-row: 1; }
+  .status { grid-row: 2; text-align: center; }
+}
 </style>
 </head>
 <body>
@@ -1432,24 +1682,15 @@ pre#promptText::-webkit-scrollbar-thumb {
 <div class="wrap">
   <header>
     <div class="logo">
-      <!-- Эмблема: гранёный «древний» с ядром, рассечённым по диагонали на
-           половину Radiant и половину Dire. Обе фракции в одном знаке — это и
-           есть тема интерфейса. -->
+      <!-- Знак рабочего пространства: две стороны и диагональ карты без
+           буквального игрового глифа или декоративной огранки. -->
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M12 2.6 21 7.4v9.2L12 21.4 3 16.6V7.4z" stroke="url(#g)"
-              stroke-width="1.7" stroke-linejoin="round"/>
-        <path d="M12 8.1 16.2 10.4v4.6L12 17.3 7.8 15V10.4z" fill="url(#core)" opacity=".9"/>
-        <path d="M12 8.1v9.2" stroke="var(--bg)" stroke-width=".9" opacity=".55"/>
-        <defs>
-          <linearGradient id="g" x1="3" y1="2" x2="21" y2="21">
-            <stop stop-color="#6d6df0"/><stop offset="1" stop-color="#a274f5"/>
-          </linearGradient>
-          <linearGradient id="core" x1="7.8" y1="17" x2="16.2" y2="8">
-            <stop stop-color="var(--radiant)"/>
-            <stop offset=".5" stop-color="var(--accent)"/>
-            <stop offset="1" stop-color="var(--dire)"/>
-          </linearGradient>
-        </defs>
+        <rect x="3" y="3" width="18" height="18" rx="5" stroke="var(--field-hover)"
+              stroke-width="1.5"/>
+        <path d="M7 17 17 7" stroke="var(--accent)" stroke-width="2"
+              stroke-linecap="round"/>
+        <circle cx="7.2" cy="16.8" r="2" fill="var(--radiant)"/>
+        <circle cx="16.8" cy="7.2" r="2" fill="var(--dire)"/>
       </svg>
       <span data-i18n="title">dota2coach</span>
     </div>
