@@ -859,6 +859,8 @@ UI = {
     "explorer.source": "OpenDota",
     "explorer.quality.minute": "minute-level data",
     "explorer.quality.partial": "partial data",
+    "explorer.range.all": "full match",
+    "explorer.range.active": "window {start}–{end} min",
     "explorer.title": "{hero} · match {match_id}",
     "explorer.meta": "{side} · {result} · {duration} · patch {patch}",
     "explorer.metric.kda": "KDA",

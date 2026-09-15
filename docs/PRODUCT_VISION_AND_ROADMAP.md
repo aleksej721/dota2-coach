@@ -442,9 +442,9 @@ hosted-вариант потребует object storage, очереди и от�
 Текущий статус: foundation, versioned `overview` API и первый рабочий Explorer
 реализованы. В нём уже есть сводные показатели, четыре ряда, скорборд, сигналы,
 objectives, fights, draft/build и переход из fight в time-range. Следующая
-итерация Phase 1 — единый временной state для всех блоков и регрессионная
-UI-проверка без ручного просмотра. Bounded retry, parsed cache и partial fallback
-для OpenDota уже реализованы.
+итерация Phase 1 — регрессионная UI-проверка без ручного просмотра. Единый
+временной state, bounded retry, parsed cache и partial fallback для OpenDota уже
+реализованы.
 
 1. Новая information architecture и дизайн-токены без Liquid Glass как основы.
 2. Desktop/mobile shell, навигация матча и единый time-range state.

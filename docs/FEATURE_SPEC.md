@@ -22,6 +22,9 @@ advantage, hero-benchmark signals, draft, purchases, objectives и teamfights.
 Match Explorer показывает эти факты до coach-prompt. Клик по teamfight переносит
 окно с запасом в тот же `window_start/window_end`, который уже использует
 `Policy`: так визуальное исследование и следующая генерация не расходятся.
+Ползунок является единым browser-state: его изменение сразу сужает график,
+objectives, fights и purchase timeline; финальные карточки и scoreboard остаются
+итоговыми и поэтому явно не меняют смысл при зуме.
 
 Контракт намеренно сообщает `has_positions=false` и `has_tick_data=false` для
 OpenDota. Будущий replay engine расширит точность через отдельный query-contract,

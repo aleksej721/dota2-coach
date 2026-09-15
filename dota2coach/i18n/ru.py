@@ -873,6 +873,8 @@ UI = {
     "explorer.source": "OpenDota",
     "explorer.quality.minute": "данные по минутам",
     "explorer.quality.partial": "неполные данные",
+    "explorer.range.all": "весь матч",
+    "explorer.range.active": "окно {start}–{end} мин",
     "explorer.title": "{hero} · матч {match_id}",
     "explorer.meta": "{side} · {result} · {duration} · патч {patch}",
     "explorer.metric.kda": "KDA",

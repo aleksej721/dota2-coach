@@ -2165,6 +2165,7 @@ pre#promptText { border-radius: var(--r-sm); }
         <div class="workspace-kicker">
           <span class="source-badge" id="workspaceSource"></span>
           <span class="quality-badge" id="workspaceQuality"></span>
+          <span class="quality-badge" id="workspaceRange"></span>
         </div>
         <h2 class="workspace-title" id="workspaceTitle"></h2>
         <p class="workspace-meta" id="workspaceMeta"></p>
@@ -2601,8 +2602,12 @@ pre#promptText { border-radius: var(--r-sm); }
     $("rangeWrap").dataset.off = String(!windowOn.checked);
   };
 
-  wStart.addEventListener("input", syncRange);
-  wEnd.addEventListener("input", syncRange);
+  for (const input of [wStart, wEnd]) {
+    input.addEventListener("input", () => {
+      syncRange();
+      refreshExplorerWindow();
+    });
+  }
 
   /* Пока ручку тащат, у заливки и подписей не должно быть ни одного перехода:
      нативная ручка идёт за курсором в том же кадре, а всё, что анимируется,
@@ -2623,6 +2628,7 @@ pre#promptText { border-radius: var(--r-sm); }
   }
   windowOn.addEventListener("change", () => {
     syncRange();
+    refreshExplorerWindow();
     if (windowOn.checked) wStart.focus({ preventScroll: true });
   });
 
@@ -3150,6 +3156,16 @@ pre#promptText { border-radius: var(--r-sm); }
     return role || "—";
   };
 
+  const activeExplorerWindow = () => windowOn.checked
+    ? { start: Number(wStart.value), end: Number(wEnd.value) }
+    : null;
+
+  const eventInsideWindow = (seconds, windowState) => !windowState
+    || (Number(seconds) / 60 >= windowState.start && Number(seconds) / 60 <= windowState.end);
+
+  const fightInsideWindow = (fight, windowState) => !windowState
+    || (Number(fight.end) / 60 >= windowState.start && Number(fight.start) / 60 <= windowState.end);
+
   function renderOverviewCards(overview, me) {
     const host = $("overviewCards");
     host.replaceChildren();
@@ -3277,8 +3293,9 @@ pre#promptText { border-radius: var(--r-sm); }
     const host = $("buildList");
     host.replaceChildren();
     let itemCount = 0;
+    const windowState = activeExplorerWindow();
     for (const player of overview.players || []) {
-      const items = (player.items || []).filter((item) => item.key);
+      const items = (player.items || []).filter((item) => item.key && eventInsideWindow(item.time, windowState));
       if (!items.length) continue;
       itemCount += items.length;
       const row = makeNode("div", "build-row");
@@ -3295,14 +3312,15 @@ pre#promptText { border-radius: var(--r-sm); }
       row.append(hero, flow);
       host.append(row);
     }
-    if (!itemCount) host.append(makeNode("div", "empty-state", t("explorer.builds.empty")));
+    if (!itemCount) host.append(makeNode("div", "empty-state",
+      windowState ? t("explorer.empty") : t("explorer.builds.empty")));
   }
 
   function renderObjectives(overview) {
     const host = $("objectiveList");
     host.replaceChildren();
     const objectives = (overview.objectives || [])
-      .filter((objective) => !objective.minor)
+      .filter((objective) => !objective.minor && eventInsideWindow(objective.time, activeExplorerWindow()))
       .sort((a, b) => Number(a.time) - Number(b.time));
     if (!objectives.length) { host.append(emptyState()); return; }
 
@@ -3326,7 +3344,10 @@ pre#promptText { border-radius: var(--r-sm); }
   function renderFights(overview) {
     const host = $("fightList");
     host.replaceChildren();
-    const fights = [...(overview.teamfights || [])].sort((a, b) => Number(a.start) - Number(b.start));
+    const windowState = activeExplorerWindow();
+    const fights = [...(overview.teamfights || [])]
+      .filter((fight) => fightInsideWindow(fight, windowState))
+      .sort((a, b) => Number(a.start) - Number(b.start));
     if (!fights.length) { host.append(emptyState()); return; }
     const radiant = overview.perspective && overview.perspective.side === "radiant";
     for (const fight of fights) {
@@ -3354,6 +3375,7 @@ pre#promptText { border-radius: var(--r-sm); }
         wStart.value = start;
         wEnd.value = end;
         syncRange();
+        refreshExplorerWindow();
         savePrefs();
         $("rangeWrap").scrollIntoView({ behavior: "smooth", block: "center" });
       });
@@ -3386,7 +3408,13 @@ pre#promptText { border-radius: var(--r-sm); }
       networth: [me.series && me.series.net_worth, "explorer.chart.networth", false],
       last_hits: [me.series && me.series.last_hits, "explorer.chart.last_hits", false],
     }[chartSeries];
-    const values = (config && Array.isArray(config[0]) ? config[0] : []).map(Number).filter(Number.isFinite);
+    let values = (config && Array.isArray(config[0]) ? config[0] : []).map(Number).filter(Number.isFinite);
+    let minuteOffset = 0;
+    const windowState = activeExplorerWindow();
+    if (windowState) {
+      minuteOffset = Math.max(0, Math.floor(windowState.start));
+      values = values.slice(minuteOffset, Math.floor(windowState.end) + 1);
+    }
     if (!values.length) {
       $("chartSummary").textContent = t("explorer.empty");
       svg.append(makeSvg("text", { x: 400, y: 125, "text-anchor": "middle", class: "chart-axis-label" }, t("explorer.empty")));
@@ -3418,7 +3446,7 @@ pre#promptText { border-radius: var(--r-sm); }
     }
     const xTicks = [...new Set([0, Math.round((values.length - 1) / 2), values.length - 1])];
     for (const index of xTicks) {
-      svg.append(makeSvg("text", { x: xAt(index), y: 242, "text-anchor": "middle", class: "chart-axis-label" }, `${index}m`));
+      svg.append(makeSvg("text", { x: xAt(index), y: 242, "text-anchor": "middle", class: "chart-axis-label" }, `${index + minuteOffset}m`));
     }
 
     const points = values.map((value, index) => [xAt(index), yAt(value)]);
@@ -3461,9 +3489,18 @@ pre#promptText { border-radius: var(--r-sm); }
     renderSignals(overview);
     renderScoreboard(overview);
     renderDraft(overview);
-    renderBuilds(overview);
-    renderObjectives(overview);
-    renderFights(overview);
+    refreshExplorerWindow();
+  }
+
+  function refreshExplorerWindow() {
+    if (!currentOverview) return;
+    const windowState = activeExplorerWindow();
+    $("workspaceRange").textContent = windowState
+      ? t("explorer.range.active", windowState)
+      : t("explorer.range.all");
+    renderBuilds(currentOverview);
+    renderObjectives(currentOverview);
+    renderFights(currentOverview);
     renderChart();
   }
 
