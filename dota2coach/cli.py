@@ -16,7 +16,8 @@ from .policy import DEPTHS, FOCUSES, ROLES, Policy
 from .profile import DEFAULT_MATCHES, MAX_MATCHES, MIN_MATCHES
 from .render import DEFAULT_MODEL, MODELS, resolve_depth
 from .replay import (COMMAND_NAMES, DemoFormatError, ReplayInputError,
-                     inspect_replay_file, scan_replay_file)
+                     NativeReplayError, inspect_replay_file, native_scan,
+                     scan_replay_file)
 from .sources.base import DataSourceError
 
 
@@ -94,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan.add_argument("path", help="путь к Source 2 replay (.dem)")
     scan.add_argument("--json", action="store_true", help="вывести machine-readable JSON")
+    decode = replay_sub.add_parser(
+        "decode", help="распаковать Snappy/protobuf/network framing нативным C++ engine"
+    )
+    decode.add_argument("path", help="путь к Source 2 replay (.dem)")
+    decode.add_argument("--json", action="store_true", help="вывести machine-readable JSON")
     return parser
 
 
@@ -199,6 +205,23 @@ def run_serve(args: argparse.Namespace) -> int:
 
 
 def run_replay(args: argparse.Namespace) -> int:
+    if args.replay_command == "decode":
+        try:
+            payload = native_scan(args.path)
+        except NativeReplayError as exc:
+            print(f"Replay отклонён: {exc}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        else:
+            info = payload.get("file_info") or {}
+            print("Replay распакован C++ engine:")
+            print(f"  match: {info.get('match_id', 'unknown')}")
+            print(f"  команды: {payload.get('command_count', 0)}")
+            print(f"  network messages: {payload.get('network_message_count', 0)}")
+            print(f"  server classes: {payload.get('class_count', 0)}")
+            print("  следующий этап: send tables + entity state")
+        return 0
     if args.replay_command == "scan":
         try:
             index = scan_replay_file(args.path)

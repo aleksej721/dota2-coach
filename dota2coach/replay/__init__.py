@@ -7,6 +7,7 @@ store and never depends on Manta, Clarity or raw protobuf names directly.
 from .contracts import (Checkpoint, Event, Provenance, ReplayManifest, ReplayQuery,
                         ReplaySlice, StateDelta, TruthLevel)
 from .ingest import ReplayFileInfo, ReplayInputError, inspect_replay_file
+from .native import NativeReplayError, find_native_engine, native_scan
 from .framing import (COMMAND_NAMES, COMPRESSED_FLAG, DemoCommand, DemoFormatError,
                       DemoHeader, DemoIndex, DemoReader, scan_replay_file)
 from .store import CanonicalReplayStore
@@ -22,6 +23,7 @@ __all__ = [
     "DemoHeader",
     "DemoIndex",
     "DemoReader",
+    "NativeReplayError",
     "Provenance",
     "ReplayManifest",
     "ReplayFileInfo",
@@ -31,5 +33,7 @@ __all__ = [
     "StateDelta",
     "TruthLevel",
     "inspect_replay_file",
+    "find_native_engine",
+    "native_scan",
     "scan_replay_file",
 ]

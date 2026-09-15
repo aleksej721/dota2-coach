@@ -229,6 +229,23 @@ Script, Formspree, свой эндпоинт): это единственный �
 
 ## Запуск: CLI
 
+### Native Replay Engine (C++)
+
+Высокоточный replay parser развивается как отдельное C++17-ядро, а Python
+приложение запускает его через ограниченный subprocess. Локальная сборка не
+требует внешних библиотек:
+
+```bash
+make -C replay_engine test all
+python -m dota2coach replay decode replay-cache/match.dem --json
+```
+
+Первый native slice уже выполняет mmap/framing, Snappy, protobuf wire validation
+и framing внутренних network messages. Send tables, serializers и entity deltas
+— следующий слой; текущая команда честно не выдаёт их за готовые координаты или
+события. Путь к отдельно установленному бинарю можно задать переменной
+`DOTA2_REPLAY_ENGINE_BIN`.
+
 ```bash
 python -m dota2coach analyze 8931432366 --me 123456789
 ```
