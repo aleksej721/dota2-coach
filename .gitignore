@@ -20,3 +20,8 @@ venv/
 
 # --- Отзывы пользователей (локальный файл) ---
 feedback.jsonl
+
+# --- Локальные Dota replay и будущий content-addressed cache ---
+*.dem
+*.dem.bz2
+replay-cache/

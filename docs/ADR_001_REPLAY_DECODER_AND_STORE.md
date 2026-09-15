@@ -28,6 +28,13 @@ Replay Engine делится на четыре границы:
 Это correctness oracle в памяти: бинарный или columnar backend позже обязан
 давать тот же наблюдаемый результат запросов.
 
+Первый decoder-independent слой также реализован: `replay/framing.py` владеет
+внешним контейнером `PBDEMS2`. Он потоково читает фиксированный header и кадры
+`command/tick/size/body`, проверяет offsets, uint32 varints, лимиты и truncation,
+считает неизвестные command ID и строит seek-index по `DEM_SyncTick` и
+`DEM_FullPacket`. Payload при индексировании не удерживается в памяти. Это ещё
+не Dota decoder: Snappy/protobuf, send tables и entities остаются за адаптером.
+
 Каждый факт имеет `TruthLevel`:
 
 * `observed` — прочитан прямо из replay;

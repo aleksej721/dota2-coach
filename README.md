@@ -10,10 +10,13 @@ ChatGPT/Claude и получаешь разбор игры как от трен�
 * **Профиль** — последние N матчей игрока сводятся в кросс-матчевую выжимку и
   разбираются на предмет того, что **повторяется**.
 
-Фундамент собственного replay engine уже доступен отдельно: команда
-`python -m dota2coach replay inspect <путь.dem>` потоково проверяет Source 2
-magic, лимит размера и SHA-256 файла, не изменяя его. Подключение decoder идёт
-через контракт из `dota2coach/replay/`.
+Фундамент собственного replay engine уже доступен отдельно. Команда
+`python -m dota2coach replay inspect <путь.dem>` потоково проверяет фиксированный
+Source 2 header, лимит размера и SHA-256 файла. Команда
+`python -m dota2coach replay scan <путь.dem>` строго проходит весь контейнер без
+сохранения payload в памяти и строит первый seek-индекс: диапазон ticks, частоты
+команд, compressed frames, `DEM_FullPacket` и границу playback. Protobuf/entity
+decoder подключается поверх независимого контракта из `dota2coach/replay/`.
 
 Вывод инструмента — это начало разговора, а не финальный вердикт: модель обязана
 предложить конкурирующие гипотезы и задать вопросы, на которые данных нет.
@@ -613,7 +616,7 @@ CLI и веб — две тонкие обёртки над `core.generate_promp
 | [`policy.py`](dota2coach/policy.py) | что показывать: роль, тиры, глубина, focus, окно и заметка |
 | [`features.py`](dota2coach/features.py) | отбор фактов и производные (переломы, сборки, исходы боёв) |
 | [`overview.py`](dota2coach/overview.py) | versioned JSON-проекция скорборда, рядов и событий для Match Explorer |
-| [`replay/`](dota2coach/replay) | decoder-independent contracts и reference store для точных replay-фактов и time-range queries |
+| [`replay/`](dota2coach/replay) | строгий PBDEMS2 frame reader, seek-index, decoder-independent contracts и reference store |
 | [`bundle.py`](dota2coach/bundle.py) | форматирование промпта |
 | [`web/app.py`](dota2coach/web/app.py) | FastAPI: страница, `POST /api/analyze` и `POST /api/profile` |
 | [`web/static/index.html`](dota2coach/web/static/index.html) | вся страница: вёрстка, стили и скрипт в одном файле |
@@ -662,6 +665,20 @@ Engine получит своё каноническое хранилище и qu
 из него продолжит возвращать нынешний компактный `Match`. Благодаря этому
 `FeatureExtractor`, `BundleBuilder` и CLI сохранят обратную совместимость, а
 точные deep-dive сценарии смогут обращаться к replay-данным без потери деталей.
+
+### Replay Engine: первый слой
+
+```bash
+python -m dota2coach replay inspect /path/to/match.dem
+python -m dota2coach replay scan /path/to/match.dem --json
+```
+
+`scan` читает replay одним проходом и с ограниченной памятью. Он проверяет
+16-байтовый `PBDEMS2` header, каждый `uvarint32` и размер payload, точность
+служебных offsets и усечённые кадры. Неизвестные command ID не теряются, а идут
+в coverage-счётчик. На этом этапе payload намеренно не распаковывается и не
+трактуется как Dota-события: следующий слой — изолированный protobuf/Snappy
+decoder adapter, который будет выбран benchmark'ом на реальных `.dem`.
 
 Что именно попадает в промпт, из какого поля OpenDota и в каком режиме — в
 [docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md). По какому дизайн-коду собрана

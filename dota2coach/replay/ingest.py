@@ -5,8 +5,9 @@ import pathlib
 from dataclasses import dataclass
 from typing import Union
 
+from .framing import (HEADER_SIZE, SOURCE2_MAGIC, DemoFormatError,
+                      parse_demo_header)
 
-SOURCE2_MAGIC = b"PBDEMS2\x00"
 DEFAULT_MAX_REPLAY_BYTES = 2 * 1024 * 1024 * 1024
 HASH_CHUNK_BYTES = 1024 * 1024
 
@@ -20,6 +21,8 @@ class ReplayFileInfo:
     path: pathlib.Path
     size_bytes: int
     content_sha256: str
+    file_info_offset: int
+    spawn_groups_offset: int
     magic: str = "PBDEMS2"
 
 
@@ -33,7 +36,7 @@ def inspect_replay_file(path: Union[str, pathlib.Path],
         raise ReplayInputError(f"replay file is not readable: {candidate}") from exc
     if not candidate.is_file():
         raise ReplayInputError(f"replay path is not a regular file: {candidate}")
-    if stat.st_size < len(SOURCE2_MAGIC):
+    if stat.st_size < HEADER_SIZE:
         raise ReplayInputError("file is too small to be a Dota 2 Source 2 replay")
     if max_bytes <= 0:
         raise ValueError("max_bytes must be positive")
@@ -45,12 +48,12 @@ def inspect_replay_file(path: Union[str, pathlib.Path],
     digest = hashlib.sha256()
     try:
         with candidate.open("rb") as stream:
-            magic = stream.read(len(SOURCE2_MAGIC))
-            if magic != SOURCE2_MAGIC:
-                raise ReplayInputError(
-                    "unexpected replay magic; expected a Source 2 PBDEMS2 file"
-                )
-            digest.update(magic)
+            fixed_header = stream.read(HEADER_SIZE)
+            try:
+                header = parse_demo_header(fixed_header, file_size=stat.st_size)
+            except DemoFormatError as exc:
+                raise ReplayInputError(str(exc)) from exc
+            digest.update(fixed_header)
             while True:
                 chunk = stream.read(HASH_CHUNK_BYTES)
                 if not chunk:
@@ -65,4 +68,6 @@ def inspect_replay_file(path: Union[str, pathlib.Path],
         path=candidate,
         size_bytes=stat.st_size,
         content_sha256=digest.hexdigest(),
+        file_info_offset=header.file_info_offset,
+        spawn_groups_offset=header.spawn_groups_offset,
     )

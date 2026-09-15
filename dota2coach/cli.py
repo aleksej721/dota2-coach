@@ -15,7 +15,8 @@ from .i18n import DEFAULT_LANG, LANGUAGES
 from .policy import DEPTHS, FOCUSES, ROLES, Policy
 from .profile import DEFAULT_MATCHES, MAX_MATCHES, MIN_MATCHES
 from .render import DEFAULT_MODEL, MODELS, resolve_depth
-from .replay import ReplayInputError, inspect_replay_file
+from .replay import (COMMAND_NAMES, DemoFormatError, ReplayInputError,
+                     inspect_replay_file, scan_replay_file)
 from .sources.base import DataSourceError
 
 
@@ -88,6 +89,11 @@ def build_parser() -> argparse.ArgumentParser:
     inspect = replay_sub.add_parser("inspect", help="безопасно проверить и идентифицировать .dem")
     inspect.add_argument("path", help="путь к Source 2 replay (.dem)")
     inspect.add_argument("--json", action="store_true", help="вывести machine-readable JSON")
+    scan = replay_sub.add_parser(
+        "scan", help="потоково проверить контейнер и построить tick/seek-индекс"
+    )
+    scan.add_argument("path", help="путь к Source 2 replay (.dem)")
+    scan.add_argument("--json", action="store_true", help="вывести machine-readable JSON")
     return parser
 
 
@@ -193,6 +199,46 @@ def run_serve(args: argparse.Namespace) -> int:
 
 
 def run_replay(args: argparse.Namespace) -> int:
+    if args.replay_command == "scan":
+        try:
+            index = scan_replay_file(args.path)
+        except DemoFormatError as exc:
+            print(f"Replay отклонён: {exc}", file=sys.stderr)
+            return 1
+        command_counts = {
+            COMMAND_NAMES.get(command_id, f"UNKNOWN_{command_id}"): count
+            for command_id, count in index.command_counts.items()
+        }
+        payload = {
+            "path": str(index.path),
+            "size_bytes": index.file_size,
+            "content_sha256": index.content_sha256,
+            "file_info_offset": index.header.file_info_offset,
+            "spawn_groups_offset": index.header.spawn_groups_offset,
+            "command_count": index.command_count,
+            "compressed_command_count": index.compressed_command_count,
+            "first_tick": index.first_tick,
+            "last_tick": index.last_tick,
+            "distinct_tick_count": index.distinct_tick_count,
+            "playback_offset": index.playback_offset,
+            "full_packet_count": len(index.full_packets),
+            "command_counts": command_counts,
+            "status": "container_indexed",
+        }
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        else:
+            print("Replay-контейнер проверен и проиндексирован:")
+            print(f"  файл: {payload['path']}")
+            print(f"  размер: {payload['size_bytes']} байт")
+            print(f"  SHA-256: {payload['content_sha256']}")
+            print(f"  команды: {payload['command_count']} "
+                  f"({payload['compressed_command_count']} compressed)")
+            print(f"  ticks: {payload['first_tick']}..{payload['last_tick']} "
+                  f"({payload['distinct_tick_count']} уникальных)")
+            print(f"  full packets: {payload['full_packet_count']}")
+            print("  следующий этап: protobuf decoder adapter")
+        return 0
     if args.replay_command != "inspect":
         return 2
     try:
@@ -205,6 +251,8 @@ def run_replay(args: argparse.Namespace) -> int:
         "size_bytes": info.size_bytes,
         "content_sha256": info.content_sha256,
         "magic": info.magic,
+        "file_info_offset": info.file_info_offset,
+        "spawn_groups_offset": info.spawn_groups_offset,
         "status": "ready_for_decoder",
     }
     if args.json:
