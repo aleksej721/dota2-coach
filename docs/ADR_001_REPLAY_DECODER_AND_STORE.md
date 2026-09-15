@@ -1,6 +1,6 @@
 # ADR-001 — decoder boundary и canonical replay store
 
-Статус: **accepted for implementation; decoder winner pending benchmark**.
+Статус: **superseded in части runtime-языка by ADR-002; contracts accepted**.
 
 Дата: 2026-09-15.
 
@@ -59,8 +59,9 @@ combat log, modifiers, user/game events и raw protobuf; в официальны
 [skadistats/clarity](https://github.com/skadistats/clarity) и
 [clarity-examples](https://github.com/skadistats/clarity-examples).
 
-Победитель **не выбран заранее**. В репозитории пока нет `.dem`-корпуса, поэтому
-любое число скорости сейчас было бы выдумкой.
+Production runtime выбран после первого реального benchmark: собственное C++
+ядро. Manta и Clarity остаются обязательными correctness/coverage oracle. См.
+[ADR-002](ADR_002_NATIVE_CPP_REPLAY_ENGINE.md).
 
 Container-only baseline уже измерен на публичном fixture Manta и хранится в
 [REPLAY_BENCHMARKS.md](REPLAY_BENCHMARKS.md). Он проверяет наш framing/index,

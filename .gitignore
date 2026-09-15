@@ -25,3 +25,4 @@ feedback.jsonl
 *.dem
 *.dem.bz2
 replay-cache/
+replay_engine/build/

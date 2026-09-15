@@ -42,3 +42,46 @@ CLI cold-start (`python -m dota2coach replay scan ... --json`) занял 0.53 s
 полного replay engine. Следующий сопоставимый benchmark должен добавить
 Snappy/protobuf decode и canonical event/entity output на этом же fixture и на
 свежем replay текущего build Dota 2.
+
+## B1 — native C++ payload + network framing
+
+Дата: 2026-09-16.
+
+Слой: [`replay_engine`](../replay_engine), C++17. Один memory-mapped проход
+включает outer framing, raw Snappy decompression, protobuf wire validation,
+извлечение `CDemoFileHeader` / `CDemoFileInfo` и packed network framing
+`{UBitVar type, varuint size, body}`. Также структурно декодируются `net_Tick`,
+string-table сообщения и envelope `svc_PacketEntities`; сами entity field paths
+на этом этапе ещё не декодируются.
+
+Тот же fixture `1560315800.dem`:
+
+| Параметр | Значение |
+|---|---:|
+| Outer commands | 53 611 |
+| Snappy blocks | 26 068 |
+| Decoded outer payload | 53 295 410 bytes |
+| Packet data | 48 774 408 bytes |
+| Network messages | 637 783 |
+| Network message bodies | 47 106 875 bytes |
+| Server classes | 666 |
+| `svc_PacketEntities` | 53 581 |
+| Declared entity updates | 2 827 099 |
+| Entity bitstream bytes | 27 573 981 |
+
+Среда: Darwin arm64, Apple Clang 14, `-O3 -std=c++17`. Два warm-up, затем пять
+запусков отдельного процесса (то есть числа включают process startup):
+
+```text
+0.312568, 0.311688, 0.313122, 0.311910, 0.312275 s
+median 0.312275 s
+p95 nearest-rank 0.313122 s
+peak child RSS 49 561 600 bytes
+```
+
+Это близко к Python container-only baseline B0, хотя B1 распаковывает payload,
+разбирает 637 тысяч внутренних сообщений и валидирует 53 тысячи entity
+envelope. Временный Python Snappy/protobuf prototype без этого entity-envelope
+слоя занимал около 1.69 s; после выбора C++ он удалён, чтобы не вести два
+production decoder. Следующий B2 обязан включать generated protobuf,
+send-tables/string-tables и сами entity field paths.
