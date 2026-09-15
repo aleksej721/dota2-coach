@@ -62,6 +62,11 @@ combat log, modifiers, user/game events и raw protobuf; в официальны
 Победитель **не выбран заранее**. В репозитории пока нет `.dem`-корпуса, поэтому
 любое число скорости сейчас было бы выдумкой.
 
+Container-only baseline уже измерен на публичном fixture Manta и хранится в
+[REPLAY_BENCHMARKS.md](REPLAY_BENCHMARKS.md). Он проверяет наш framing/index,
+но не заменяет decoder bake-off: для него по-прежнему нужен свежий replay
+текущего build и одинаковый canonical output Manta/Clarity.
+
 ## Один контракт bake-off
 
 Оба spike обязаны на одном наборе replay выдавать:
