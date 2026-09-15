@@ -1,8 +1,8 @@
 # DESIGN_SYSTEM — аналитическое рабочее пространство
 
 Статус: действующий дизайн-код веб-интерфейса. Страница пока остаётся одним
-самодостаточным [`index.html`](../dota2coach/web/static/index.html), но её
-визуальная система уже рассчитана на будущий Match Explorer из
+самодостаточным [`index.html`](../dota2coach/web/static/index.html), а её
+визуальная система применяется к первому рабочему Match Explorer из
 [`PRODUCT_VISION_AND_ROADMAP.md`](PRODUCT_VISION_AND_ROADMAP.md).
 
 Документ нужен как ограничитель: новая функция переиспользует описанные здесь

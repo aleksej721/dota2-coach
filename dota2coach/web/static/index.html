@@ -1598,6 +1598,250 @@ pre#promptText { border-radius: var(--r-sm); }
 .modal { border-radius: var(--r-lg); }
 .modal li::before { border-radius: 50%; transform: none; background: var(--accent); }
 
+/* Match Explorer ------------------------------------------------------- */
+.workspace {
+  margin-top: 20px;
+  overflow: hidden;
+  animation: reveal .3s var(--m3-decelerate) both;
+}
+.workspace[hidden] { display: none; }
+.workspace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.workspace-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.source-badge, .quality-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-xs);
+  color: var(--muted);
+  background: var(--field-bg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.quality-badge { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 38%, var(--field-border)); }
+.workspace-title { margin: 0; font-size: 24px; line-height: 1.2; letter-spacing: -.025em; }
+.workspace-meta { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+.workspace-body { padding: 20px 24px 24px; }
+
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.metric-card {
+  min-width: 0;
+  padding: 14px 15px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  background: var(--surface-muted);
+}
+.metric-label { color: var(--muted); font-size: 11.5px; font-weight: 650; }
+.metric-value {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 720;
+  line-height: 1.15;
+  letter-spacing: -.025em;
+  font-variant-numeric: tabular-nums;
+}
+.metric-context { display: block; margin-top: 4px; color: var(--faint); font-size: 11.5px; }
+
+.explorer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+.explorer-grid--even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.explorer-panel {
+  min-width: 0;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  background: var(--field-bg);
+  overflow: hidden;
+}
+.explorer-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 16px 12px;
+}
+.explorer-panel-title { margin: 0; font-size: 14px; font-weight: 700; }
+.explorer-panel-sub { margin: 3px 0 0; color: var(--faint); font-size: 11.5px; }
+
+.chart-tabs { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 16px 12px; }
+.chart-tab {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.chart-tab[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--surface-selected);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--field-border));
+}
+.chart-tab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.chart-stage { padding: 0 10px 6px; }
+.overview-chart { display: block; width: 100%; min-height: 235px; overflow: visible; }
+.chart-grid-line { stroke: var(--field-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-zero-line { stroke: var(--field-hover); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.chart-area { fill: color-mix(in srgb, var(--accent) 12%, transparent); }
+.chart-dot { fill: var(--accent); stroke: var(--field-bg); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.chart-axis-label { fill: var(--faint); font: 11px var(--font); font-variant-numeric: tabular-nums; }
+.chart-summary {
+  margin: 0;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--field-border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.signal-list, .event-list { display: grid; gap: 0; }
+.signal-row, .event-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--field-border);
+}
+.signal-mark {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.signal-row[data-kind="strength"] .signal-mark { background: var(--radiant); }
+.signal-row[data-kind="inspect"] .signal-mark { background: var(--warn); }
+.signal-main, .event-main { min-width: 0; color: var(--text); font-size: 12.5px; font-weight: 620; }
+.signal-note, .event-note { display: block; margin-top: 2px; color: var(--faint); font-size: 11.5px; font-weight: 500; }
+.event-action {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.event-action:hover { background: var(--field-hover); }
+.event-action:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.event-action .event-main::after {
+  content: " →";
+  color: var(--accent);
+  opacity: .7;
+}
+.evidence-note {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--field-border);
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.scoreboard-panel { margin-top: 14px; }
+.scoreboard-scroll { overflow-x: auto; scrollbar-color: var(--scroll) transparent; }
+.scoreboard { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.scoreboard th {
+  padding: 9px 12px;
+  border-top: 1px solid var(--field-border);
+  border-bottom: 1px solid var(--field-border);
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .045em;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.scoreboard td {
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--field-border) 74%, transparent);
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.scoreboard th:first-child, .scoreboard td:first-child { text-align: left; }
+.scoreboard tr:last-child td { border-bottom: none; }
+.scoreboard tr[data-me="true"] { background: var(--surface-selected); }
+.hero-cell { display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 650; }
+.side-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dire); flex: none; }
+.side-dot.radiant { background: var(--radiant); }
+.me-mark { color: var(--accent); font-size: 10px; font-weight: 800; }
+
+.event-time {
+  min-width: 42px;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.draft-side { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.build-list { display: grid; }
+.build-row {
+  display: grid;
+  grid-template-columns: minmax(116px, .72fr) minmax(0, 2fr);
+  gap: 12px;
+  align-items: start;
+  padding: 11px 16px;
+  border-top: 1px solid var(--field-border);
+}
+.build-hero { color: var(--text); font-size: 12px; font-weight: 650; }
+.item-flow { display: flex; flex-wrap: wrap; gap: 5px; }
+.item-chip {
+  display: inline-flex;
+  gap: 5px;
+  padding: 3px 6px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-xs);
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.item-chip time { color: var(--accent); }
+.empty-state { padding: 18px 16px; border-top: 1px solid var(--field-border); color: var(--faint); font-size: 12px; }
+
+@media (max-width: 940px) {
+  .overview-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .explorer-grid, .explorer-grid--even { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 760px) {
   body { padding: 18px 14px 48px; }
   header { display: block; min-height: 0; }
@@ -1611,6 +1855,18 @@ pre#promptText { border-radius: var(--r-sm); }
   .submit-row, .status { grid-column: 1; }
   .submit-row { grid-row: 1; }
   .status { grid-row: 2; text-align: center; }
+  .workspace-head { display: block; padding: 19px 18px; }
+  .workspace-head .btn { width: 100%; margin-top: 16px; }
+  .workspace-body { padding: 16px 14px 18px; }
+  .overview-cards { grid-template-columns: 1fr 1fr; }
+  .metric-card { padding: 12px; }
+  .metric-value { font-size: 19px; }
+  .overview-chart { min-height: 210px; }
+}
+
+@media (max-width: 430px) {
+  .overview-cards { grid-template-columns: 1fr; }
+  .workspace-title { font-size: 21px; }
 }
 </style>
 </head>
@@ -1903,6 +2159,127 @@ pre#promptText { border-radius: var(--r-sm); }
   <div class="panel panel-error reveal" id="error" hidden></div>
   <div class="panel panel-warn reveal" id="warning" hidden></div>
 
+  <section class="card workspace" id="workspace" aria-labelledby="workspaceTitle" hidden>
+    <div class="workspace-head">
+      <div>
+        <div class="workspace-kicker">
+          <span class="source-badge" id="workspaceSource"></span>
+          <span class="quality-badge" id="workspaceQuality"></span>
+        </div>
+        <h2 class="workspace-title" id="workspaceTitle"></h2>
+        <p class="workspace-meta" id="workspaceMeta"></p>
+      </div>
+      <button type="button" class="btn btn-ghost ripple" id="openPromptBtn"
+              data-i18n="explorer.open_prompt"></button>
+    </div>
+
+    <div class="workspace-body">
+      <div class="overview-cards" id="overviewCards"></div>
+
+      <div class="explorer-grid">
+        <article class="explorer-panel" aria-labelledby="chartTitle">
+          <div class="explorer-panel-head">
+            <div>
+              <h3 class="explorer-panel-title" id="chartTitle"
+                  data-i18n="explorer.chart.title"></h3>
+              <p class="explorer-panel-sub" data-i18n="explorer.chart.granularity"></p>
+            </div>
+          </div>
+          <div class="chart-tabs" id="chartTabs" role="group"
+               data-i18n-aria="explorer.chart.title">
+            <button type="button" class="chart-tab" data-series="gold" aria-pressed="true"
+                    data-i18n="explorer.chart.gold"></button>
+            <button type="button" class="chart-tab" data-series="xp" aria-pressed="false"
+                    data-i18n="explorer.chart.xp"></button>
+            <button type="button" class="chart-tab" data-series="networth" aria-pressed="false"
+                    data-i18n="explorer.chart.networth"></button>
+            <button type="button" class="chart-tab" data-series="last_hits" aria-pressed="false"
+                    data-i18n="explorer.chart.last_hits"></button>
+          </div>
+          <div class="chart-stage">
+            <svg class="overview-chart" id="overviewChart" viewBox="0 0 800 250"
+                 role="img" aria-labelledby="chartTitle chartSummary"></svg>
+          </div>
+          <p class="chart-summary" id="chartSummary" aria-live="polite"></p>
+        </article>
+
+        <aside class="explorer-panel" aria-labelledby="signalsTitle">
+          <div class="explorer-panel-head">
+            <div>
+              <h3 class="explorer-panel-title" id="signalsTitle"
+                  data-i18n="explorer.signals.title"></h3>
+              <p class="explorer-panel-sub" data-i18n="explorer.signals.sub"></p>
+            </div>
+          </div>
+          <div class="signal-list" id="signalList"></div>
+          <p class="evidence-note" data-i18n="explorer.signals.note"></p>
+        </aside>
+      </div>
+
+      <article class="explorer-panel scoreboard-panel" aria-labelledby="scoreboardTitle">
+        <div class="explorer-panel-head">
+          <div>
+            <h3 class="explorer-panel-title" id="scoreboardTitle"
+                data-i18n="explorer.scoreboard.title"></h3>
+            <p class="explorer-panel-sub" data-i18n="explorer.scoreboard.sub"></p>
+          </div>
+        </div>
+        <div class="scoreboard-scroll">
+          <table class="scoreboard">
+            <thead><tr>
+              <th data-i18n="explorer.scoreboard.hero"></th>
+              <th data-i18n="explorer.scoreboard.role"></th>
+              <th data-i18n="explorer.scoreboard.kda"></th>
+              <th data-i18n="explorer.scoreboard.lh_dn"></th>
+              <th data-i18n="explorer.scoreboard.gpm_xpm"></th>
+              <th data-i18n="explorer.scoreboard.networth"></th>
+              <th data-i18n="explorer.scoreboard.damage"></th>
+            </tr></thead>
+            <tbody id="scoreboardBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <div class="explorer-grid explorer-grid--even">
+        <article class="explorer-panel" aria-labelledby="draftTitle">
+          <div class="explorer-panel-head"><div>
+            <h3 class="explorer-panel-title" id="draftTitle"
+                data-i18n="explorer.draft.title"></h3>
+            <p class="explorer-panel-sub" data-i18n="explorer.draft.sub"></p>
+          </div></div>
+          <div class="event-list" id="draftList"></div>
+        </article>
+        <article class="explorer-panel" aria-labelledby="buildsTitle">
+          <div class="explorer-panel-head"><div>
+            <h3 class="explorer-panel-title" id="buildsTitle"
+                data-i18n="explorer.builds.title"></h3>
+            <p class="explorer-panel-sub" data-i18n="explorer.builds.sub"></p>
+          </div></div>
+          <div class="build-list" id="buildList"></div>
+        </article>
+      </div>
+
+      <div class="explorer-grid explorer-grid--even">
+        <article class="explorer-panel" aria-labelledby="objectivesTitle">
+          <div class="explorer-panel-head"><div>
+            <h3 class="explorer-panel-title" id="objectivesTitle"
+                data-i18n="explorer.objectives.title"></h3>
+            <p class="explorer-panel-sub" data-i18n="explorer.objectives.sub"></p>
+          </div></div>
+          <div class="event-list" id="objectiveList"></div>
+        </article>
+        <article class="explorer-panel" aria-labelledby="fightsTitle">
+          <div class="explorer-panel-head"><div>
+            <h3 class="explorer-panel-title" id="fightsTitle"
+                data-i18n="explorer.fights.title"></h3>
+            <p class="explorer-panel-sub" data-i18n="explorer.fights.sub"></p>
+          </div></div>
+          <div class="event-list" id="fightList"></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <section class="card reveal" id="result" hidden>
     <div class="result-bar">
       <div class="meta">
@@ -2010,6 +2387,7 @@ pre#promptText { border-radius: var(--r-sm); }
   const $ = (id) => document.getElementById(id);
   const form = $("form"), statusEl = $("status"), errorEl = $("error"),
         warnEl = $("warning"), resultEl = $("result"), promptEl = $("promptText"),
+        workspaceEl = $("workspace"),
         submitBtn = $("submitBtn"), depthSeg = $("depth"), hintEl = $("hint"),
         roleSel = $("roleSelect"), focusNote = $("focusNote"), moreEl = $("more"),
         moreToggle = $("moreToggle"), roleFilter = $("roleFilter"),
@@ -2029,6 +2407,8 @@ pre#promptText { border-radius: var(--r-sm); }
   let focusNoteTimer = null;
   let phTimer = null;
   let phIndex = 0;
+  let currentOverview = null;
+  let chartSeries = "gold";
   // Контекст последнего разбора — он же контекст отзыва. account_id сюда
   // намеренно НЕ попадает: он опознаёт человека, а для оценки качества не нужен.
   let fbContext = null;
@@ -2132,7 +2512,8 @@ pre#promptText { border-radius: var(--r-sm); }
       if (mode === btn.dataset.mode) return;
       mode = btn.dataset.mode;
       // Результат предыдущего режима к новому отношения не имеет.
-      hide(errorEl, warnEl, resultEl);
+      hide(errorEl, warnEl, workspaceEl, resultEl);
+      currentOverview = null;
       closeHint();
       applyMode(); savePrefs();
     });
@@ -2403,6 +2784,9 @@ pre#promptText { border-radius: var(--r-sm); }
     document.querySelectorAll("[data-i18n-title]").forEach((el) => {
       el.title = t(el.dataset.i18nTitle);
     });
+    document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+      el.setAttribute("aria-label", t(el.dataset.i18nAria));
+    });
 
     renderRoleOptions();
     renderRoleIcons();
@@ -2422,6 +2806,7 @@ pre#promptText { border-radius: var(--r-sm); }
         role: role ? t("role." + role) : t("role.auto"),
       });
     }
+    if (currentOverview) renderOverview(currentOverview);
     if (!hintEl.hidden) hintEl.hidden = true;
   };
 
@@ -2633,7 +3018,8 @@ pre#promptText { border-radius: var(--r-sm); }
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     closeHint();
-    hide(errorEl, warnEl, resultEl);
+    hide(errorEl, warnEl, workspaceEl, resultEl);
+    currentOverview = null;
 
     const accountId = numOrNull($("accountId").value);
     const request = mode === "profile"
@@ -2715,6 +3101,386 @@ pre#promptText { border-radius: var(--r-sm); }
     };
   }
 
+  /* ============================================================
+     Match Explorer: факты OpenDota отдельно от coach-prompt
+     ============================================================ */
+  const localeForLang = () => ({ ru: "ru-RU", uk: "uk-UA", en: "en-US" })[lang] || "en-US";
+
+  const formatNumber = (value, digits = 0) => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "—";
+    return number.toLocaleString(localeForLang(), {
+      maximumFractionDigits: digits,
+      minimumFractionDigits: 0,
+    });
+  };
+
+  const formatSigned = (value) => {
+    const number = Number(value) || 0;
+    return (number > 0 ? "+" : "") + formatNumber(number);
+  };
+
+  const formatClock = (seconds) => {
+    const raw = Math.round(Number(seconds) || 0);
+    const sign = raw < 0 ? "−" : "";
+    const absolute = Math.abs(raw);
+    return sign + Math.floor(absolute / 60) + ":" + String(absolute % 60).padStart(2, "0");
+  };
+
+  const formatDuration = (seconds) => {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
+  };
+
+  const makeNode = (tag, className, value) => {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (value !== undefined && value !== null) element.textContent = String(value);
+    return element;
+  };
+
+  const emptyState = () => makeNode("div", "empty-state", t("explorer.empty"));
+
+  const roleLabel = (role) => {
+    const key = "role." + role;
+    const value = t(key);
+    if (value !== key) return value;
+    if (role === "core") return "Core";
+    if (role === "support") return "Support";
+    return role || "—";
+  };
+
+  function renderOverviewCards(overview, me) {
+    const host = $("overviewCards");
+    host.replaceChildren();
+    const perspective = overview.perspective || {};
+    const metrics = [
+      ["explorer.metric.kda", `${me.kills || 0} / ${me.deaths || 0} / ${me.assists || 0}`,
+       t("explorer.metric.level", { level: me.level || 0 })],
+      ["explorer.metric.kp", formatNumber(perspective.kill_participation_pct) + "%",
+       t("explorer.metric.team_kills", { kills: perspective.team_kills || 0 })],
+      ["explorer.metric.networth", formatNumber(me.net_worth), `GPM ${formatNumber(me.gpm)}`],
+      ["explorer.metric.last_hits", `${formatNumber(me.last_hits)} / ${formatNumber(me.denies)}`,
+       `XPM ${formatNumber(me.xpm)}`],
+    ];
+    for (const [label, value, context] of metrics) {
+      const card = makeNode("div", "metric-card");
+      card.append(
+        makeNode("span", "metric-label", t(label)),
+        makeNode("strong", "metric-value", value),
+        makeNode("span", "metric-context", context),
+      );
+      host.append(card);
+    }
+  }
+
+  function renderSignals(overview) {
+    const host = $("signalList");
+    host.replaceChildren();
+    const signals = Array.isArray(overview.signals) ? overview.signals : [];
+    if (!signals.length) {
+      host.append(makeNode("div", "empty-state", t("explorer.signals.empty")));
+      return;
+    }
+    for (const signal of signals) {
+      const row = makeNode("div", "signal-row");
+      row.dataset.kind = signal.kind || "inspect";
+      const body = makeNode("div");
+      const metricKey = "explorer.metric." + signal.metric;
+      const translated = t(metricKey);
+      const metric = translated === metricKey ? String(signal.metric || "").replaceAll("_", " ") : translated;
+      body.append(
+        makeNode("div", "signal-main", t("explorer.signal." + signal.kind)),
+        makeNode("span", "signal-note", t("explorer.signal.percentile", {
+          metric: metric,
+          value: formatNumber(signal.raw, 1),
+          percentile: formatNumber(signal.percentile),
+        })),
+      );
+      row.append(makeNode("span", "signal-mark"), body);
+      host.append(row);
+    }
+  }
+
+  function renderScoreboard(overview) {
+    const host = $("scoreboardBody");
+    host.replaceChildren();
+    for (const player of overview.players || []) {
+      const row = document.createElement("tr");
+      row.dataset.me = String(Boolean(player.is_me));
+
+      const heroCell = document.createElement("td");
+      const hero = makeNode("span", "hero-cell");
+      hero.append(
+        makeNode("span", "side-dot" + (player.is_radiant ? " radiant" : "")),
+        makeNode("span", "", player.hero || "—"),
+      );
+      if (player.is_me) hero.append(makeNode("span", "me-mark", "★"));
+      heroCell.append(hero);
+      row.append(heroCell);
+
+      const values = [
+        roleLabel(player.role),
+        `${player.kills || 0} / ${player.deaths || 0} / ${player.assists || 0}`,
+        `${formatNumber(player.last_hits)} / ${formatNumber(player.denies)}`,
+        `${formatNumber(player.gpm)} / ${formatNumber(player.xpm)}`,
+        formatNumber(player.net_worth),
+        formatNumber(player.hero_damage),
+      ];
+      for (const value of values) row.append(makeNode("td", "", value));
+      host.append(row);
+    }
+  }
+
+  function renderDraft(overview) {
+    const host = $("draftList");
+    host.replaceChildren();
+    const draft = [...(overview.draft || [])].sort((a, b) => Number(a.order) - Number(b.order));
+    if (draft.length) {
+      for (const action of draft) {
+        const row = makeNode("div", "event-row");
+        const body = makeNode("div");
+        body.append(
+          makeNode("div", "event-main", action.hero || "—"),
+          makeNode("span", "event-note", action.side || "—"),
+        );
+        row.append(
+          makeNode("span", "draft-side", t(action.is_pick ? "explorer.draft.pick" : "explorer.draft.ban", {
+            order: Number(action.order) + 1,
+          })),
+          body,
+        );
+        host.append(row);
+      }
+      return;
+    }
+
+    for (const side of ["radiant", "dire"]) {
+      const heroes = (overview.players || [])
+        .filter((player) => Boolean(player.is_radiant) === (side === "radiant"))
+        .map((player) => player.hero)
+        .filter(Boolean);
+      if (!heroes.length) continue;
+      const row = makeNode("div", "event-row");
+      const body = makeNode("div");
+      body.append(
+        makeNode("div", "event-main", heroes.join(" · ")),
+        makeNode("span", "event-note", t("explorer.draft.final")),
+      );
+      row.append(makeNode("span", "draft-side", t("result.side." + side)), body);
+      host.append(row);
+    }
+    if (!host.children.length) host.append(emptyState());
+  }
+
+  function renderBuilds(overview) {
+    const host = $("buildList");
+    host.replaceChildren();
+    let itemCount = 0;
+    for (const player of overview.players || []) {
+      const items = (player.items || []).filter((item) => item.key);
+      if (!items.length) continue;
+      itemCount += items.length;
+      const row = makeNode("div", "build-row");
+      const hero = makeNode("div", "build-hero", (player.is_me ? "★ " : "") + (player.hero || "—"));
+      const flow = makeNode("div", "item-flow");
+      for (const item of items) {
+        const chip = makeNode("span", "item-chip");
+        chip.append(
+          makeNode("time", "", formatClock(item.time)),
+          makeNode("span", "", String(item.key).replaceAll("_", " ")),
+        );
+        flow.append(chip);
+      }
+      row.append(hero, flow);
+      host.append(row);
+    }
+    if (!itemCount) host.append(makeNode("div", "empty-state", t("explorer.builds.empty")));
+  }
+
+  function renderObjectives(overview) {
+    const host = $("objectiveList");
+    host.replaceChildren();
+    const objectives = (overview.objectives || [])
+      .filter((objective) => !objective.minor)
+      .sort((a, b) => Number(a.time) - Number(b.time));
+    if (!objectives.length) { host.append(emptyState()); return; }
+
+    for (const objective of objectives) {
+      const row = makeNode("div", "event-row");
+      const body = makeNode("div");
+      const key = "explorer.objective." + objective.kind;
+      const translated = t(key);
+      const params = objective.params || {};
+      const note = [];
+      if (params.attacker || params.victim) note.push(`${params.attacker || "?"} → ${params.victim || "?"}`);
+      if (params.team) note.push(params.team);
+      if (params.short) note.push(params.short.replaceAll("_", " "));
+      body.append(makeNode("div", "event-main", translated === key ? objective.kind : translated));
+      if (note.length) body.append(makeNode("span", "event-note", note.join(" · ")));
+      row.append(makeNode("span", "event-time", formatClock(objective.time)), body);
+      host.append(row);
+    }
+  }
+
+  function renderFights(overview) {
+    const host = $("fightList");
+    host.replaceChildren();
+    const fights = [...(overview.teamfights || [])].sort((a, b) => Number(a.start) - Number(b.start));
+    if (!fights.length) { host.append(emptyState()); return; }
+    const radiant = overview.perspective && overview.perspective.side === "radiant";
+    for (const fight of fights) {
+      const row = makeNode("button", "event-row event-action");
+      row.type = "button";
+      const body = makeNode("div");
+      const range = `${formatClock(fight.start)}–${formatClock(fight.end)}`;
+      row.setAttribute("aria-label", t("explorer.fight.open", { range }));
+      const teamGold = radiant ? fight.radiant_gold_delta : fight.dire_gold_delta;
+      body.append(
+        makeNode("div", "event-main", t("explorer.fight.row", { index: fight.index, range })),
+        makeNode("span", "event-note", t("explorer.fight.note", {
+          damage: formatNumber(fight.me && fight.me.damage),
+          gold: formatSigned(teamGold),
+          deaths: formatNumber(fight.deaths),
+        })),
+      );
+      row.append(makeNode("span", "event-time", formatClock(fight.start)), body);
+      row.addEventListener("click", () => {
+        const max = Number(wEnd.max) || 80;
+        const start = Math.max(0, Math.min(max - 1, Math.floor(Number(fight.start) / 60) - 2));
+        const end = Math.max(start + 1, Math.min(max, Math.ceil(Number(fight.end) / 60) + 2));
+        setAdvanced(true);
+        windowOn.checked = true;
+        wStart.value = start;
+        wEnd.value = end;
+        syncRange();
+        savePrefs();
+        $("rangeWrap").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      host.append(row);
+    }
+  }
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const makeSvg = (tag, attrs, value) => {
+    const element = document.createElementNS(SVG_NS, tag);
+    for (const [name, attr] of Object.entries(attrs || {})) element.setAttribute(name, attr);
+    if (value !== undefined) element.textContent = String(value);
+    return element;
+  };
+
+  const formatAxis = (value) => {
+    const absolute = Math.abs(value);
+    if (absolute >= 1000) return (value / 1000).toLocaleString(localeForLang(), { maximumFractionDigits: 1 }) + "k";
+    return formatNumber(Math.round(value));
+  };
+
+  function renderChart() {
+    if (!currentOverview) return;
+    const svg = $("overviewChart");
+    svg.replaceChildren();
+    const me = (currentOverview.players || []).find((player) => player.is_me) || {};
+    const config = {
+      gold: [currentOverview.economy && currentOverview.economy.radiant_gold_adv, "explorer.chart.gold", true],
+      xp: [currentOverview.economy && currentOverview.economy.radiant_xp_adv, "explorer.chart.xp", true],
+      networth: [me.series && me.series.net_worth, "explorer.chart.networth", false],
+      last_hits: [me.series && me.series.last_hits, "explorer.chart.last_hits", false],
+    }[chartSeries];
+    const values = (config && Array.isArray(config[0]) ? config[0] : []).map(Number).filter(Number.isFinite);
+    if (!values.length) {
+      $("chartSummary").textContent = t("explorer.empty");
+      svg.append(makeSvg("text", { x: 400, y: 125, "text-anchor": "middle", class: "chart-axis-label" }, t("explorer.empty")));
+      return;
+    }
+
+    const advantage = config[2];
+    const label = t(config[1]);
+    const left = 62, right = 18, top = 14, bottom = 34, width = 800 - left - right, height = 250 - top - bottom;
+    let min = Math.min(...values), max = Math.max(...values);
+    if (advantage) {
+      const edge = Math.max(1, Math.abs(min), Math.abs(max));
+      min = -edge; max = edge;
+    } else {
+      min = 0; max = Math.max(1, max);
+    }
+    const xAt = (index) => left + width * index / Math.max(1, values.length - 1);
+    const yAt = (value) => top + height * (max - value) / Math.max(1, max - min);
+
+    for (let index = 0; index <= 4; index += 1) {
+      const ratio = index / 4;
+      const y = top + height * ratio;
+      const value = max - (max - min) * ratio;
+      svg.append(
+        makeSvg("line", { x1: left, y1: y, x2: left + width, y2: y,
+          class: Math.abs(value) < (max - min) / 100 ? "chart-zero-line" : "chart-grid-line" }),
+        makeSvg("text", { x: left - 10, y: y + 4, "text-anchor": "end", class: "chart-axis-label" }, formatAxis(value)),
+      );
+    }
+    const xTicks = [...new Set([0, Math.round((values.length - 1) / 2), values.length - 1])];
+    for (const index of xTicks) {
+      svg.append(makeSvg("text", { x: xAt(index), y: 242, "text-anchor": "middle", class: "chart-axis-label" }, `${index}m`));
+    }
+
+    const points = values.map((value, index) => [xAt(index), yAt(value)]);
+    const line = points.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
+    const baseline = yAt(advantage ? 0 : min);
+    const area = `${line} L${points.at(-1)[0].toFixed(2)},${baseline.toFixed(2)} L${points[0][0].toFixed(2)},${baseline.toFixed(2)} Z`;
+    svg.append(
+      makeSvg("path", { d: area, class: "chart-area" }),
+      makeSvg("path", { d: line, class: "chart-path" }),
+      makeSvg("circle", { cx: points.at(-1)[0], cy: points.at(-1)[1], r: 4, class: "chart-dot" }),
+    );
+    $("chartSummary").textContent = t("explorer.chart.summary", {
+      label,
+      start: formatSigned(values[0]),
+      end: formatSigned(values.at(-1)),
+      min: formatSigned(Math.min(...values)),
+      max: formatSigned(Math.max(...values)),
+    });
+  }
+
+  function renderOverview(overview) {
+    currentOverview = overview;
+    const match = overview.match || {};
+    const perspective = overview.perspective || {};
+    const me = (overview.players || []).find((player) => player.is_me) || {};
+    $("workspaceSource").textContent = t("explorer.source");
+    $("workspaceQuality").textContent = t(overview.quality && overview.quality.parsed
+      ? "explorer.quality.minute" : "explorer.quality.partial");
+    $("workspaceTitle").textContent = t("explorer.title", {
+      hero: perspective.hero || me.hero || "—",
+      match_id: match.match_id || "—",
+    });
+    $("workspaceMeta").textContent = t("explorer.meta", {
+      side: t("result.side." + (perspective.side || "radiant")),
+      result: t(perspective.win ? "result.win" : "result.lose"),
+      duration: formatDuration(match.duration),
+      patch: match.patch || "—",
+    });
+    renderOverviewCards(overview, me);
+    renderSignals(overview);
+    renderScoreboard(overview);
+    renderDraft(overview);
+    renderBuilds(overview);
+    renderObjectives(overview);
+    renderFights(overview);
+    renderChart();
+  }
+
+  $("chartTabs").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-series]");
+    if (!button || button.dataset.series === chartSeries) return;
+    chartSeries = button.dataset.series;
+    for (const tab of $("chartTabs").querySelectorAll("[data-series]")) {
+      tab.setAttribute("aria-pressed", String(tab === button));
+    }
+    renderChart();
+  });
+
+  $("openPromptBtn").addEventListener("click", () => {
+    resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
   function showResult(data) {
     currentFilename = data.filename || "prompt.txt";
     resetFeedback(data);
@@ -2727,6 +3493,13 @@ pre#promptText { border-radius: var(--r-sm); }
     $("chipModel").textContent = m ? m.label : data.model;
 
     const isProfile = mode === "profile";
+    if (!isProfile && data.overview) {
+      renderOverview(data.overview);
+      workspaceEl.hidden = false;
+    } else {
+      currentOverview = null;
+      workspaceEl.hidden = true;
+    }
     // Сторона игрока — только у одиночного разбора: у профиля сторон много.
     const badge = $("sideBadge");
     badge.hidden = isProfile || !data.side;
@@ -2774,7 +3547,8 @@ pre#promptText { border-radius: var(--r-sm); }
       showPanel(warnEl, t("err.warn_title"),
                 body.startsWith("warn.") ? t("warn.unparsed") : body);
     }
-    resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    (workspaceEl.hidden ? resultEl : workspaceEl)
+      .scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   function showError(status, data) {

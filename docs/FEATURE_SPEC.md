@@ -9,6 +9,24 @@
 Оформление веб-страницы этот документ не описывает: дизайн-код живёт отдельно, в
 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
 
+## Browser data-contract
+
+`POST /api/analyze` возвращает не только текстовый `prompt`, но и versioned
+объект `overview`, который строит
+[`overview.py`](../dota2coach/overview.py). Интерфейс не разбирает готовый текст
+обратно и не выдаёт статистический сигнал за тренерский вывод.
+
+В `overview` входят: качество и гранулярность источника, мета матча и POV,
+скорборд десяти игроков, поминутные net worth/XP/CS ряды, командный gold/XP
+advantage, hero-benchmark signals, draft, purchases, objectives и teamfights.
+Match Explorer показывает эти факты до coach-prompt. Клик по teamfight переносит
+окно с запасом в тот же `window_start/window_end`, который уже использует
+`Policy`: так визуальное исследование и следующая генерация не расходятся.
+
+Контракт намеренно сообщает `has_positions=false` и `has_tick_data=false` для
+OpenDota. Будущий replay engine расширит точность через отдельный query-contract,
+не маскируя поминутные данные под посекундные.
+
 ## Принцип отбора
 
 Из OpenDota вытаскиваем максимум, но **экспортируем отобранное**. Причина
