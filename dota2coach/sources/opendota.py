@@ -26,7 +26,8 @@ class OpenDotaSource(DataSource):
 
     def __init__(self, session: requests.Session, constants: Constants, rate_limiter,
                  parse_timeout: Optional[float] = None, poll_interval: float = 6.0,
-                 use_cache: bool = True, cache_dir: Optional[str] = None):
+                 use_cache: bool = True, cache_dir: Optional[str] = None,
+                 retry_attempts: int = 2, retry_backoff: float = 0.6):
         # Ключ API сюда не передаётся: он лежит на сессии (см. core.build_pipeline),
         # и requests добавляет его к каждому запросу сам.
         self._session = session
@@ -39,6 +40,8 @@ class OpenDotaSource(DataSource):
         self._poll_interval = poll_interval
         self._use_cache = use_cache
         self._cache_dir = pathlib.Path(cache_dir or config.cache_dir())
+        self._retry_attempts = max(0, retry_attempts)
+        self._retry_backoff = max(0.0, retry_backoff)
 
     # --- низкоуровневые HTTP-хелперы -----------------------------------------
 
@@ -61,36 +64,69 @@ class OpenDotaSource(DataSource):
         return f" [{ctype}] {body[:limit]}"
 
     def _get(self, path: str, query: Optional[Dict[str, Any]] = None) -> Any:
-        self._rate.acquire()  # вежливость к API перед каждым запросом
-        try:
-            resp = self._session.get(f"{self.BASE}{path}", params=query or {}, timeout=30)
-        except requests.RequestException as e:
-            raise DataSourceError(f"Сетевая ошибка при GET {path}: {e}", KIND_NETWORK)
+        # Короткий bounded retry сглаживает рестарт API и единичный 502, но не
+        # превращает запрос страницы в бесконечное ожидание. Rate limiter
+        # применяется к КАЖДОЙ попытке: повтор — тоже внешний запрос.
+        key_retry_available = True
+        last_network_error = None
+        for attempt in range(self._retry_attempts + 1):
+            self._rate.acquire()
+            try:
+                resp = self._session.get(f"{self.BASE}{path}", params=query or {}, timeout=30)
+            except requests.RequestException as e:
+                last_network_error = e
+                if attempt < self._retry_attempts:
+                    self._retry_delay(attempt)
+                    continue
+                raise DataSourceError(f"Сетевая ошибка при GET {path}: {e}", KIND_NETWORK)
 
-        # Повтор ровно один: ключа на сессии больше нет, и второй раз сюда не зайти.
-        if key_rejected(self._session, resp):
-            drop_key(self._session)
-            return self._get(path, query)
+            # Отвергнутый необязательный ключ пробуем без ключа. Этот повтор не
+            # съедает весь retry budget: проблема авторизации и сбой API — разные
+            # причины, и после drop_key ещё может понадобиться обычный retry.
+            if key_retry_available and key_rejected(self._session, resp):
+                drop_key(self._session)
+                key_retry_available = False
+                return self._get(path, query)
 
-        if resp.status_code == 404:
-            raise DataSourceError(f"OpenDota: ресурс не найден (404) для {path}.",
-                                  KIND_NOT_FOUND)
-        if resp.status_code == 429:
-            raise DataSourceError(
-                "OpenDota: превышен лимит запросов (429). Подожди минуту или задай "
-                "OPENDOTA_API_KEY для более высоких лимитов.", KIND_RATE_LIMITED)
-        if resp.status_code >= 500:
-            raise DataSourceError(f"OpenDota временно недоступна (HTTP {resp.status_code}) "
-                                  f"на GET {path}.{self._snippet(resp)}", KIND_UNAVAILABLE)
-        if resp.status_code != 200:
-            raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} на GET "
-                                  f"{path}.{self._snippet(resp)}", KIND_UNAVAILABLE)
-        try:
-            return resp.json()
-        except ValueError:
-            raise DataSourceError(f"OpenDota вернула не-JSON ответ на GET {path} "
-                                  f"(HTTP {resp.status_code}).{self._snippet(resp)}",
-                                  KIND_UNAVAILABLE)
+            if resp.status_code == 404:
+                raise DataSourceError(f"OpenDota: ресурс не найден (404) для {path}.",
+                                      KIND_NOT_FOUND)
+            if resp.status_code == 429:
+                if attempt < self._retry_attempts:
+                    self._retry_delay(attempt, resp)
+                    continue
+                raise DataSourceError(
+                    "OpenDota: превышен лимит запросов (429). Подожди минуту или задай "
+                    "OPENDOTA_API_KEY для более высоких лимитов.", KIND_RATE_LIMITED)
+            if resp.status_code >= 500:
+                if attempt < self._retry_attempts:
+                    self._retry_delay(attempt, resp)
+                    continue
+                raise DataSourceError(f"OpenDota временно недоступна (HTTP {resp.status_code}) "
+                                      f"на GET {path}.{self._snippet(resp)}", KIND_UNAVAILABLE)
+            if resp.status_code != 200:
+                raise DataSourceError(f"OpenDota вернула HTTP {resp.status_code} на GET "
+                                      f"{path}.{self._snippet(resp)}", KIND_UNAVAILABLE)
+            try:
+                return resp.json()
+            except ValueError:
+                raise DataSourceError(f"OpenDota вернула не-JSON ответ на GET {path} "
+                                      f"(HTTP {resp.status_code}).{self._snippet(resp)}",
+                                      KIND_UNAVAILABLE)
+
+        # Недостижимо, но явно сохраняет тип ошибки при изменении цикла.
+        raise DataSourceError(f"Сетевая ошибка при GET {path}: {last_network_error}", KIND_NETWORK)
+
+    def _retry_delay(self, attempt: int, resp: Optional[requests.Response] = None) -> None:
+        """Backoff с ограничением; Retry-After у OpenDota имеет приоритет."""
+        delay = self._retry_backoff * (2 ** attempt)
+        if resp is not None:
+            try:
+                delay = max(delay, float(resp.headers.get("Retry-After", 0) or 0))
+            except (TypeError, ValueError):
+                pass
+        if delay:
+            time.sleep(min(delay, 3.0))
 
     def _post(self, path: str) -> Any:
         self._rate.acquire()
@@ -114,11 +150,12 @@ class OpenDotaSource(DataSource):
     def _cache_path(self, match_id: int) -> pathlib.Path:
         return self._cache_dir / f"match_{match_id}.json"
 
-    def _cached_match(self, match_id: int) -> Optional[Dict[str, Any]]:
-        """Сыгранный матч неизменен, поэтому распарсенный ответ кэшируем навсегда.
+    def _cached_match(self, match_id: int, require_parsed: bool = True) -> Optional[Dict[str, Any]]:
+        """Читает сохранённый ответ, обычно требуя завершённый parse.
 
         Это экономит запросы к API при повторных прогонах с другими --depth/--focus.
-        Нераспарсенные ответы не кэшируем — их ещё имеет смысл перезапросить.
+        Неполную копию в штатном пути перезапрашиваем, но держим как fallback на
+        случай, когда OpenDota временно перестала отвечать.
         """
         if not self._use_cache:
             return None
@@ -129,14 +166,19 @@ class OpenDotaSource(DataSource):
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
-        return raw if self._is_parsed(raw) else None
+        if not isinstance(raw, dict) or raw.get("match_id") is None:
+            return None
+        return raw if not require_parsed or self._is_parsed(raw) else None
 
     def _store_match(self, match_id: int, raw: Dict[str, Any]) -> None:
-        if not self._use_cache or not self._is_parsed(raw):
+        if not self._use_cache or not isinstance(raw, dict) or raw.get("match_id") is None:
             return
         try:
             self._cache_dir.mkdir(parents=True, exist_ok=True)
-            self._cache_path(match_id).write_text(json.dumps(raw), encoding="utf-8")
+            path = self._cache_path(match_id)
+            temporary = path.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps(raw), encoding="utf-8")
+            temporary.replace(path)
         except OSError:
             pass  # кэш — оптимизация, его отсутствие не должно ломать разбор
 
@@ -186,11 +228,16 @@ class OpenDotaSource(DataSource):
         not_found = DataSourceError(
             f"Матч {match_id} не найден в OpenDota. Проверь ID — он должен быть "
             f"из истории матчей, а не ID лобби или профиля.", KIND_NOT_FOUND)
+        stale = self._cached_match(match_id, require_parsed=False)
         try:
             raw = self._get(f"/matches/{match_id}")
         except DataSourceError as e:
             # У _get сообщение техническое («ресурс не найден для /matches/1»),
             # а пользователю нужно понятное — путь к эндпоинту ему ни о чём не говорит.
+            if stale is not None and e.kind in (KIND_NETWORK, KIND_RATE_LIMITED, KIND_UNAVAILABLE):
+                print(f"      OpenDota недоступна; использую сохранённую базовую копию "
+                      f"матча {match_id}.", flush=True)
+                return normalize.from_opendota(stale, self._constants)
             raise not_found if e.kind == KIND_NOT_FOUND else e
         if raw is None or raw.get("match_id") is None:
             raise not_found
@@ -198,8 +245,19 @@ class OpenDotaSource(DataSource):
         if not self._is_parsed(raw) and allow_parse:
             print(f"      Матч ещё не распарсен OpenDota — запрашиваю парсинг "
                   f"(это может занять до {int(self._parse_timeout)} c)...")
-            self._request_parse_and_wait(match_id)
-            raw = self._get(f"/matches/{match_id}")  # перезабираем уже с деталями
+            # Базовый ответ уже полезен: сохраняем его ДО запроса парсинга. Если
+            # request endpoint или следующий GET упадёт, не теряем скорборд.
+            self._store_match(match_id, raw)
+            try:
+                self._request_parse_and_wait(match_id)
+                refreshed = self._get(f"/matches/{match_id}")
+                if isinstance(refreshed, dict) and refreshed.get("match_id") is not None:
+                    raw = refreshed
+            except DataSourceError as e:
+                if e.kind not in (KIND_NETWORK, KIND_RATE_LIMITED, KIND_UNAVAILABLE):
+                    raise
+                print(f"      Детальный парсинг OpenDota недоступен ({e.kind}); "
+                      f"продолжаю с базовыми данными.", flush=True)
             if not self._is_parsed(raw):
                 print("      Внимание: парсинг не успел завершиться. Продолжаю с тем, "
                       "что есть (Тир 1/2 могут быть неполными).")

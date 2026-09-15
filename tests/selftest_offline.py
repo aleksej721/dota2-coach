@@ -9,6 +9,9 @@ normalize -> FeatureExtractor -> BundleBuilder и печатаем итогов�
 
 import pathlib
 import sys
+import tempfile
+
+import requests
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
@@ -19,6 +22,47 @@ from dota2coach.features import FeatureExtractor
 from dota2coach.overview import build_match_overview
 from dota2coach.policy import FOCUSES, ROLES, ROLE_FOCUSES, Policy
 from dota2coach.render import resolve_depth
+from dota2coach.sources.opendota import OpenDotaSource
+
+
+class _FakeRate:
+    def __init__(self):
+        self.calls = 0
+
+    def acquire(self):
+        self.calls += 1
+
+
+class _FakeResponse:
+    def __init__(self, status, payload=None):
+        self.status_code = status
+        self._payload = payload
+        self.headers = {}
+        self.text = ""
+
+    def json(self):
+        return self._payload
+
+
+class _ScriptedSession:
+    def __init__(self, gets=(), posts=()):
+        self.params = {}
+        self.gets = list(gets)
+        self.posts = list(posts)
+        self.get_calls = 0
+
+    def get(self, *_args, **_kwargs):
+        self.get_calls += 1
+        response = self.gets.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    def post(self, *_args, **_kwargs):
+        response = self.posts.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 def _bench(raw, pct):
@@ -87,6 +131,45 @@ def fake_raw():
         ],
         "players": [me, ally, enemy],
     }
+
+
+def check_opendota_recovery(constants):
+    """Временный сбой не должен стирать уже доступные данные матча."""
+    payload = {"ok": True}
+    session = _ScriptedSession([
+        _FakeResponse(503),
+        _FakeResponse(200, payload),
+    ])
+    rate = _FakeRate()
+    source = OpenDotaSource(session, constants, rate, use_cache=False,
+                            retry_attempts=1, retry_backoff=0)
+    assert source._get("/health-test") == payload
+    assert session.get_calls == 2 and rate.calls == 2
+
+    # Неполный ответ тоже сохраняется. При нормальной работе он обновится, но
+    # во время outage остаётся честный partial overview вместо пустой ошибки.
+    raw = fake_raw()
+    raw["version"] = None
+    with tempfile.TemporaryDirectory() as cache_dir:
+        offline = _ScriptedSession([requests.ConnectionError("offline")])
+        source = OpenDotaSource(offline, constants, _FakeRate(), cache_dir=cache_dir,
+                                retry_attempts=0, retry_backoff=0)
+        source._store_match(raw["match_id"], raw)
+        recovered = source.fetch_match(raw["match_id"], allow_parse=False)
+        assert recovered.match_id == raw["match_id"]
+        assert recovered.parsed is False
+
+    # Если базовый GET прошёл, а endpoint парсинга упал, базовый матч всё равно
+    # возвращается вызывающему коду.
+    parse_down = _ScriptedSession(
+        gets=[_FakeResponse(200, raw)],
+        posts=[_FakeResponse(503)],
+    )
+    with tempfile.TemporaryDirectory() as cache_dir:
+        source = OpenDotaSource(parse_down, constants, _FakeRate(), cache_dir=cache_dir,
+                                parse_timeout=0, retry_attempts=0, retry_backoff=0)
+        partial = source.fetch_match(raw["match_id"])
+        assert partial.parsed is False
 
 
 def check_loc_tokens():
@@ -567,6 +650,7 @@ def main():
     assert overview["objectives"][2]["kind"] == "roshan"
     assert overview["teamfights"][0]["me"]["damage"] == 1500
 
+    check_opendota_recovery(constants)
     check_loc_tokens()
     check_draft_grouping(match)
     check_item_absorption()
