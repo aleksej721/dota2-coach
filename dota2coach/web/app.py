@@ -10,7 +10,7 @@ import json
 import pathlib
 import threading
 from contextlib import asynccontextmanager
-from typing import Literal, Optional, get_args
+from typing import Any, Dict, Literal, Optional, get_args
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -156,6 +156,7 @@ class AnalyzeResponse(BaseModel):
     win: bool
     window: Optional[str] = None
     warning: Optional[str] = None
+    overview: Dict[str, Any]
 
 
 def _source_failure(e: DataSourceError) -> HTTPException:
@@ -256,6 +257,7 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         window=f"{policy.window[0]}–{policy.window[1]}" if policy.has_window else None,
         # Текст предупреждения собирает страница: он тоже локализован.
         warning="unparsed" if not result.parsed else None,
+        overview=result.overview,
     )
 
 

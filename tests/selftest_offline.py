@@ -16,6 +16,7 @@ from dota2coach import i18n, normalize
 from dota2coach.bundle import BundleBuilder
 from dota2coach.constants import Constants, strip_loc_tokens  # заглушка: без сети
 from dota2coach.features import FeatureExtractor
+from dota2coach.overview import build_match_overview
 from dota2coach.policy import FOCUSES, ROLES, ROLE_FOCUSES, Policy
 from dota2coach.render import resolve_depth
 
@@ -552,6 +553,19 @@ def main():
     assert me.win is True
     assert me.lane_efficiency_pct == 88
     assert me.seconds_dead == 180
+
+    overview = build_match_overview(match, me)
+    assert overview["schema_version"] == 1
+    assert overview["quality"]["source"] == "opendota"
+    assert overview["quality"]["timeline_granularity"] == "minute"
+    assert overview["quality"]["has_tick_data"] is False
+    assert overview["perspective"]["hero"] == "hero_5"
+    assert overview["perspective"]["kill_participation_pct"] == 100
+    assert len(overview["players"]) == 3
+    assert overview["players"][0]["series"]["last_hits"][10] == 90
+    assert overview["economy"]["radiant_gold_adv"][10] == 2200
+    assert overview["objectives"][2]["kind"] == "roshan"
+    assert overview["teamfights"][0]["me"]["damage"] == 1500
 
     check_loc_tokens()
     check_draft_grouping(match)

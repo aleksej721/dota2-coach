@@ -9,7 +9,7 @@
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -18,6 +18,7 @@ from .bundle import BundleBuilder, ProfileBundleBuilder
 from .config import Config
 from .constants import ConstantsRepo
 from .features import FeatureExtractor
+from .overview import build_match_overview
 from .pipeline import Pipeline, ProgressFn
 from .policy import Policy
 from .profile import ProfileAggregator, ProfileFeatures
@@ -62,6 +63,7 @@ class PromptResult:
     parsed: bool          # False — OpenDota не распарсила матч, детальные секции неполные
     side: str             # "radiant" | "dire" — сторона игрока
     win: bool
+    overview: Dict[str, Any]  # versioned данные для Match Explorer
 
     @property
     def size_bytes(self) -> int:
@@ -112,8 +114,15 @@ def generate_prompt(match_id: int, account_id: Optional[int] = None,
     policy = policy or Policy()
     pipeline = pipeline or build_pipeline()
     text, match, me = pipeline.build(match_id, account_id, hero, policy)
-    return PromptResult(text=text, match_id=match_id, policy=policy, parsed=match.parsed,
-                        side="radiant" if me.is_radiant else "dire", win=me.win)
+    return PromptResult(
+        text=text,
+        match_id=match_id,
+        policy=policy,
+        parsed=match.parsed,
+        side="radiant" if me.is_radiant else "dire",
+        win=me.win,
+        overview=build_match_overview(match, me),
+    )
 
 
 def generate_profile_prompt(account_id: int, count: int, hero: Optional[str] = None,
