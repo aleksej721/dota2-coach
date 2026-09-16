@@ -24,8 +24,12 @@ production build не допускается.
 * protobuf wire validation;
 * stable demo metadata;
 * packed network message framing (`UBitVar`);
-* structural decoding for ticks, string tables and `svc_PacketEntities`.
+* structural decoding for ticks, string tables and `svc_PacketEntities`;
+* `DEM_SendTables` flattened serializers, server-class linking and field models;
+* Valve LZSS `instancebaseline` tables;
+* all 40 Source 2 Huffman field-path operations with strict depth/bounds checks.
 
-Следующая ступень: flattened serializers/send tables, class baselines and entity
-field-path deltas. До неё текущий output не называется «координатами» или
-«посекундными событиями».
+Следующая ступень: typed field-value decoders and persistent entity create/update/
+delete state. До неё текущий output всё ещё не называется «координатами» или
+«посекундными событиями»: ядро уже понимает, какие поля изменены, но ещё не
+декодирует значения этих полей в canonical entity state.

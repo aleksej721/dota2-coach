@@ -37,8 +37,13 @@ worker-процесса.
 2. bounded raw Snappy decode;
 3. protobuf wire validation и metadata (`FileHeader`, `FileInfo`);
 4. packed `CDemoPacket` framing через Valve `UBitVar`;
-5. coverage counts для outer и network message IDs.
+5. coverage counts для outer и network message IDs;
+6. flattened serializers, типы полей и связь всех server classes;
+7. `instancebaseline` через Valve LZSS/string-table decode;
+8. полный Huffman field-path decoder с 40 Source 2 operations.
 
-Следующая граница — generated Valve protobuf, send tables, serializers,
-string tables и `svc_PacketEntities`, после чего entity deltas поступают в
-canonical store.
+Следующая граница — registry typed value decoders и постоянное состояние
+`svc_PacketEntities` (create/update/delete), после чего entity deltas поступают
+в canonical store. Актуальный replay нового Dota build остаётся обязательным
+compatibility fixture: старый Manta replay доказывает корректность слоя, но не
+покрывает возможные изменения сегодняшнего протокола.

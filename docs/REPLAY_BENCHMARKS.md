@@ -85,3 +85,30 @@ envelope. Временный Python Snappy/protobuf prototype без этого 
 слоя занимал около 1.69 s; после выбора C++ он удалён, чтобы не вести два
 production decoder. Следующий B2 обязан включать generated protobuf,
 send-tables/string-tables и сами entity field paths.
+
+## B2 — serializers, class baselines and field paths
+
+Дата: 2026-09-16.
+
+К B1 добавлены `DEM_SendTables`, flattened serializer catalog, классификация
+типов полей, связь server classes, Valve LZSS/string-table decode для
+`instancebaseline` и все 40 Huffman field-path operations. Fixture тот же — это
+проверка старого Source 2 build, а не обещание совместимости с текущим патчем.
+
+| Параметр | Значение |
+|---|---:|
+| Serializer symbols | 2 102 |
+| Serializer definitions | 703 |
+| Serializer fields | 1 303 |
+| Linked server classes | 666 / 666 |
+| Baseline classes | 76 / 76 linked |
+| Baseline value bytes | 21 969 |
+| Decoded baseline field paths | 9 657 |
+| Maximum field-path depth | 4 |
+| Invalid root paths | 0 |
+| Unresolved nested serializers | 0 |
+
+Apple Clang 14, `-O3 -std=c++17`: после cold run четыре отдельных запуска
+заняли 0.3187–0.3375 s по внутреннему monotonic timer (медиана около 0.320 s).
+Field-path слой не изменил порядок времени B1. Следующий B3 должен измерять уже
+typed values и полное entity state на старом и свежем replay.
