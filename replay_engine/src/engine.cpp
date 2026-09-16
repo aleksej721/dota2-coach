@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cmath>
 #include <cstring>
 #include <fcntl.h>
 #include <iomanip>
@@ -45,6 +46,29 @@ std::string trim_copy(std::string value) {
     if (first == std::string::npos) return {};
     const auto last = value.find_last_not_of(" \t\r\n");
     return value.substr(first, last - first + 1);
+}
+
+std::string serializer_key(const std::string& name, std::int32_t version) {
+    return name + "(" + std::to_string(version) + ")";
+}
+
+std::optional<std::uint32_t> game_build_from_directory(const std::string& directory) {
+    const std::string marker = "dota_v";
+    const auto marker_position = directory.rfind(marker);
+    if (marker_position == std::string::npos) return std::nullopt;
+    const std::size_t first = marker_position + marker.size();
+    std::size_t last = first;
+    while (last < directory.size() && directory[last] >= '0' && directory[last] <= '9') ++last;
+    if (last == first) return std::nullopt;
+    std::uint32_t value = 0;
+    for (std::size_t index = first; index < last; ++index) {
+        const std::uint32_t digit = static_cast<std::uint32_t>(directory[index] - '0');
+        if (value > (std::numeric_limits<std::uint32_t>::max() - digit) / 10) {
+            return std::nullopt;
+        }
+        value = value * 10 + digit;
+    }
+    return value;
 }
 
 bool pointer_table_type(const std::string& base_type) {
@@ -200,6 +224,24 @@ public:
         return (encoded & 1U) != 0 ? ~value : value;
     }
 
+    std::uint64_t varuint64() {
+        const std::size_t start = position_;
+        std::uint64_t value = 0;
+        for (unsigned index = 0; index < 10; ++index) {
+            const std::uint64_t byte = bits(8);
+            if (index == 9 && byte > 1) throw DecodeError("varuint64 overflow", start);
+            value |= (byte & 0x7f) << (index * 7);
+            if ((byte & 0x80) == 0) return value;
+        }
+        throw DecodeError("unterminated varuint64", start);
+    }
+
+    std::int64_t varint64() {
+        const std::uint64_t encoded = varuint64();
+        const std::int64_t value = static_cast<std::int64_t>(encoded >> 1);
+        return (encoded & 1U) != 0 ? ~value : value;
+    }
+
     std::uint32_t ubitvar_field_path() {
         if (boolean()) return bits(2);
         if (boolean()) return bits(4);
@@ -352,6 +394,403 @@ private:
     std::array<std::int32_t, 7> components_{};
     std::size_t last_ = 0;
 };
+
+enum class ValueDecoderKind : std::uint8_t {
+    Boolean,
+    String,
+    Unsigned32,
+    Unsigned64,
+    Signed32,
+    Signed64,
+    Fixed64,
+    FixedBits,
+    NoScaleFloat,
+    Coordinate,
+    SimulationTime,
+    RuneTime,
+    QuantizedFloat,
+    Vector,
+    VectorNormal,
+    QAngle,
+    BinaryBlock,
+};
+
+struct ValueDecoderSpec {
+    ValueDecoderKind kind = ValueDecoderKind::Unsigned32;
+    std::string label = "default-varuint32";
+    std::uint32_t bit_count = 0;
+    std::uint32_t flags = 0;
+    std::uint32_t dimensions = 0;
+    bool default_decoder = true;
+};
+
+constexpr std::uint32_t kQffRoundDown = 1U << 0;
+constexpr std::uint32_t kQffRoundUp = 1U << 1;
+constexpr std::uint32_t kQffEncodeZero = 1U << 2;
+constexpr std::uint32_t kQffEncodeIntegers = 1U << 3;
+
+struct QuantizedFloatConfig {
+    std::uint32_t bit_count = 32;
+    std::uint32_t flags = 0;
+};
+
+QuantizedFloatConfig quantized_float_config(const SerializerField& field) {
+    if (!field.bit_count || *field.bit_count == 0 || *field.bit_count >= 32) {
+        return {32, 0};
+    }
+
+    std::uint32_t bit_count = *field.bit_count;
+    std::uint32_t flags = field.encode_flags.value_or(0);
+    float low = field.low_value.value_or(0.0F);
+    float high = field.high_value.value_or(1.0F);
+
+    if ((low == 0.0F && (flags & kQffRoundDown) != 0) ||
+        (high == 0.0F && (flags & kQffRoundUp) != 0)) {
+        flags &= ~kQffEncodeZero;
+    }
+    if (low == 0.0F && (flags & kQffEncodeZero) != 0) {
+        flags |= kQffRoundDown;
+        flags &= ~kQffEncodeZero;
+    }
+    if (high == 0.0F && (flags & kQffEncodeZero) != 0) {
+        flags |= kQffRoundUp;
+        flags &= ~kQffEncodeZero;
+    }
+    if (low > 0.0F || high < 0.0F) flags &= ~kQffEncodeZero;
+    if ((flags & kQffEncodeIntegers) != 0) {
+        flags &= ~(kQffRoundUp | kQffRoundDown | kQffEncodeZero);
+    }
+    if ((flags & (kQffRoundDown | kQffRoundUp)) ==
+        (kQffRoundDown | kQffRoundUp)) {
+        throw DecodeError("quantized float has mutually exclusive flags", 0);
+    }
+
+    std::uint64_t steps = 1ULL << bit_count;
+    const float range = high - low;
+    if ((flags & kQffRoundDown) != 0) high -= range / static_cast<float>(steps);
+    if ((flags & kQffRoundUp) != 0) low += range / static_cast<float>(steps);
+
+    if ((flags & kQffEncodeIntegers) != 0) {
+        float delta = high - low;
+        if (delta < 1.0F) delta = 1.0F;
+        const auto exponent = static_cast<unsigned>(std::ceil(std::log2(delta)));
+        if (exponent >= 63) {
+            throw DecodeError("quantized float integer range is too large", 0);
+        }
+        const std::uint64_t range2 = 1ULL << exponent;
+        while (bit_count <= 32 && (1ULL << bit_count) <= range2) ++bit_count;
+        if (bit_count > 32) {
+            throw DecodeError("quantized float bit count exceeds 32", 0);
+        }
+        steps = 1ULL << bit_count;
+        high = low + static_cast<float>(range2) -
+               static_cast<float>(range2) / static_cast<float>(steps);
+    }
+
+    const std::uint64_t high_integer = bit_count == 32
+        ? 0xfffffffeULL : ((1ULL << bit_count) - 1);
+    const float adjusted_range = high - low;
+    float high_low_multiplier = std::fabs(adjusted_range) <= 0.0F
+        ? static_cast<float>(high_integer)
+        : static_cast<float>(high_integer) / adjusted_range;
+    if ((high_low_multiplier * adjusted_range > static_cast<float>(high_integer)) ||
+        (static_cast<double>(high_low_multiplier * adjusted_range) >
+         static_cast<double>(high_integer))) {
+        static constexpr std::array<float, 5> multipliers = {
+            0.9999F, 0.99F, 0.9F, 0.8F, 0.7F,
+        };
+        for (const float multiplier : multipliers) {
+            high_low_multiplier = static_cast<float>(high_integer) /
+                                  adjusted_range * multiplier;
+            if ((high_low_multiplier * adjusted_range <=
+                 static_cast<float>(high_integer)) &&
+                (static_cast<double>(high_low_multiplier * adjusted_range) <=
+                 static_cast<double>(high_integer))) {
+                break;
+            }
+        }
+    }
+    if (high_low_multiplier == 0.0F || steps <= 1) {
+        throw DecodeError("invalid quantized float range", 0);
+    }
+    const float decode_multiplier = 1.0F / static_cast<float>(steps - 1);
+    const auto quantize = [&](float value) {
+        const auto integer = static_cast<std::uint32_t>(
+            (value - low) * high_low_multiplier
+        );
+        return low + (high - low) *
+            (static_cast<float>(integer) * decode_multiplier);
+    };
+    if ((flags & kQffRoundDown) != 0 && quantize(low) == low) {
+        flags &= ~kQffRoundDown;
+    }
+    if ((flags & kQffRoundUp) != 0 && quantize(high) == high) {
+        flags &= ~kQffRoundUp;
+    }
+    if ((flags & kQffEncodeZero) != 0 && quantize(0.0F) == 0.0F) {
+        flags &= ~kQffEncodeZero;
+    }
+    return {bit_count, flags};
+}
+
+ValueDecoderSpec direct_decoder_for_base(const std::string& base_type) {
+    if (base_type == "bool") return {ValueDecoderKind::Boolean, "bool", 0, 0, 0, false};
+    if (base_type == "char" || base_type == "CUtlString" ||
+        base_type == "CUtlSymbolLarge" || base_type == "CGlobalSymbol") {
+        return {ValueDecoderKind::String, "string", 0, 0, 0, false};
+    }
+    if (base_type == "int8" || base_type == "int16" || base_type == "int32" ||
+        base_type == "HeroID_t") {
+        return {ValueDecoderKind::Signed32, "varint32", 0, 0, 0, false};
+    }
+    if (base_type == "int64") {
+        return {ValueDecoderKind::Signed64, "varint64", 0, 0, 0, false};
+    }
+    if (base_type == "uint8" || base_type == "uint16" || base_type == "uint32" ||
+        base_type == "color32" || base_type == "Color" ||
+        base_type == "CGameSceneNodeHandle" || base_type == "CUtlStringToken") {
+        return {ValueDecoderKind::Unsigned32, "varuint32", 0, 0, 0, false};
+    }
+    if (base_type == "HeroFacetKey_t" || base_type == "ResourceId_t") {
+        return {ValueDecoderKind::Unsigned64, "varuint64", 0, 0, 0, false};
+    }
+    if (base_type == "GameTime_t") {
+        return {ValueDecoderKind::NoScaleFloat, "float32", 32, 0, 0, false};
+    }
+    if (base_type == "HSequence") {
+        return {ValueDecoderKind::Unsigned32, "sequence-minus-one", 0, 0, 0, false};
+    }
+    if (base_type == "BloodType") {
+        return {ValueDecoderKind::FixedBits, "blood-type", 8, 0, 0, false};
+    }
+    if (base_type == "CBodyComponent" || base_type == "CPhysicsComponent" ||
+        base_type == "CRenderComponent") {
+        return {ValueDecoderKind::FixedBits, "component", 1, 0, 0, false};
+    }
+    if (base_type == "CUtlBinaryBlock") {
+        return {ValueDecoderKind::BinaryBlock, "binary-block", 0, 0, 0, false};
+    }
+    return {};
+}
+
+ValueDecoderSpec decoder_for_field(const SerializerField& field) {
+    const std::string& base = field.parsed_type.base_type;
+    if (base == "float32" || base == "CNetworkedQuantizedFloat") {
+        if (field.encoder == "coord") {
+            return {ValueDecoderKind::Coordinate, "coord", 0, 0, 0, false};
+        }
+        if (field.encoder == "simtime") {
+            return {ValueDecoderKind::SimulationTime, "simtime", 0, 0, 0, false};
+        }
+        if (field.encoder == "runetime") {
+            return {ValueDecoderKind::RuneTime, "runetime", 4, 0, 0, false};
+        }
+        if (!field.bit_count || *field.bit_count == 0 || *field.bit_count >= 32) {
+            return {ValueDecoderKind::NoScaleFloat, "float32", 32, 0, 0, false};
+        }
+        const auto config = quantized_float_config(field);
+        return {ValueDecoderKind::QuantizedFloat, "quantized-float",
+                config.bit_count, config.flags, 0, false};
+    }
+    if (base == "Vector" || base == "Vector2D" || base == "Vector4D" ||
+        base == "VectorWS" || base == "Quaternion") {
+        const std::uint32_t dimensions =
+            base == "Vector2D" ? 2 : (base == "Vector4D" || base == "Quaternion" ? 4 : 3);
+        if (dimensions == 3 && field.encoder == "normal") {
+            return {ValueDecoderKind::VectorNormal, "vector-normal", 0, 0, 3, false};
+        }
+        SerializerField component_field = field;
+        component_field.variable_type = "float32";
+        component_field.parsed_type =
+            FieldType{"float32", "float32", {}, {}, false, 0};
+        component_field.model = FieldModel::Simple;
+        const auto component = decoder_for_field(component_field);
+        return {ValueDecoderKind::Vector, "vector", component.bit_count,
+                component.flags, dimensions, false};
+    }
+    if (base == "uint64" || base == "CStrongHandle") {
+        if (field.encoder == "fixed64") {
+            return {ValueDecoderKind::Fixed64, "fixed64", 64, 0, 0, false};
+        }
+        return {ValueDecoderKind::Unsigned64, "varuint64", 0, 0, 0, false};
+    }
+    if (base == "CHandle" || base == "CEntityHandle") {
+        return {ValueDecoderKind::Unsigned32, "handle", 0, 0, 0, false};
+    }
+    if (base == "QAngle") {
+        if (field.bit_count.value_or(0) > 32) {
+            throw DecodeError("qangle bit count exceeds 32", 0);
+        }
+        return {ValueDecoderKind::QAngle, "qangle", field.bit_count.value_or(0), 0, 0, false};
+    }
+    return direct_decoder_for_base(base);
+}
+
+void skip_coordinate(BitReader& reader) {
+    const bool has_integer = reader.boolean();
+    const bool has_fraction = reader.boolean();
+    if (!has_integer && !has_fraction) return;
+    (void)reader.boolean();
+    if (has_integer) (void)reader.bits(14);
+    if (has_fraction) (void)reader.bits(5);
+}
+
+void skip_decoder(BitReader& reader, const ValueDecoderSpec& decoder,
+                  const SerializerField* field) {
+    switch (decoder.kind) {
+        case ValueDecoderKind::Boolean: (void)reader.boolean(); break;
+        case ValueDecoderKind::String: (void)reader.string_zero_terminated(); break;
+        case ValueDecoderKind::Unsigned32: (void)reader.varuint32(); break;
+        case ValueDecoderKind::Unsigned64: (void)reader.varuint64(); break;
+        case ValueDecoderKind::Signed32: (void)reader.varint32(); break;
+        case ValueDecoderKind::Signed64: (void)reader.varint64(); break;
+        case ValueDecoderKind::Fixed64: reader.skip(64); break;
+        case ValueDecoderKind::FixedBits: (void)reader.bits(decoder.bit_count); break;
+        case ValueDecoderKind::NoScaleFloat: reader.skip(32); break;
+        case ValueDecoderKind::Coordinate: skip_coordinate(reader); break;
+        case ValueDecoderKind::SimulationTime: (void)reader.varuint32(); break;
+        case ValueDecoderKind::RuneTime: (void)reader.bits(4); break;
+        case ValueDecoderKind::QuantizedFloat:
+            if ((decoder.flags & kQffRoundDown) != 0 && reader.boolean()) break;
+            if ((decoder.flags & kQffRoundUp) != 0 && reader.boolean()) break;
+            if ((decoder.flags & kQffEncodeZero) != 0 && reader.boolean()) break;
+            (void)reader.bits(decoder.bit_count);
+            break;
+        case ValueDecoderKind::Vector: {
+            if (field == nullptr) throw DecodeError("vector decoder has no field", reader.position());
+            SerializerField component = *field;
+            component.parsed_type = FieldType{"float32", "float32", {}, {}, false, 0};
+            const auto component_decoder = decoder_for_field(component);
+            for (std::uint32_t index = 0; index < decoder.dimensions; ++index) {
+                skip_decoder(reader, component_decoder, &component);
+            }
+            break;
+        }
+        case ValueDecoderKind::VectorNormal: {
+            const bool has_x = reader.boolean();
+            const bool has_y = reader.boolean();
+            if (has_x) reader.skip(12);
+            if (has_y) reader.skip(12);
+            (void)reader.boolean();
+            break;
+        }
+        case ValueDecoderKind::QAngle: {
+            if (field == nullptr) throw DecodeError("qangle decoder has no field", reader.position());
+            const std::uint32_t bits = field->bit_count.value_or(0);
+            if (field->encoder == "qangle_pitch_yaw") {
+                reader.skip((bits == 0 || bits == 32) ? 64 : bits * 2);
+            } else if (field->encoder == "qangle_precise") {
+                const bool x = reader.boolean();
+                const bool y = reader.boolean();
+                const bool z = reader.boolean();
+                if (x) reader.skip(20);
+                if (y) reader.skip(20);
+                if (z) reader.skip(20);
+            } else if (bits == 32) {
+                reader.skip(96);
+            } else if (bits != 0) {
+                reader.skip(static_cast<std::size_t>(bits) * 3);
+            } else {
+                const bool x = reader.boolean();
+                const bool y = reader.boolean();
+                const bool z = reader.boolean();
+                if (x) skip_coordinate(reader);
+                if (y) skip_coordinate(reader);
+                if (z) skip_coordinate(reader);
+            }
+            break;
+        }
+        case ValueDecoderKind::BinaryBlock: {
+            const std::uint32_t size = reader.varuint32();
+            const std::uint64_t bit_size = static_cast<std::uint64_t>(size) * 8;
+            if constexpr (sizeof(std::size_t) < sizeof(std::uint64_t)) {
+                if (bit_size > std::numeric_limits<std::size_t>::max()) {
+                    throw DecodeError("binary block bit size overflows", reader.position());
+                }
+            }
+            reader.skip(static_cast<std::size_t>(bit_size));
+            break;
+        }
+    }
+}
+
+const SerializerDefinition& serializer_for_field(const SerializerCatalog& catalog,
+                                                 const SerializerField& field,
+                                                 std::size_t offset) {
+    const bool versioned = !field.serializer_name.empty();
+    const std::string& name = versioned ? field.serializer_name : field.variable_serializer;
+    const auto found = versioned
+        ? catalog.serializer_by_id.find(serializer_key(name, field.serializer_version))
+        : catalog.serializer_by_name.find(name);
+    const bool missing = versioned
+        ? found == catalog.serializer_by_id.end()
+        : found == catalog.serializer_by_name.end();
+    if (missing || found->second >= catalog.serializers.size()) {
+        throw DecodeError("unknown nested serializer " +
+                          serializer_key(name, field.serializer_version), offset);
+    }
+    return catalog.serializers[found->second];
+}
+
+struct ResolvedValueDecoder {
+    ValueDecoderSpec decoder;
+    const SerializerField* field = nullptr;
+};
+
+ResolvedValueDecoder resolve_value_decoder(const SerializerCatalog& catalog,
+                                           const SerializerDefinition& serializer,
+                                           const FieldPath& path, std::size_t position,
+                                           std::size_t offset) {
+    if (position >= path.depth || path.components[position] < 0 ||
+        static_cast<std::size_t>(path.components[position]) >= serializer.field_indices.size()) {
+        std::ostringstream detail;
+        detail << "field path [";
+        for (std::size_t index = 0; index < path.depth; ++index) {
+            if (index != 0) detail << '/';
+            detail << path.components[index];
+        }
+        detail << "] does not resolve at component " << position
+               << " in serializer " << serializer.name
+               << " with " << serializer.field_indices.size() << " fields";
+        throw DecodeError(detail.str(), offset);
+    }
+    const std::uint32_t field_index =
+        serializer.field_indices[static_cast<std::size_t>(path.components[position])];
+    if (field_index >= catalog.fields.size()) {
+        throw DecodeError("serializer field index is out of range", offset);
+    }
+    const auto& field = catalog.fields[field_index];
+    const std::size_t child_position = position + 1;
+    const std::size_t last = path.depth - 1;
+    switch (field.model) {
+        case FieldModel::FixedArray:
+        case FieldModel::Simple:
+            return {decoder_for_field(field), &field};
+        case FieldModel::FixedTable:
+            if (last == child_position - 1) {
+                return {{ValueDecoderKind::Boolean, "table-presence", 0, 0, 0, false}, &field};
+            }
+            return resolve_value_decoder(
+                catalog, serializer_for_field(catalog, field, offset),
+                path, child_position, offset
+            );
+        case FieldModel::VariableArray:
+            if (last == child_position) {
+                const FieldType child = parse_field_type(field.parsed_type.generic_type);
+                return {direct_decoder_for_base(child.base_type), &field};
+            }
+            return {{ValueDecoderKind::Unsigned32, "array-length", 0, 0, 0, false}, &field};
+        case FieldModel::VariableTable:
+            if (last >= child_position + 1) {
+                return resolve_value_decoder(
+                    catalog, serializer_for_field(catalog, field, offset),
+                    path, child_position + 1, offset
+                );
+            }
+            return {{ValueDecoderKind::Unsigned32, "table-length", 0, 0, 0, false}, &field};
+    }
+    throw DecodeError("unsupported serializer field model", offset);
+}
 
 struct StringTableItem {
     std::int32_t index = -1;
@@ -924,6 +1363,54 @@ FieldPathScan scan_field_paths(ByteView encoded, std::size_t max_paths) {
     }
 }
 
+SerializedFieldScan scan_serialized_fields(
+        ByteView encoded, const SerializerCatalog& catalog,
+        const std::string& serializer_name, std::size_t max_paths) {
+    const auto serializer_found = catalog.serializer_by_name.find(serializer_name);
+    if (serializer_found == catalog.serializer_by_name.end() ||
+        serializer_found->second >= catalog.serializers.size()) {
+        throw DecodeError("unknown root serializer " + serializer_name, 0);
+    }
+    const auto field_paths = scan_field_paths(encoded, max_paths);
+    BitReader reader(encoded);
+    reader.skip(field_paths.bits_consumed);
+
+    SerializedFieldScan scan;
+    scan.paths = field_paths.paths;
+    scan.field_path_bits = field_paths.bits_consumed;
+    const auto& serializer = catalog.serializers[serializer_found->second];
+    for (const auto& path : scan.paths) {
+        const std::size_t value_offset = reader.position();
+        const auto resolved = resolve_value_decoder(
+            catalog, serializer, path, 0, value_offset
+        );
+        try {
+            skip_decoder(reader, resolved.decoder, resolved.field);
+        } catch (const DecodeError& error) {
+            std::ostringstream detail;
+            detail << "value decoder " << resolved.decoder.label << " failed for path [";
+            for (std::size_t index = 0; index < path.depth; ++index) {
+                if (index != 0) detail << '/';
+                detail << path.components[index];
+            }
+            detail << ']';
+            if (resolved.field != nullptr) {
+                detail << " field " << resolved.field->variable_name
+                       << " type " << resolved.field->variable_type
+                       << " encoder " << resolved.field->encoder;
+            }
+            detail << ": " << error.what();
+            throw DecodeError(detail.str(), value_offset);
+        }
+        ++scan.decoder_counts[resolved.decoder.label];
+        if (resolved.decoder.default_decoder) ++scan.default_decoder_values;
+    }
+    scan.total_bits = reader.position();
+    scan.value_bits = scan.total_bits - scan.field_path_bits;
+    scan.trailing_padding_bits = reader.remaining();
+    return scan;
+}
+
 ProtoReader::ProtoReader(ByteView input, std::size_t max_fields)
     : input_(input), max_fields_(max_fields) {
     if (max_fields == 0) throw std::invalid_argument("max_fields must be positive");
@@ -1213,6 +1700,9 @@ SerializerCatalog parse_flattened_serializer(ByteView protobuf_message) {
             field.serializer_name = resolve_symbol(
                 catalog.symbols, symbol_index(fields, 7), catalog.unresolved_symbol_references
             );
+            if (const auto version = integer_field(fields, 8)) {
+                field.serializer_version = static_cast<std::int32_t>(*version);
+            }
             field.send_node = resolve_symbol(
                 catalog.symbols, symbol_index(fields, 9), catalog.unresolved_symbol_references
             );
@@ -1240,10 +1730,17 @@ SerializerCatalog parse_flattened_serializer(ByteView protobuf_message) {
             }
             serializer.field_indices = repeated_int32(fields, 3);
             for (const auto index : serializer.field_indices) {
-                if (index >= catalog.fields.size()) ++catalog.invalid_field_references;
+                if (index >= catalog.fields.size()) {
+                    ++catalog.invalid_field_references;
+                } else if (catalog.fields[index].parent_name.empty()) {
+                    catalog.fields[index].parent_name = serializer.name;
+                }
             }
             const std::size_t index = catalog.serializers.size();
-            if (!serializer.name.empty()) catalog.serializer_by_name[serializer.name] = index;
+            if (!serializer.name.empty()) {
+                catalog.serializer_by_id[serializer_key(serializer.name, serializer.version)] = index;
+                catalog.serializer_by_name[serializer.name] = index;
+            }
             catalog.serializers.push_back(std::move(serializer));
         }
     }
@@ -1253,7 +1750,12 @@ SerializerCatalog parse_flattened_serializer(ByteView protobuf_message) {
         const std::string& link_name = field.serializer_name.empty()
             ? field.variable_serializer : field.serializer_name;
         if (!link_name.empty()) {
-            if (catalog.serializer_by_name.count(link_name) == 0) {
+            const bool linked = field.serializer_name.empty()
+                ? catalog.serializer_by_name.count(link_name) != 0
+                : catalog.serializer_by_id.count(
+                    serializer_key(link_name, field.serializer_version)
+                ) != 0;
+            if (!linked) {
                 ++catalog.unresolved_serializer_links;
             } else if (field.parsed_type.pointer ||
                        pointer_table_type(field.parsed_type.base_type)) {
@@ -1271,6 +1773,57 @@ SerializerCatalog parse_flattened_serializer(ByteView protobuf_message) {
         }
     }
     return catalog;
+}
+
+void apply_serializer_patches(SerializerCatalog& catalog, std::uint32_t game_build) {
+    static const std::unordered_set<std::string> old_angle_fields = {
+        "angExtraLocalAngles", "angLocalAngles", "m_angInitialAngles",
+        "m_angRotation", "m_ragAngles", "m_vLightDirection",
+    };
+    static const std::unordered_set<std::string> old_coordinate_fields = {
+        "dirPrimary", "localSound", "m_flElasticity", "m_location",
+        "m_poolOrigin", "m_ragPos", "m_vecEndPos", "m_vecLadderDir",
+        "m_vecPlayerMountPositionBottom", "m_vecPlayerMountPositionTop",
+        "m_viewtarget", "m_WorldMaxs", "m_WorldMins", "origin",
+        "vecLocalOrigin",
+    };
+    static const std::unordered_set<std::string> fixed64_fields = {
+        "m_bItemWhiteList", "m_bWorldTreeState", "m_iPlayerIDsInControl",
+        "m_iPlayerSteamID", "m_ulTeamBannerLogo", "m_ulTeamBaseLogo",
+        "m_ulTeamLogo",
+    };
+
+    for (auto& field : catalog.fields) {
+        if (game_build != 0 && game_build <= 990) {
+            if (old_angle_fields.count(field.variable_name) != 0) {
+                field.encoder = field.parent_name == "CBodyComponentBaseAnimatingOverlay"
+                    ? "qangle_pitch_yaw" : "QAngle";
+            } else if (old_coordinate_fields.count(field.variable_name) != 0) {
+                field.encoder = "coord";
+            } else if (field.variable_name == "m_vecLadderNormal") {
+                field.encoder = "normal";
+            }
+        }
+        if (game_build != 0 && game_build <= 954 &&
+            (field.variable_name == "m_flMana" || field.variable_name == "m_flMaxMana") &&
+            field.high_value && *field.high_value == std::numeric_limits<float>::max()) {
+            field.low_value.reset();
+            field.high_value = 8192.0F;
+        }
+        if (game_build >= 1016 && game_build <= 1027 &&
+            fixed64_fields.count(field.variable_name) != 0) {
+            field.encoder = "fixed64";
+        }
+        if (field.variable_name == "m_flSimulationTime" ||
+            field.variable_name == "m_flAnimTime") {
+            field.encoder = "simtime";
+        } else if (field.variable_name == "m_flRuneTime" &&
+                   field.low_value && field.high_value &&
+                   *field.low_value == -std::numeric_limits<float>::max() &&
+                   *field.high_value == std::numeric_limits<float>::max()) {
+            field.encoder = "runetime";
+        }
+    }
 }
 
 ScanReport scan_replay(const std::string& path, std::size_t max_file_bytes,
@@ -1301,6 +1854,7 @@ ScanReport scan_replay(const std::string& path, std::size_t max_file_bytes,
     Cursor cursor({input.data + kHeaderSize, input.size - kHeaderSize});
     bool info_target_seen = false;
     bool spawn_target_seen = false;
+    std::optional<std::uint32_t> game_build;
     std::optional<SerializerCatalog> serializer_catalog;
     std::unordered_map<std::uint32_t, std::string> server_classes;
     std::unordered_set<std::uint32_t> instancebaseline_class_ids;
@@ -1341,7 +1895,16 @@ ScanReport scan_replay(const std::string& path, std::size_t max_file_bytes,
 
         if (frame_offset == report.file_info_offset) info_target_seen = command == kDemFileInfo;
         if (frame_offset == report.spawn_groups_offset) spawn_target_seen = command == kDemSpawnGroups;
-        if (command == kDemFileHeader) report.file_header = parse_file_header(body);
+        if (command == kDemFileHeader) {
+            report.file_header = parse_file_header(body);
+            if (report.file_header->build_num &&
+                *report.file_header->build_num <= std::numeric_limits<std::uint32_t>::max()) {
+                game_build = static_cast<std::uint32_t>(*report.file_header->build_num);
+            } else {
+                game_build = game_build_from_directory(report.file_header->game_directory);
+            }
+            if (game_build) report.game_build = *game_build;
+        }
         if (command == kDemFileInfo) report.file_info = parse_file_info(body);
         if (command == kDemSendTables) {
             const ProtoField* data = first(fields, 1, WireType::LengthDelimited);
@@ -1353,6 +1916,7 @@ ScanReport scan_replay(const std::string& path, std::size_t max_file_bytes,
                 throw DecodeError("trailing bytes after send-table payload", frame_offset);
             }
             serializer_catalog = parse_flattened_serializer(flattened);
+            apply_serializer_patches(*serializer_catalog, game_build.value_or(0));
             report.send_table_serializer_count = serializer_catalog->serializers.size();
             report.send_table_field_count = serializer_catalog->fields.size();
             report.send_table_symbol_count = serializer_catalog->symbols.size();
@@ -1489,10 +2053,27 @@ ScanReport scan_replay(const std::string& path, std::size_t max_file_bytes,
         // field-path terminator and semantically means "all defaults".
         if (baseline.empty()) continue;
         FieldPathScan field_paths;
+        const auto class_found = server_classes.find(class_id);
+        const bool has_serializer = serializer_catalog &&
+            class_found != server_classes.end() &&
+            serializer_catalog->serializer_by_name.count(class_found->second) != 0;
         try {
-            field_paths = scan_field_paths({baseline.data(), baseline.size()});
+            if (has_serializer) {
+                const auto serialized = scan_serialized_fields(
+                    {baseline.data(), baseline.size()}, *serializer_catalog,
+                    class_found->second
+                );
+                field_paths.paths = serialized.paths;
+                field_paths.bits_consumed = serialized.field_path_bits;
+                report.baseline_field_value_count += serialized.paths.size();
+                report.baseline_field_value_bits += serialized.value_bits;
+                report.baseline_trailing_padding_bits += serialized.trailing_padding_bits;
+                report.baseline_default_decoder_values += serialized.default_decoder_values;
+            } else {
+                field_paths = scan_field_paths({baseline.data(), baseline.size()});
+            }
         } catch (const DecodeError& error) {
-            throw DecodeError("baseline field-path decode failed for class " +
+            throw DecodeError("baseline field decode failed for class " +
                               std::to_string(class_id) + ": " + error.what(),
                               error.offset());
         }
@@ -1504,9 +2085,7 @@ ScanReport scan_replay(const std::string& path, std::size_t max_file_bytes,
             );
         }
 
-        if (!serializer_catalog) continue;
-        const auto class_found = server_classes.find(class_id);
-        if (class_found == server_classes.end()) continue;
+        if (!has_serializer) continue;
         const auto serializer_found =
             serializer_catalog->serializer_by_name.find(class_found->second);
         if (serializer_found == serializer_catalog->serializer_by_name.end()) continue;
@@ -1527,7 +2106,7 @@ std::string report_json(const ScanReport& report) {
     out << '{'
         << "\"schema_version\":1,"
         << "\"engine\":\"dota2replay-cpp\","
-        << "\"engine_version\":\"0.2.0\","
+        << "\"engine_version\":\"0.3.0\","
         << "\"status\":\"payloads_decoded\"," 
         << "\"path\":\"" << json_escape(report.path) << "\"," 
         << "\"file_size\":" << report.file_size << ','
@@ -1561,7 +2140,9 @@ std::string report_json(const ScanReport& report) {
     out << ",\"server_tick_interval\":";
     optional_json(out, report.server_tick_interval);
     out << ",\"server_game_directory\":\""
-        << json_escape(report.server_game_directory) << "\","
+        << json_escape(report.server_game_directory) << "\",\"game_build\":";
+    optional_json(out, report.game_build);
+    out << ','
         << "\"instancebaseline_declared_entries\":"
         << report.instancebaseline_declared_entries << ','
         << "\"instancebaseline_encoded_bytes\":"
@@ -1590,6 +2171,14 @@ std::string report_json(const ScanReport& report) {
         << report.baseline_invalid_root_paths << ','
         << "\"baseline_max_field_path_depth\":"
         << report.baseline_max_field_path_depth << ','
+        << "\"baseline_field_value_count\":"
+        << report.baseline_field_value_count << ','
+        << "\"baseline_field_value_bits\":"
+        << report.baseline_field_value_bits << ','
+        << "\"baseline_trailing_padding_bits\":"
+        << report.baseline_trailing_padding_bits << ','
+        << "\"baseline_default_decoder_values\":"
+        << report.baseline_default_decoder_values << ','
         << "\"send_table_serializer_count\":" << report.send_table_serializer_count << ','
         << "\"send_table_field_count\":" << report.send_table_field_count << ','
         << "\"send_table_symbol_count\":" << report.send_table_symbol_count << ','

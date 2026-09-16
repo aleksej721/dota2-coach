@@ -27,9 +27,11 @@ production build не допускается.
 * structural decoding for ticks, string tables and `svc_PacketEntities`;
 * `DEM_SendTables` flattened serializers, server-class linking and field models;
 * Valve LZSS `instancebaseline` tables;
-* all 40 Source 2 Huffman field-path operations with strict depth/bounds checks.
+* all 40 Source 2 Huffman field-path operations with strict depth/bounds checks;
+* version-aware serializer links, build-specific field patches and typed value
+  decoder selection for baseline fields.
 
-Следующая ступень: typed field-value decoders and persistent entity create/update/
-delete state. До неё текущий output всё ещё не называется «координатами» или
-«посекундными событиями»: ядро уже понимает, какие поля изменены, но ещё не
-декодирует значения этих полей в canonical entity state.
+Следующая ступень: хранение декодированных values и persistent entity
+create/update/delete state. До неё текущий output всё ещё не называется
+«координатами» или «посекундными событиями»: ядро уже полностью проходит
+baseline field/value stream, но ещё не материализует значения в canonical state.

@@ -40,10 +40,12 @@ worker-процесса.
 5. coverage counts для outer и network message IDs;
 6. flattened serializers, типы полей и связь всех server classes;
 7. `instancebaseline` через Valve LZSS/string-table decode;
-8. полный Huffman field-path decoder с 40 Source 2 operations.
+8. полный Huffman field-path decoder с 40 Source 2 operations;
+9. version-aware serializer traversal и typed value decoder registry;
+10. build-specific schema patches, включая старые Source 2 builds.
 
-Следующая граница — registry typed value decoders и постоянное состояние
-`svc_PacketEntities` (create/update/delete), после чего entity deltas поступают
-в canonical store. Актуальный replay нового Dota build остаётся обязательным
+Следующая граница — materialized values и постоянное состояние
+`svc_PacketEntities` (create/update/delete), после чего entity deltas поступают в
+canonical store. Актуальный replay нового Dota build остаётся обязательным
 compatibility fixture: старый Manta replay доказывает корректность слоя, но не
 покрывает возможные изменения сегодняшнего протокола.

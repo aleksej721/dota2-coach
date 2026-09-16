@@ -112,6 +112,37 @@ int main() {
         require(catalog.fields[0].variable_type == "int32", "field type");
         require(catalog.fields[0].variable_name == "m_iHealth", "field name");
         require(catalog.invalid_field_references == 0, "field references");
+        require(catalog.serializer_by_id.count("Hero(1)") == 1, "serializer version id");
+    }
+    {
+        dota2replay::SerializerCatalog catalog;
+        dota2replay::SerializerField field;
+        field.variable_type = "int32";
+        field.variable_name = "m_iHealth";
+        field.parsed_type = dota2replay::parse_field_type(field.variable_type);
+        catalog.fields.push_back(field);
+        dota2replay::SerializerDefinition serializer;
+        serializer.name = "Hero";
+        serializer.field_indices = {0};
+        catalog.serializers.push_back(serializer);
+        catalog.serializer_by_name["Hero"] = 0;
+        catalog.serializer_by_id["Hero(0)"] = 0;
+
+        // Field paths: PlusOne (0), Finish (10), then zigzag int32 value 5 (0x0a).
+        std::vector<unsigned> bits = {0, 1, 0};
+        for (unsigned index = 0; index < 8; ++index) bits.push_back((0x0a >> index) & 1);
+        std::vector<std::uint8_t> encoded((bits.size() + 7) / 8, 0);
+        for (std::size_t index = 0; index < bits.size(); ++index) {
+            encoded[index / 8] |= bits[index] << (index % 8);
+        }
+        const auto scan = dota2replay::scan_serialized_fields(
+            {encoded.data(), encoded.size()}, catalog, "Hero"
+        );
+        require(scan.paths.size() == 1, "serialized field count");
+        require(scan.field_path_bits == 3, "serialized field path bits");
+        require(scan.value_bits == 8, "serialized value bits");
+        require(scan.trailing_padding_bits == 5, "serialized padding bits");
+        require(scan.default_decoder_values == 0, "typed decoder selected");
     }
     {
         const auto nested = dota2replay::parse_field_type(
@@ -123,6 +154,13 @@ int main() {
         const auto fixed = dota2replay::parse_field_type("Item_t[MAX_ITEM_STOCKS]");
         require(fixed.base_type == "Item_t", "array base type");
         require(fixed.count == 8, "symbolic array count");
+
+        dota2replay::SerializerCatalog patches;
+        dota2replay::SerializerField elasticity;
+        elasticity.variable_name = "m_flElasticity";
+        patches.fields.push_back(elasticity);
+        dota2replay::apply_serializer_patches(patches, 928);
+        require(patches.fields[0].encoder == "coord", "legacy build field patch");
     }
     std::cout << "replay engine core tests passed\n";
     return 0;

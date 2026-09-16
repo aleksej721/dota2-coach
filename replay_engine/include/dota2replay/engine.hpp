@@ -129,9 +129,11 @@ struct SerializerField {
     std::string variable_type;
     std::string variable_name;
     std::string serializer_name;
+    std::string parent_name;
     std::string send_node;
     std::string encoder;
     std::string variable_serializer;
+    std::int32_t serializer_version = 0;
     std::optional<std::uint32_t> bit_count;
     std::optional<std::uint32_t> encode_flags;
     std::optional<float> low_value;
@@ -151,12 +153,28 @@ struct SerializerCatalog {
     std::vector<SerializerField> fields;
     std::vector<SerializerDefinition> serializers;
     std::unordered_map<std::string, std::size_t> serializer_by_name;
+    std::unordered_map<std::string, std::size_t> serializer_by_id;
     std::uint64_t unresolved_symbol_references = 0;
     std::uint64_t invalid_field_references = 0;
     std::uint64_t unresolved_serializer_links = 0;
 };
 
 SerializerCatalog parse_flattened_serializer(ByteView protobuf_message);
+void apply_serializer_patches(SerializerCatalog& catalog, std::uint32_t game_build);
+
+struct SerializedFieldScan {
+    std::vector<FieldPath> paths;
+    std::size_t field_path_bits = 0;
+    std::size_t value_bits = 0;
+    std::size_t total_bits = 0;
+    std::size_t trailing_padding_bits = 0;
+    std::uint64_t default_decoder_values = 0;
+    std::unordered_map<std::string, std::uint64_t> decoder_counts;
+};
+
+SerializedFieldScan scan_serialized_fields(
+    ByteView encoded, const SerializerCatalog& catalog,
+    const std::string& serializer_name, std::size_t max_paths = 1'000'000);
 
 struct FileHeaderInfo {
     std::string demo_file_stamp;
@@ -209,6 +227,7 @@ struct ScanReport {
     std::optional<std::uint64_t> server_max_classes;
     std::optional<float> server_tick_interval;
     std::string server_game_directory;
+    std::optional<std::uint64_t> game_build;
     std::uint64_t instancebaseline_declared_entries = 0;
     std::uint64_t instancebaseline_encoded_bytes = 0;
     bool instancebaseline_compressed = false;
@@ -223,6 +242,10 @@ struct ScanReport {
     std::uint64_t baseline_field_path_bits = 0;
     std::uint64_t baseline_invalid_root_paths = 0;
     std::uint64_t baseline_max_field_path_depth = 0;
+    std::uint64_t baseline_field_value_count = 0;
+    std::uint64_t baseline_field_value_bits = 0;
+    std::uint64_t baseline_trailing_padding_bits = 0;
+    std::uint64_t baseline_default_decoder_values = 0;
     std::uint64_t send_table_serializer_count = 0;
     std::uint64_t send_table_field_count = 0;
     std::uint64_t send_table_symbol_count = 0;

@@ -112,3 +112,16 @@ Apple Clang 14, `-O3 -std=c++17`: после cold run четыре отдель�
 заняли 0.3187–0.3375 s по внутреннему monotonic timer (медиана около 0.320 s).
 Field-path слой не изменил порядок времени B1. Следующий B3 должен измерять уже
 typed values и полное entity state на старом и свежем replay.
+
+## B3 — baseline typed-value traversal
+
+Дата: 2026-09-16.
+
+Decoder registry выбирает кодек по типу, encoder metadata и модели поля,
+учитывает versioned nested serializers и build-specific patches. На build 928
+полностью пройдены 9 657 значений baseline: 157 443 value bits, 134 суммарных
+padding bits и ни одного выхода за поток. 156 значений используют совместимый
+fallback `varuint32` для неизвестных enum-like типов; их нужно постепенно
+заменять именованными типами, но побитовое прохождение уже валидировано реальным
+потоком. Один полный проход занял около 0.38 s. Следующий замер отделит стоимость
+materialization и всех `svc_PacketEntities` от baseline-only decode.
