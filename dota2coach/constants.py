@@ -93,6 +93,12 @@ class Constants:
 
 class ConstantsRepo(Constants):
     BASE = "https://api.opendota.com/api/constants"
+    # Запасной источник тех же справочников: OpenDota сама собирает их из этого
+    # репозитория, формат идентичный. Нужен не «на всякий случай», а для хостинга:
+    # лимит OpenDota считается по IP, а бесплатные контейнеры Render выходят в сеть
+    # через общие адреса, чей суточный лимит выбирают чужие сервисы. GitHub этим
+    # лимитом не ограничен, и без справочников герои превращаются в «hero_5».
+    MIRROR = "https://raw.githubusercontent.com/odota/dotaconstants/master/build"
 
     # Справочники, которыми пользуется приложение. Список нужен прогреву:
     # на сервере их тянут заранее, чтобы первый посетитель не ждал сеть.
@@ -177,7 +183,24 @@ class ConstantsRepo(Constants):
             resp.raise_for_status()
             return resp.json()
         except Exception:   # noqa: BLE001 — best-effort: см. комментарий у вызова
+            return self._fetch_mirror(resource)
+
+    def _fetch_mirror(self, resource: str) -> Any:
+        """Тот же справочник с GitHub — без лимита OpenDota и без ключа.
+
+        Через общую сессию не идём: у неё в params может лежать api_key, а
+        отправлять ключ OpenDota третьему хосту незачем.
+        """
+        try:
+            resp = requests.get(f"{self.MIRROR}/{resource}.json", timeout=30,
+                                headers={"User-Agent": self._session.headers.get("User-Agent", "")})
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:   # noqa: BLE001 — best-effort, как и основной путь
             return {}
+        if data:
+            print(f"dota2coach: справочник «{resource}» взят с зеркала GitHub", flush=True)
+        return data
 
     def hero_name(self, hero_id: Optional[int]) -> str:
         heroes = self._load("heroes")
