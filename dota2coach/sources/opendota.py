@@ -184,6 +184,14 @@ class OpenDotaSource(DataSource):
 
     # --- публичный контракт ---------------------------------------------------
 
+    def cached_parsed(self, match_id: int) -> Optional[Dict[str, Any]]:
+        """Распарсенная копия из серверного кэша, если она есть."""
+        return self._cached_match(match_id)
+
+    def from_raw(self, raw: Dict[str, Any]) -> Match:
+        """Нормализует уже полученный ответ /matches/{id} — без сети и без кэша."""
+        return normalize.from_opendota(raw, self._constants)
+
     def fetch_player_matches(self, account_id: int, limit: int,
                              hero_id: Optional[int] = None,
                              lane_role: Optional[int] = None) -> List[int]:

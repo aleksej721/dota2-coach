@@ -11,7 +11,7 @@ import json
 import pathlib
 import threading
 from contextlib import asynccontextmanager
-from typing import Any, Dict, Literal, Optional, get_args
+from typing import Any, Dict, List, Literal, Optional, get_args
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
@@ -107,16 +107,18 @@ app = FastAPI(title="dota2coach", docs_url="/api/docs", redoc_url=None,
               lifespan=lifespan)
 
 
-def _generate_blocking(match_id, account_id, hero, policy):
+def _generate_blocking(match_id, account_id, hero, policy, raw_match=None):
     with _pipeline_lock:
         return generate_prompt(match_id, account_id, hero, policy,
-                               pipeline=_shared_pipeline())
+                               pipeline=_shared_pipeline(), raw_match=raw_match)
 
 
-def _profile_blocking(account_id, matches, hero, role, policy):
+def _profile_blocking(account_id, matches, hero, role, policy,
+                      raw_matches=None, match_ids=None):
     with _pipeline_lock:
         return generate_profile_prompt(account_id, matches, hero, role, policy,
-                                       pipeline=_shared_pipeline())
+                                       pipeline=_shared_pipeline(),
+                                       raw_matches=raw_matches, match_ids=match_ids)
 
 
 class AnalyzeRequest(BaseModel):
@@ -137,6 +139,10 @@ class AnalyzeRequest(BaseModel):
                                         description="начало окна разбора, минуты")
     window_end: Optional[int] = Field(None, ge=1, le=180,
                                       description="конец окна разбора, минуты")
+    # Ответ OpenDota /matches/{id}, который страница скачала сама со своего IP.
+    # Необязателен: без него сервер тянет матч обычным путём.
+    raw_match: Optional[Dict[str, Any]] = Field(
+        None, description="сырой ответ OpenDota, уже скачанный браузером")
 
 
 class AnalyzeResponse(BaseModel):
@@ -271,7 +277,7 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         # На таймауте поток продолжит работу (убить его нельзя) — просто ответим 504.
         result = await asyncio.wait_for(
             run_in_threadpool(_generate_blocking, req.match_id, req.account_id,
-                              (req.hero or "").strip() or None, policy),
+                              (req.hero or "").strip() or None, policy, req.raw_match),
             timeout=REQUEST_TIMEOUT_SEC,
         )
     except asyncio.TimeoutError:
@@ -310,6 +316,9 @@ class ProfileRequest(BaseModel):
     lang: Lang = "ru"
     note: Optional[str] = Field(None, description="твой вопрос — станет главным приоритетом")
     mmr: Optional[str] = Field(None, description="MMR или бракет для калибровки советов")
+    # То, что страница уже скачала сама: список матчей игрока и ответы по ним.
+    match_ids: Optional[List[int]] = Field(None, max_length=MAX_MATCHES * 2)
+    raw_matches: Optional[List[Dict[str, Any]]] = Field(None, max_length=MAX_MATCHES * 2)
 
 
 class ProfileResponse(BaseModel):
@@ -334,6 +343,20 @@ class ProfileResponse(BaseModel):
 PROFILE_TIMEOUT_SEC = 420.0
 
 
+@app.get("/api/profile/plan")
+async def profile_plan(matches: int = DEFAULT_MATCHES, hero: Optional[str] = None,
+                       role: Optional[Role] = None) -> Dict[str, Optional[int]]:
+    """Параметры запроса /players/{id}/matches для страницы.
+
+    Сети не трогает, кроме справочника героев (у него есть зеркало на GitHub).
+    """
+    try:
+        return await run_in_threadpool(
+            _shared_pipeline().profile_query, matches, (hero or "").strip() or None, role)
+    except DataSourceError as e:
+        raise _source_failure(e)
+
+
 @app.post("/api/profile", response_model=ProfileResponse)
 async def profile(req: ProfileRequest) -> ProfileResponse:
     policy = Policy(model=req.model, lang=req.lang, mmr=req.mmr, note=req.note)
@@ -341,7 +364,8 @@ async def profile(req: ProfileRequest) -> ProfileResponse:
     try:
         result = await asyncio.wait_for(
             run_in_threadpool(_profile_blocking, req.account_id, req.matches,
-                              (req.hero or "").strip() or None, req.role, policy),
+                              (req.hero or "").strip() or None, req.role, policy,
+                              req.raw_matches, req.match_ids),
             timeout=PROFILE_TIMEOUT_SEC,
         )
     except asyncio.TimeoutError:

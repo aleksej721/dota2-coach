@@ -644,6 +644,133 @@
 
   const badAccount = (id) => id === null || !Number.isInteger(id) || id <= 0;
 
+  /* ============================================================
+     OpenDota напрямую из браузера
+     ============================================================ */
+  /* Почему страница ходит в OpenDota сама. Лимит OpenDota считается по IP:
+     60 запросов в минуту и около 3000 в сутки. Бесплатный хостинг выходит в сеть
+     через общие адреса, одни на множество чужих сервисов, и их суточный лимит
+     выбирают другие — сервер получал 429 на первом же запросе. OpenDota разрешает
+     CORS, поэтому матч забирает браузер, со своего IP и в пределах своего лимита,
+     а серверу отдаёт готовый ответ. Сервер по-прежнему умеет сходить сам: если
+     здесь что-то не получилось, просто отправляем запрос без данных. */
+  const OPENDOTA = "https://api.opendota.com/api";
+  const PARSE_WAIT_MS = 90000;
+  const PARSE_POLL_MS = 5000;
+  const PREFETCH_PARALLEL = 4;
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const odFetch = async (path, params, init) => {
+    const url = new URL(OPENDOTA + path);
+    for (const [key, value] of Object.entries(params || {})) {
+      if (value !== null && value !== undefined) url.searchParams.set(key, value);
+    }
+    const res = await fetch(url, { headers: { Accept: "application/json" }, ...init });
+    if (!res.ok) {
+      const error = new Error(`OpenDota ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
+    return res.json().catch(() => null);
+  };
+
+  // OpenDota проставляет version, когда матч прошёл детальный парсинг.
+  const isParsed = (raw) => raw && raw.version !== null && raw.version !== undefined;
+
+  /* Заказать парсинг и дождаться его. Пока задача жива, /request/{job} отдаёт
+     объект, по завершении — null. Не дождались — не беда: сервер получит то,
+     что есть, и честно предупредит о неполных данных. */
+  const waitForParse = async (matchId) => {
+    const job = await odFetch(`/request/${matchId}`, null, { method: "POST" });
+    const jobId = job && job.job && job.job.jobId;
+    const deadline = Date.now() + PARSE_WAIT_MS;
+    while (jobId && Date.now() < deadline) {
+      await sleep(PARSE_POLL_MS);
+      if (!(await odFetch(`/request/${jobId}`))) break;
+    }
+    return odFetch(`/matches/${matchId}`);
+  };
+
+  /* Результат: { raw } — матч скачан; { notFound: true } — такого матча нет, и
+     спрашивать сервер бессмысленно; null — не вышло, пусть сервер попробует. */
+  async function prefetchMatch(matchId) {
+    try {
+      let raw = await odFetch(`/matches/${matchId}`);
+      if (!raw || raw.match_id === undefined || raw.match_id === null) return null;
+      if (!isParsed(raw)) {
+        try {
+          const refreshed = await waitForParse(matchId);
+          if (refreshed && refreshed.match_id) raw = refreshed;
+        } catch { /* парсинг не заказался — идём с базовыми данными */ }
+      }
+      return { raw };
+    } catch (error) {
+      return error.status === 404 ? { notFound: true } : null;
+    }
+  }
+
+  // Не больше PREFETCH_PARALLEL запросов одновременно: вежливо к API и укладывается
+  // в минутный лимит даже для профиля на 40 матчей.
+  const mapLimited = async (items, limit, worker) => {
+    const results = new Array(items.length);
+    let next = 0;
+    const lane = async () => {
+      while (next < items.length) {
+        const index = next++;
+        results[index] = await worker(items[index]);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
+    return results;
+  };
+
+  /* Для профиля: план запроса (hero_id и линию умеют вычислять только
+     справочники сервера) → список матчей игрока → сами матчи. Ошибка плана —
+     например, неопознанный герой — показывается сразу: сервер ответил бы тем же. */
+  async function prefetchProfile(body) {
+    // Пустое «сколько матчей» — это «по умолчанию»: параметр не передаём вовсе.
+    const query = new URLSearchParams();
+    if (body.matches) query.set("matches", body.matches);
+    if (body.hero) query.set("hero", body.hero);
+    if (body.role) query.set("role", body.role);
+    const planRes = await fetch(`/api/profile/plan?${query}`);
+    if (!planRes.ok) {
+      return { error: { status: planRes.status, data: await planRes.json().catch(() => ({})) } };
+    }
+    const plan = await planRes.json();
+    try {
+      const rows = await odFetch(`/players/${body.account_id}/matches`, {
+        limit: plan.limit, hero_id: plan.hero_id, lane_role: plan.lane_role,
+        project: "hero_id",
+      });
+      const ids = (Array.isArray(rows) ? rows : []).map((row) => row && row.match_id).filter(Boolean);
+      const raws = await mapLimited(ids, PREFETCH_PARALLEL,
+        (id) => odFetch(`/matches/${id}`).catch(() => null));
+      return { match_ids: ids, raw_matches: raws.filter(Boolean) };
+    } catch {
+      return null;
+    }
+  }
+
+  /* Дополняет тело запроса тем, что удалось скачать. Возвращает false, если
+     продолжать незачем — ошибка уже показана. */
+  async function attachPrefetched(request) {
+    if (request.url === "/api/analyze") {
+      const got = await prefetchMatch(request.body.match_id);
+      if (got && got.notFound) {
+        showError(404, { detail: { kind: "not_found", message: "" } });
+        return false;
+      }
+      if (got) request.body.raw_match = got.raw;
+      return true;
+    }
+    const got = await prefetchProfile(request.body);
+    if (got && got.error) { showError(got.error.status, got.error.data); return false; }
+    if (got) Object.assign(request.body, got);
+    return true;
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     closeHint();
@@ -661,6 +788,7 @@
     startTicker();
 
     try {
+      if (!(await attachPrefetched(request))) return;
       const res = await fetch(request.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

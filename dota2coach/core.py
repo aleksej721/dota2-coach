@@ -9,7 +9,7 @@
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -24,6 +24,7 @@ from .policy import Policy
 from .profile import ProfileAggregator, ProfileFeatures
 from .ratelimit import RateLimiter
 from .sources.opendota import OpenDotaSource
+from .sources.prefetched import PrefetchedSource
 
 # Клиент называет себя честно и оставляет адрес проекта: так у владельцев API
 # есть с кем связаться, если наш трафик им мешает. «personal use» перестало быть
@@ -104,7 +105,8 @@ def build_pipeline(api_key: Optional[str] = None, use_cache: bool = True,
 
 def generate_prompt(match_id: int, account_id: Optional[int] = None,
                     hero: Optional[str] = None, policy: Optional[Policy] = None,
-                    pipeline: Optional[Pipeline] = None) -> PromptResult:
+                    pipeline: Optional[Pipeline] = None,
+                    raw_match: Optional[Dict[str, Any]] = None) -> PromptResult:
     """match_id -> готовый текст промпта. Ничего не пишет на диск.
 
     Готовый `pipeline` можно передать снаружи, чтобы переиспользовать прогретые
@@ -113,6 +115,9 @@ def generate_prompt(match_id: int, account_id: Optional[int] = None,
     """
     policy = policy or Policy()
     pipeline = pipeline or build_pipeline()
+    # raw_match — ответ OpenDota, который уже скачал браузер (см. sources/prefetched.py).
+    if raw_match is not None:
+        pipeline = pipeline.with_source(PrefetchedSource(pipeline.source, [raw_match]))
     text, match, me = pipeline.build(match_id, account_id, hero, policy)
     return PromptResult(
         text=text,
@@ -128,7 +133,9 @@ def generate_prompt(match_id: int, account_id: Optional[int] = None,
 def generate_profile_prompt(account_id: int, count: int, hero: Optional[str] = None,
                             role: Optional[str] = None, policy: Optional[Policy] = None,
                             pipeline: Optional[Pipeline] = None,
-                            progress: Optional[ProgressFn] = None) -> ProfileResult:
+                            progress: Optional[ProgressFn] = None,
+                            raw_matches: Optional[List[Dict[str, Any]]] = None,
+                            match_ids: Optional[List[int]] = None) -> ProfileResult:
     """account_id -> мульти-матчевый промпт. Ничего не пишет на диск.
 
     Вторая точка входа рядом с generate_prompt(), с тем же контрактом: и CLI, и
@@ -136,6 +143,9 @@ def generate_profile_prompt(account_id: int, count: int, hero: Optional[str] = N
     """
     policy = policy or Policy()
     pipeline = pipeline or build_pipeline()
+    if raw_matches is not None or match_ids is not None:
+        pipeline = pipeline.with_source(
+            PrefetchedSource(pipeline.source, raw_matches or [], match_ids))
     text, features = pipeline.build_profile(account_id, count, hero, role, policy,
                                             progress=progress)
     return ProfileResult(

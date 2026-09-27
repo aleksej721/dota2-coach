@@ -8,6 +8,7 @@ DataSource -> (нормализация внутри источника) -> Feat
 веб-обёртке, а писать в output/ должен только CLI — веб отдаёт файл браузеру.
 """
 
+import copy
 import pathlib
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -43,6 +44,20 @@ class Pipeline:
         self._aggregator = aggregator
         self._profile_builder = profile_builder
         self._out_dir = pathlib.Path(out_dir)
+
+    @property
+    def source(self) -> DataSource:
+        return self._source
+
+    def with_source(self, source: DataSource) -> "Pipeline":
+        """Тот же конвейер с другим источником — на один запрос.
+
+        Справочники, экстрактор и сборщики общие и прогретые; меняется только то,
+        откуда берутся матчи (см. sources/prefetched.py).
+        """
+        clone = copy.copy(self)
+        clone._source = source
+        return clone
 
     def build(self, match_id: int, account_id: Optional[int], hero: Optional[str],
               policy: Policy) -> Tuple[str, Match, Player]:
@@ -91,6 +106,31 @@ class Pipeline:
 
     # --- профиль (кросс-матчевый разбор) --------------------------------------
 
+    def profile_query(self, count: int, hero: Optional[str] = None,
+                      role: Optional[str] = None) -> Dict[str, Optional[int]]:
+        """Какие матчи игрока запрашивать у OpenDota под заданные фильтры.
+
+        Вынесено отдельно, потому что этот же запрос делает и страница — со своего
+        IP, в обход общего лимита хостинга (см. sources/prefetched.py). Имя героя
+        в id умеют переводить только справочники сервера, поэтому страница
+        спрашивает план здесь, а список матчей тянет сама.
+        """
+        count = max(MIN_MATCHES, min(MAX_MATCHES, count))
+        hero_id = None
+        if (hero or "").strip():
+            hero_id = self._constants.hero_id_by_name(hero)
+            if hero_id is None:
+                raise DataSourceError(
+                    f"Не удалось однозначно опознать героя «{hero}». Напиши имя полнее — "
+                    f"например, «Phantom Lancer» вместо «Phantom».", KIND_HERO_UNKNOWN)
+        # Позиция игрока — наша эвристика, серверный фильтр OpenDota знает только
+        # линию. Поэтому линию используем как подсказку, а точную позицию
+        # проверяем сами и просим с запасом, чтобы добрать нужное число матчей.
+        lane_role = ROLE_TO_LANE_ROLE.get(role) if role else None
+        wanted = count * FETCH_BUDGET_FACTOR if role else count
+        return {"limit": min(wanted, MAX_MATCHES * 2), "hero_id": hero_id,
+                "lane_role": lane_role}
+
     def build_profile(self, account_id: int, count: int, hero: Optional[str] = None,
                       role: Optional[str] = None, policy: Optional[Policy] = None,
                       progress: Optional[ProgressFn] = None
@@ -104,22 +144,9 @@ class Pipeline:
         """
         policy = policy or Policy()
         count = max(MIN_MATCHES, min(MAX_MATCHES, count))
-
-        hero_id = None
-        if (hero or "").strip():
-            hero_id = self._constants.hero_id_by_name(hero)
-            if hero_id is None:
-                raise DataSourceError(
-                    f"Не удалось однозначно опознать героя «{hero}». Напиши имя полнее — "
-                    f"например, «Phantom Lancer» вместо «Phantom».", KIND_HERO_UNKNOWN)
-
-        # Позиция игрока — наша эвристика, серверный фильтр OpenDota знает только
-        # линию. Поэтому линию используем как подсказку, а точную позицию
-        # проверяем сами и просим с запасом, чтобы добрать нужное число матчей.
-        lane_role = ROLE_TO_LANE_ROLE.get(role) if role else None
-        wanted = count * FETCH_BUDGET_FACTOR if role else count
-        ids = self._source.fetch_player_matches(account_id, min(wanted, MAX_MATCHES * 2),
-                                                hero_id, lane_role)
+        query = self.profile_query(count, hero, role)
+        ids = self._source.fetch_player_matches(account_id, query["limit"],
+                                                query["hero_id"], query["lane_role"])
 
         pairs: List[Tuple[Match, Player]] = []
         attempted = 0
