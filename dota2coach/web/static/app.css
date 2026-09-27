@@ -1,0 +1,1907 @@
+/* dota2coach — стили страницы.
+   Дизайн-код описан в docs/DESIGN_SYSTEM.md. Файл отдаётся сервером по
+   адресу /app.css с версией в query-строке (см. web/app.py), поэтому после
+   деплоя браузер не держит устаревшую копию. */
+
+/* ============================================================
+   Токены. Тёмная тема — база, светлая переопределяет тот же набор,
+   поэтому стеклянная эстетика в обеих одна и та же.
+
+   Дизайн-код страницы описан в docs/DESIGN_SYSTEM.md и держится на одном
+   разделении: ПОВЕРХНОСТИ стеклянные (Apple glass — блюр, полупрозрачность,
+   подсветка кромок), ПОВЕДЕНИЕ материальное (M3 Expressive — state layers,
+   ripple, shape morph, пружины, elevation). Приёма, которого нет в том
+   документе, на странице быть не должно.
+   ============================================================ */
+:root {
+  --bg:            #0a0b0f;
+  --text:          #f2f3f7;
+  --muted:         #9aa0ae;
+  --faint:         #6b7180;
+
+  --glass-bg:      rgba(255, 255, 255, .052);
+  --glass-border:  rgba(255, 255, 255, .092);
+  --glass-hi:      rgba(255, 255, 255, .16);
+  --field-bg:      rgba(255, 255, 255, .04);
+  --field-border:  rgba(255, 255, 255, .10);
+  --field-hover:   rgba(255, 255, 255, .17);
+  --solid:         rgba(10, 11, 15, .55);
+  --code:          #dfe3ec;
+
+  --accent:        #6d6df0;
+  --accent-2:      #a274f5;
+  --accent-soft:   rgba(109, 109, 240, .16);
+  --on-accent:     #fff;
+  /* Кольцо-хват внутри ручки ползунка: отделяет её от непрерывной заливки. */
+  --knob-grip:     rgba(255, 255, 255, .55);
+
+  --danger:        #ff8080;
+  --danger-bg:     rgba(255, 90, 90, .10);
+  --danger-bd:     rgba(255, 90, 90, .28);
+  --warn:          #ffc46b;
+  --warn-bg:       rgba(255, 180, 80, .09);
+  --warn-bd:       rgba(255, 180, 80, .26);
+
+  --glow-1: rgba(109, 109, 240, .26);
+  --glow-2: rgba(162, 116, 245, .18);
+  --glow-3: rgba(70, 110, 220, .14);
+
+  /* Фракции. Акцент интерфейса остаётся фиолетовым: Radiant и Dire работают
+     как СМЫСЛОВАЯ метка (моя сторона, исход матча), а не как раскраска —
+     иначе страница превратилась бы в светофор. */
+  --radiant:      #4ade9b;
+  --radiant-deep: #1f8f63;
+  --radiant-soft: rgba(74, 222, 155, .14);
+  --radiant-aura: rgba(45, 190, 130, .20);
+  --dire:         #ff6b5e;
+  --dire-deep:    #a52a22;
+  --dire-soft:    rgba(255, 107, 94, .13);
+  --dire-aura:    rgba(190, 45, 40, .18);
+
+  --shadow: 0 22px 60px rgba(0, 0, 0, .48), 0 2px 8px rgba(0, 0, 0, .30);
+  --shadow-lift: 0 30px 74px rgba(0, 0, 0, .55), 0 3px 10px rgba(0, 0, 0, .34);
+  --scroll: rgba(255, 255, 255, .16);
+  --grain: .035;
+
+  /* --- Форма (M3 shape scale) --------------------------------------------
+     Радиусы приведены к шкале Material 3. Значений «на глаз» в правилах быть
+     не должно: если нужного радиуса нет в шкале — он добавляется сюда.
+     См. docs/DESIGN_SYSTEM.md. */
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 28px;
+  --r-full: 999px;   /* пилюли: чипы, тумблер, трек ползунка */
+
+  /* --- Elevation (M3) ----------------------------------------------------
+     Две тени на уровень: узкая «ключевая» под объектом и широкая «окружающая».
+     Одна размытая клякса, как было, читается как туман, а не как высота. */
+  --elev-1: 0 1px 2px rgba(0,0,0,.34), 0 1px 3px 1px rgba(0,0,0,.20);
+  --elev-2: 0 1px 2px rgba(0,0,0,.34), 0 2px 6px 2px rgba(0,0,0,.20);
+  --elev-3: 0 4px 8px 3px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.34);
+
+  /* --- Motion (M3) -------------------------------------------------------
+     Emphasized — для заметных переходов, decelerate — для появления. */
+  --m3-emphasized: cubic-bezier(.2, 0, 0, 1);
+  --m3-decelerate: cubic-bezier(.05, .7, .1, 1);
+  --m3-accelerate: cubic-bezier(.3, 0, .8, .15);
+  --m3-short: .2s;
+  --m3-medium: .35s;
+  --m3-long: .5s;
+
+  /* --- Пружины (M3 Expressive) -------------------------------------------
+     Настоящие затухающие колебания, посчитанные по модели пружины и выданные
+     в linear(). Ключевое отличие от cubic-bezier: пружина ОТСКАКИВАЕТ
+     несколько раз, а не один. Только для hero-моментов — везде подряд такое
+     превращает интерфейс в желе. */
+  --spring-bouncy: linear(0, 0.0511, 0.1853, 0.3726, 0.5836, 0.7929, 0.9801, 1.1314, 1.239, 1.3012, 1.3212, 1.3054, 1.2628, 1.2029, 1.1352, 1.0679, 1.0076, 0.9587, 0.9239, 0.9035, 0.8969, 0.9017, 0.9152, 0.9344, 0.9561, 0.9777, 0.9972, 1.013, 1.0243, 1.0309, 1.0331, 1.0316, 1.0273, 1.0212, 1.0143, 1.0073, 1);
+  --spring-soft: linear(0, 0.0418, 0.1482, 0.2933, 0.455, 0.6159, 0.7635, 0.8897, 0.9903, 1.0642, 1.113, 1.1395, 1.1477, 1.142, 1.1265, 1.1052, 1.0814, 1.0576, 1.0357, 1.0169, 1.0019, 0.9908, 0.9835, 0.9795, 0.9782, 0.979, 0.9812, 0.9843, 0.9878, 0.9914, 0.9946, 0.9974, 0.9996, 1.0013, 1.0024, 1.003, 1);
+  --spring-gentle: linear(0, 0.0337, 0.1174, 0.2292, 0.3529, 0.4767, 0.5927, 0.6962, 0.7848, 0.8578, 0.9157, 0.9599, 0.992, 1.014, 1.0279, 1.0355, 1.0383, 1.0377, 1.035, 1.031, 1.0263, 1.0215, 1.0169, 1.0128, 1.0092, 1.0062, 1.0038, 1.002, 1.0006, 0.9997, 0.9991, 0.9987, 0.9985, 0.9985, 0.9986, 0.9988, 1);
+
+  /* Лёгкий перелёт: скользящие шайбы сегментов «доезжают» с отскоком, а не
+     тормозят в упор. Перелёт маленький — интерфейс должен быть живым, а не
+     развязным.
+     Прежние --ease и --dur убраны: они дублировали --m3-emphasized и
+     --m3-short, и одна и та же моторика жила в интерфейсе под двумя именами. */
+  --spring: cubic-bezier(.34, 1.56, .48, 1);
+  --space-1: 6px;
+  --space-2: 10px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+          system-ui, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  /* Display-гарнитура ровно для одного элемента — заголовка. Веб-шрифт не
+     грузим сознательно: страница самодостаточна, а внешний запрос за шрифтом
+     стоил бы и скорости, и приватности. Засечные системные гарнитуры дают
+     нужную «эпичность» без единого байта по сети. */
+  --display: "Optima", "Iowan Old Style", "Palatino Linotype", Palatino,
+             "Hoefler Text", Georgia, serif;
+}
+
+/* Светлая тема: стекло становится светлым и НЕПРОЗРАЧНЕЕ — на светлом фоне
+   тонкая плёнка не читается, а контраст текста важнее силы блюра. */
+:root[data-theme="light"] {
+  --bg:            #eef0f6;
+  --text:          #16181f;
+  --muted:         #5a6172;
+  --faint:         #868da0;
+
+  --glass-bg:      rgba(255, 255, 255, .62);
+  --glass-border:  rgba(16, 20, 40, .10);
+  --glass-hi:      rgba(255, 255, 255, .85);
+  --field-bg:      rgba(255, 255, 255, .72);
+  --field-border:  rgba(16, 20, 40, .14);
+  --field-hover:   rgba(16, 20, 40, .26);
+  --solid:         rgba(255, 255, 255, .86);
+  --code:          #232838;
+
+  --accent:        #5757e0;
+  --accent-2:      #8f56e8;
+  --accent-soft:   rgba(87, 87, 224, .16);
+  --knob-grip:     rgba(255, 255, 255, .72);
+
+  --danger:        #b3261e;
+  --danger-bg:     rgba(220, 60, 50, .09);
+  --danger-bd:     rgba(220, 60, 50, .26);
+  --warn:          #8a5a00;
+  --warn-bg:       rgba(230, 160, 40, .13);
+  --warn-bd:       rgba(200, 140, 40, .30);
+
+  --glow-1: rgba(109, 109, 240, .20);
+  --glow-2: rgba(162, 116, 245, .16);
+  --glow-3: rgba(80, 140, 230, .14);
+
+  /* На светлом фоне яркая зелень и алый «звенят», поэтому фракции здесь
+     заметно глубже и менее насыщенны — читаемость важнее верности палитре игры. */
+  --radiant:      #0f7a52;
+  --radiant-deep: #0a5c3d;
+  --radiant-soft: rgba(15, 122, 82, .12);
+  --radiant-aura: rgba(30, 160, 110, .16);
+  --dire:         #b3372c;
+  --dire-deep:    #8a251c;
+  --dire-soft:    rgba(179, 55, 44, .10);
+  --dire-aura:    rgba(200, 70, 60, .13);
+
+  --shadow: 0 18px 44px rgba(20, 26, 60, .12), 0 2px 6px rgba(20, 26, 60, .07);
+  --shadow-lift: 0 26px 60px rgba(20, 26, 60, .17), 0 3px 8px rgba(20, 26, 60, .09);
+  --elev-1: 0 1px 2px rgba(20,26,60,.16), 0 1px 3px 1px rgba(20,26,60,.09);
+  --elev-2: 0 1px 2px rgba(20,26,60,.16), 0 2px 6px 2px rgba(20,26,60,.09);
+  --elev-3: 0 4px 8px 3px rgba(20,26,60,.11), 0 1px 3px rgba(20,26,60,.16);
+  --scroll: rgba(20, 26, 60, .22);
+  --grain: .02;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+
+/* Смена темы меняет только CSS-переменные, и Chrome не считает это поводом
+   перерастеризовать слои с backdrop-filter: они продолжают размывать снимок
+   ПРЕЖНЕГО фона, и вся страница уходит под серую пелену. Снятие фильтра на один
+   кадр (класс живёт два requestAnimationFrame, см. applyTheme) заставляет
+   композитор пересобрать слои заново. */
+:root.theme-swap .card,
+:root.theme-swap .ctl,
+:root.theme-swap .modes,
+:root.theme-swap #hint {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 44px 24px 90px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--m3-short) var(--m3-emphasized), color var(--m3-short) var(--m3-emphasized);
+}
+
+/* Фон — фракционная дуальность: сияние Radiant внизу слева (природное,
+   растущее вверх) и жар Dire сверху справа. Реки между ними нет буквально,
+   но диагональ, по которой они встречаются, читается сама. */
+.glow {
+  position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  /* Собственный слой композитора. Без него фиксированный фон при прокрутке
+     перерисовывается не полностью, и сверху остаётся чёрная полоса
+     непрорисованной области — видно на длинных страницах с результатом. */
+  transform: translateZ(0);
+  background:
+    radial-gradient(720px 520px at 88% -6%,  var(--dire-aura), transparent 68%),
+    radial-gradient(680px 560px at 6% 104%,  var(--radiant-aura), transparent 68%),
+    radial-gradient(620px 440px at 24% -10%, var(--glow-1), transparent 72%),
+    radial-gradient(540px 420px at 76% 108%, var(--glow-2), transparent 72%);
+}
+
+/* Зерно поверх фона. Один фиксированный слой с inline-SVG: чистые градиенты
+   на больших площадях полосят, а плёнка шума это скрывает без цены в кадрах. */
+.grain {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  transform: translateZ(0);
+  opacity: var(--grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Орбы: крупные размытые сгустки света, которые очень медленно проплывают по
+   экрану. Слой пришёл на смену буквальным солнцу, луне и глифам рун — те
+   читались как наклейки поверх фона, а не как его часть, и опознавались
+   именно как «дота-картинки», приклеенные к обычному интерфейсу.
+
+   Здесь нет ни одной узнаваемой формы: только цвет фракции и мягкость, а
+   узнаваемость держится на палитре — Radiant внизу слева, Dire сверху справа.
+   Размытие статичное, движется только transform, поэтому blur считается один
+   раз при растеризации слоя, а не каждый кадр. */
+.orbs { position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden; }
+.orbs i {
+  position: absolute; display: block;
+  left: var(--x); top: var(--y);
+  width: var(--s); height: var(--s); border-radius: 50%;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--radiant) 32%, transparent) 0 40%, transparent 70%);
+  /* Сильное размытие и низкая непрозрачность обязательны: карточки —
+     полупрозрачное стекло, и яркий сгусток за ними красит не фон, а сам текст.
+     Орб должен читаться как подсветка, а не как пятно под формой. */
+  filter: blur(52px);
+  opacity: .22;
+  animation: orb-float var(--d) ease-in-out var(--delay) infinite alternate;
+}
+.orbs i.dire {
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--dire) 30%, transparent) 0 40%, transparent 70%);
+}
+.orbs i.calm {
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--accent) 28%, transparent) 0 40%, transparent 70%);
+}
+@keyframes orb-float {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(var(--dx), var(--dy), 0) scale(1.18); }
+}
+/* На светлом фоне те же значения «звенят» так же, как чистые цвета фракций. */
+:root[data-theme="light"] .orbs { opacity: .7; }
+
+/* Проход света по стеклу: одна очень широкая диагональная полоса, которая
+   раз в полторы минуты медленно пересекает экран. Ровно то, что делает
+   поверхность похожей на стекло, а не на бумагу, — и ровно один эффект,
+   без единой фигуры. */
+/* Полоса заведомо выше экрана: у наклонённого прямоугольника углы иначе
+   заезжают в кадр, и вместо прохода света видно резкую диагональную границу. */
+.sheen {
+  position: fixed; top: -70vh; bottom: -70vh; left: 0; width: 40vw;
+  z-index: -1; pointer-events: none;
+  background: linear-gradient(100deg, transparent,
+              color-mix(in srgb, var(--accent) 9%, transparent), transparent);
+  transform: translate3d(-60vw, 0, 0) rotate(12deg);
+  animation: sweep 92s linear infinite;
+}
+@keyframes sweep {
+  from { transform: translate3d(-60vw, 0, 0) rotate(12deg); }
+  to   { transform: translate3d(160vw, 0, 0) rotate(12deg); }
+}
+
+/* Дрейфующие искры: Radiant всплывает снизу слева, Dire оседает сверху справа.
+   Только opacity и transform — работа целиком на композиторе, без единой
+   перерисовки. */
+.embers { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.embers i {
+  position: absolute; bottom: -6vh; left: var(--x);
+  width: var(--s); height: var(--s); border-radius: 50%;
+  background: var(--radiant);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--radiant) 70%, transparent);
+  opacity: 0;
+  animation: drift var(--d) linear var(--delay) infinite;
+}
+.embers i.dire {
+  bottom: auto; top: -6vh;
+  background: var(--dire);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--dire) 70%, transparent);
+  animation-name: fall;
+}
+@keyframes drift {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  12%  { opacity: .55; }
+  85%  { opacity: .35; }
+  100% { transform: translate3d(14px, -106vh, 0); opacity: 0; }
+}
+@keyframes fall {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  12%  { opacity: .5; }
+  85%  { opacity: .3; }
+  100% { transform: translate3d(-16px, 106vh, 0); opacity: 0; }
+}
+
+/* Тонкая фракционная нить по краям страницы: слева Radiant, справа Dire. */
+body::before, body::after {
+  content: ""; position: fixed; top: 0; bottom: 0; width: 1px; z-index: -1;
+  pointer-events: none;
+}
+body::before { left: 0; background: linear-gradient(180deg, transparent, var(--radiant), transparent); opacity: .5; }
+body::after { right: 0; background: linear-gradient(180deg, var(--dire), transparent 70%); opacity: .45; }
+
+.wrap { max-width: 1040px; margin: 0 auto; }
+.direct-file-notice { display: none; }
+html[data-direct-file="true"] body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+html[data-direct-file="true"] body > :not(.direct-file-notice) { display: none !important; }
+html[data-direct-file="true"] .direct-file-notice {
+  display: grid;
+  gap: 12px;
+  width: min(560px, 100%);
+  padding: 28px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  background: var(--glass-bg);
+  box-shadow: var(--elev-3);
+  backdrop-filter: blur(24px) saturate(145%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+}
+.direct-file-notice h1 { margin: 0; font-size: 24px; }
+.direct-file-notice p { margin: 0; color: var(--muted); line-height: 1.6; }
+.direct-file-notice code {
+  display: block;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  color: var(--code);
+  background: var(--field-bg);
+  user-select: all;
+}
+
+/* Появление лестницей: шапка, режимы, форма. Двигаем только opacity и
+   transform, поэтому композитор справляется без перерисовок. */
+header { animation: rise .5s var(--m3-decelerate) both; }
+.modes { animation: rise .5s .06s var(--m3-decelerate) both; }
+.modes-note { animation: rise .5s .1s var(--m3-decelerate) both; }
+form.card { animation: rise .55s .14s var(--m3-decelerate) both; }
+.foot { animation: rise .5s .22s var(--m3-decelerate) both; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px) scale(.994); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ============================================================
+   Шапка и управление
+   ============================================================ */
+header { position: relative; text-align: center; margin-bottom: var(--space-4); }
+
+/* Единственное место с display-гарнитурой. Заголовок — и только он: засечки в
+   подписях и кнопках превратили бы страницу в книгу, а нужен ровно один
+   «эпичный» акцент на весь экран. */
+.logo {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--display);
+  font-size: 31px; font-weight: 700; letter-spacing: .004em;
+}
+.logo svg { width: 29px; height: 29px; }
+.tagline { margin: 8px 0 0; color: var(--muted); font-size: 14.5px; }
+
+/* Язык и тема живут в шапке и видны всегда: это не поля формы, и убирать их
+   под аккордеон означало бы прятать переключатель языка от того, кто пришёл
+   на непонятном ему языке. */
+.controls {
+  position: absolute; top: 2px; right: 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.ctl {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 11px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font: inherit; font-size: 13px; font-weight: 550;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  transition: border-color var(--m3-short) var(--m3-emphasized), background var(--m3-short) var(--m3-emphasized);
+}
+.ctl:hover { border-color: var(--field-hover); }
+.ctl:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%239aa0ae' stroke-width='1.7' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; }
+.ctl svg { width: 15px; height: 15px; }
+
+/* ============================================================
+   Material: state layers и ripple
+   ============================================================ */
+/* State layer — отдельный полупрозрачный слой поверх поверхности, а НЕ подмена
+   её фона. Это принципиально для стекла: подмена цвета убила бы прозрачность,
+   а слой поверх сохраняет и её, и блюр под собой.
+   Непрозрачности по M3: hover 8%, focus 10%, pressed 12%. */
+.ripple { position: relative; overflow: hidden; isolation: isolate; }
+.ripple > * { position: relative; z-index: 1; }
+.ripple::before {
+  content: ""; position: absolute; inset: 0; z-index: 0;
+  background: currentColor; opacity: 0; pointer-events: none;
+  transition: opacity var(--m3-short) var(--m3-emphasized);
+}
+.ripple:hover::before { opacity: .08; }
+.ripple:focus-visible::before { opacity: .10; }
+.ripple:active::before { opacity: .12; }
+.ripple:disabled::before { opacity: 0; }
+
+/* Чернильная волна из точки клика — узнаваемый отклик Material. Элемент
+   создаётся скриптом и сам себя убирает по окончании анимации. */
+.ripple-wave {
+  position: absolute; z-index: 0; border-radius: 50%;
+  background: currentColor; opacity: .28;
+  transform: scale(0); pointer-events: none;
+  animation: ripple-out .55s var(--m3-decelerate) forwards;
+}
+@keyframes ripple-out {
+  to { transform: scale(1); opacity: 0; }
+}
+
+/* ============================================================
+   Инфо-окно
+   ============================================================ */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; place-items: center;
+  padding: 24px;
+  background: rgba(4, 5, 9, .62);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  animation: fade-in .18s var(--m3-decelerate) both;
+}
+.modal-backdrop[hidden] { display: none; }
+:root[data-theme="light"] .modal-backdrop { background: rgba(20, 26, 60, .34); }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  position: relative;
+  width: min(640px, 100%); max-height: min(82vh, 760px);
+  padding: 26px 28px 24px;
+  overflow-y: auto;
+  animation: modal-in .26s var(--m3-decelerate) both;
+  scrollbar-color: var(--scroll) transparent;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+.modal h2 {
+  margin: 0 0 4px; padding-right: 34px;
+  font-size: 20px; font-weight: 660; letter-spacing: -.015em;
+}
+.modal h3 {
+  margin: 20px 0 6px;
+  color: var(--accent); font-size: 13px; font-weight: 680;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.modal p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.62; }
+.modal ul { margin: 0; padding-left: 0; list-style: none; }
+.modal li {
+  position: relative; padding-left: 20px; margin-top: 7px;
+  color: var(--muted); font-size: 14.5px; line-height: 1.55;
+}
+/* Маркер-ромб вместо точки: та же гранёная геометрия, что у номеров секций. */
+.modal li::before {
+  content: ""; position: absolute; left: 4px; top: .62em;
+  width: 6px; height: 6px; transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--radiant), var(--dire));
+  border-radius: 1px;
+}
+.modal ol { margin: 0; padding-left: 20px; }
+.modal ol li { padding-left: 4px; }
+.modal ol li::before { content: none; }
+.modal ol li::marker { color: var(--accent); font-weight: 700; }
+/* Оговорка после списка: тише основного текста, но не мельче — это честная
+   граница возможностей, а не сноска, которую можно не читать. */
+.modal-note {
+  margin-top: 10px; padding-left: 11px;
+  border-left: 2px solid var(--field-border);
+  color: var(--faint); font-size: 13.5px; line-height: 1.55;
+}
+.modal-close {
+  position: absolute; top: 16px; right: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0;
+  background: var(--field-bg); border: 1px solid var(--field-border);
+  border-radius: 50%; color: var(--muted);
+  font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
+  transition: color var(--m3-short) var(--m3-emphasized), border-color var(--m3-short) var(--m3-emphasized),
+              transform var(--m3-short) var(--m3-emphasized);
+}
+/* Ховер — только цвет и рамка. Разворот на 90° был единственным вращением на
+   всей странице: приём симпатичный, но ни на что больше не похожий, а разнобой
+   стоит дороже находки. Отклик на нажатие даёт state layer класса .ripple. */
+.modal-close:hover { color: var(--text); border-color: var(--field-hover); }
+.modal-close:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ============================================================
+   Переключатель режимов
+   ============================================================ */
+.modes {
+  position: relative;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  max-width: 520px; margin: 0 auto var(--space-4);
+  padding: 5px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(var(--r-md) + 5px);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+/* Отдельная «шайба» вместо перекраски фона кнопок: она СКОЛЬЗИТ между
+   режимами, и переключение читается как движение, а не как мгновенная замена. */
+.modes-thumb {
+  position: absolute; top: 5px; bottom: 5px; left: 5px;
+  width: calc(50% - 7px); border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 22px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .22);
+  transition: transform .38s var(--spring);
+}
+.modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(100% + 4px)); }
+.mode {
+  position: relative; z-index: 1;
+  display: grid; gap: 1px; justify-items: center;
+  padding: 9px 12px; border: none; border-radius: var(--r-md);
+  background: none; color: var(--muted);
+  font: inherit; cursor: pointer; text-align: center;
+  transition: color var(--m3-short) var(--m3-emphasized);
+}
+.mode-name { font-size: 14.5px; font-weight: 600; }
+.mode-sub { font-size: 11.5px; color: var(--faint); transition: color var(--m3-short) var(--m3-emphasized); }
+.mode:hover { color: var(--text); }
+.mode[aria-selected="true"], .mode[aria-selected="true"]:hover { color: var(--on-accent); }
+.mode[aria-selected="true"] .mode-sub { color: rgba(255, 255, 255, .82); }
+.mode:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.modes-note { display: flex; justify-content: center; margin: -14px 0 var(--space-4); }
+
+/* ============================================================
+   Стекло
+   ============================================================ */
+.card {
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow), var(--elev-1);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  transition: border-color var(--m3-short) var(--m3-emphasized), box-shadow var(--m3-short) var(--m3-emphasized);
+}
+.card::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  padding-top: 1px;
+  background: linear-gradient(180deg, var(--glass-hi), transparent 42%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+}
+/* Второй слой глубины: тёплый отсвет по нижней кромке. Одной верхней подсветки
+   мало — без нижней карточка выглядит наклейкой, а не объёмом. */
+.card::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .05),
+              inset 0 0 60px rgba(255, 255, 255, .012);
+  pointer-events: none;
+}
+
+form.card { padding: 0; overflow: clip; }
+
+.form-section { position: relative; padding: 24px 26px; }
+.form-section + .form-section { border-top: 1px solid var(--glass-border); }
+.section-head {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 16px; color: var(--text);
+  font-size: 13px; font-weight: 650; letter-spacing: .01em;
+}
+/* Гранёный шестиугольник вместо скруглённого квадрата — самый спокойный
+   способ намекнуть на дотовскую иконографику: форма рун и «древних». */
+.section-index {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 29px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  color: var(--accent);
+  background: linear-gradient(160deg, var(--accent-soft),
+              color-mix(in srgb, var(--accent) 26%, transparent));
+  font-size: 11px; font-weight: 720; font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Поля
+   ============================================================ */
+/* ОДНА сетка на всю форму: три равные колонки, поля занимают по одной или по
+   несколько. Раньше рядов было три разных (1fr 1fr, auto-fit и 2fr 1fr), и
+   вертикальные швы между полями не совпадали ни в одном месте — глаз ловит
+   расхождение в пять пикселей не хуже, чем в пятьдесят.
+
+   Раскладка: ID матча ×2 | account_id ×1; роли ×3; фокус | глубина | модель
+   (в профиле — герой | позиция | модель); промежуток ×3; вопрос ×2 | MMR ×1. */
+.row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+       gap: var(--space-3); align-items: start;
+       container-type: inline-size; }
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: 1 / -1; }
+/* Широкое поле в первом ряду разное у режимов: в матче это ID матча (туда
+   вставляют ссылку целиком), в профиле ID матча нет вовсе, и широким становится
+   account_id. Решает режим формы, а не разметка ряда. */
+form[data-mode="match"] .field--match-id { grid-column: span 2; }
+form[data-mode="profile"] .field--account { grid-column: span 2; }
+.row + .row, .row + .field, .field + .row { margin-top: var(--space-3); }
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+[data-only][hidden] { display: none; }
+
+/* Перенос по строкам обязателен: в узкой колонке длинная подпись вроде
+   «Только эта позиция — необязательно ?» иначе ломается посередине, и значок
+   подсказки уезжает вертикально мимо текста. */
+.lbl {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px; row-gap: 2px;
+  font-size: 12.5px; font-weight: 560; color: var(--muted);
+}
+.lbl .opt { color: var(--faint); font-weight: 500; }
+
+/* Подпись «Только эта позиция — необязательно ?» в колонку не помещается и
+   переносится, а соседняя — нет: подписи в ряду становятся разной высоты, и
+   ряд сразу выглядит рваным. Прижимать содержимое к низу — лечение симптома:
+   тогда разъезжаются уже сами подписи. Лечим причину: в узком ряду подписи
+   немного мельче и помещаются в строку ВСЕ разом, а не выборочно. */
+@container (max-width: 880px) {
+  .lbl { font-size: 11.5px; }
+}
+
+input[type="text"], textarea, select.fld {
+  width: 100%;
+  padding: 10px 13px;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-family: inherit; font-size: 15px; line-height: 1.45;
+  transition: border-color var(--m3-short) var(--m3-emphasized), background var(--m3-short) var(--m3-emphasized),
+              box-shadow var(--m3-short) var(--m3-emphasized);
+  min-height: 44px;
+}
+input::placeholder, textarea::placeholder { color: var(--faint); }
+/* Тип обязателен. Голый `input:focus` цеплял ВСЕ инпуты, включая ползунок и
+   чекбокс: при фокусе на ручке вокруг всей сорокапиксельной дорожки вспыхивал
+   фиолетовый прямоугольник со свечением, и выглядело это как чужая подсветка
+   неизвестного происхождения. У ползунка своё оформление фокуса — на ручке. */
+input[type="text"]:hover, textarea:hover, select.fld:hover { border-color: var(--field-hover); }
+input[type="text"]:focus, textarea:focus, select.fld:focus {
+  outline: none;
+  border-color: var(--accent);
+  /* Кольцо + мягкое свечение: поле под курсором должно быть видно сразу,
+     даже поверх стекла и фоновых эффектов. */
+  box-shadow: 0 0 0 3px var(--accent-soft),
+              0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+textarea { resize: vertical; min-height: 74px; }
+
+select.fld {
+  appearance: none; -webkit-appearance: none; padding-right: 36px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%239aa0ae' stroke-width='1.7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 13px center;
+}
+:root[data-theme="light"] select.fld, :root[data-theme="light"] select.ctl {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%235a6172' stroke-width='1.7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.hint-link {
+  align-self: flex-start;
+  padding: 0; background: none; border: none;
+  color: var(--faint); font: inherit; font-size: 12.5px; cursor: pointer;
+  border-bottom: 1px dashed var(--field-hover);
+  transition: color var(--m3-short) var(--m3-emphasized);
+}
+.hint-link:hover { color: var(--muted); }
+/* Своё кольцо вместо дефолтной рамки браузера — как у всего остального
+   на странице; ссылка-подсказка была единственной, кому его не досталось. */
+.hint-link:focus-visible {
+  outline: none; border-radius: var(--r-xs);
+  box-shadow: 0 0 0 3px var(--accent-soft); color: var(--muted);
+}
+#heroField[hidden] { display: none; }
+#heroField { margin-top: 16px; }
+.field-note { margin-top: 2px; color: var(--warn); font-size: 11.5px; line-height: 1.4; }
+.field-note[hidden] { display: none; }
+
+/* --- значок подсказки --- */
+.info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; padding: 0;
+  background: none; border: 1px solid var(--field-hover); border-radius: 50%;
+  color: var(--muted); font: inherit; font-size: 10px; font-weight: 700;
+  line-height: 1; cursor: pointer;
+  transition: color var(--m3-short) var(--m3-emphasized),
+              border-color var(--m3-short) var(--m3-emphasized),
+              box-shadow var(--m3-short) var(--m3-emphasized),
+              transform var(--m3-medium) var(--spring-gentle);
+}
+/* Цель крошечная, state layer на ней не читается — его роль здесь играет
+   небольшое увеличение. Было 1.18: значок подпрыгивал заметнее, чем реагирует
+   что-либо ещё на странице. Раскрытая подсказка помечается кольцом
+   --accent-soft, тем же, что у фокуса, а не отдельным свечением. */
+.info:hover, .info[aria-expanded="true"] {
+  color: var(--accent); border-color: var(--accent); transform: scale(1.1);
+}
+.info[aria-expanded="true"] { box-shadow: 0 0 0 3px var(--accent-soft); }
+.info:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+#hint {
+  position: absolute; z-index: 40; max-width: 380px;
+  padding: 13px 15px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  color: var(--text); font-size: 13.5px; line-height: 1.5;
+  -webkit-backdrop-filter: blur(26px) saturate(160%);
+  backdrop-filter: blur(26px) saturate(160%);
+  animation: pop .16s var(--m3-decelerate) both;
+}
+/* Подложка: подсказка — мелкий длинный текст, поверх чистого блюра он плывёт. */
+#hint::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; background: var(--solid);
+}
+#hint[hidden] { display: none; }
+@keyframes pop { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+
+/* --- сегмент-тумблер --- */
+.segment {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr;
+  min-height: 44px;
+  padding: 3px; background: var(--field-bg);
+  border: 1px solid var(--field-border); border-radius: var(--r-md);
+}
+.segment .thumb {
+  position: absolute; top: 3px; left: 3px; bottom: 3px; width: calc(50% - 3px);
+  border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 4px 14px var(--accent-soft);
+  transition: transform .34s var(--spring);
+}
+.segment[data-value="deep"] .thumb { transform: translateX(100%); }
+.segment label {
+  position: relative; z-index: 1; padding: 7px 0; text-align: center;
+  font-size: 14px; font-weight: 560; color: var(--muted); cursor: pointer;
+  transition: color var(--m3-short) var(--m3-emphasized);
+  -webkit-user-select: none; user-select: none;
+}
+.segment input { position: absolute; opacity: 0; pointer-events: none; }
+.segment input:checked + span { color: var(--on-accent); }
+.segment:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ============================================================
+   Иконки позиций 1–5
+   ============================================================ */
+/* Нативный select остаётся источником истины: на нём держится вся логика
+   role-aware фокусов. Он лишь спрятан от глаз и от дерева доступности —
+   вместо него доступен радиогруппой набор кнопок ниже. */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; margin: -1px;
+  padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* Шесть ячеек в колонку сетки не влезают — отдаём им всю строку. */
+/* Позиции — сегментированный контрол M3, тот же приём, что у «Глубины» и у
+   переключателя режимов. Шестиугольники ушли: гранёные фишки требовали
+   clip-path, а с ним не работают ни рамка, ни внешняя тень, ни кольцо фокуса,
+   и каждое состояние приходилось изобретать заново. Здесь ничего изобретать не
+   нужно — выбор показывает СКОЛЬЗЯЩАЯ шайба, ровно как в двух соседних
+   контролах, и «выбрать одно из N» на всей странице выглядит одинаково. */
+.seg-roles {
+  position: relative;
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px;
+  padding: 4px;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-md);
+}
+.seg-thumb {
+  position: absolute; top: 4px; bottom: 4px; left: 4px;
+  width: calc((100% - 8px - 20px) / 6);   /* 8px паддингов + 5 зазоров по 4px */
+  border-radius: var(--r-sm);
+  background: linear-gradient(150deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 18px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .22);
+  /* Шайба едет ровно на ширину ячейки плюс зазор — номер выбранной ячейки
+     скрипт кладёт в --at, а раскладку целиком считает CSS. */
+  transform: translateX(calc(var(--at, 0) * (100% + 4px)));
+  transition: transform var(--m3-medium) var(--spring);
+}
+.seg-item {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; min-height: 54px; padding: 7px 2px;
+  background: none; border: none; border-radius: var(--r-sm);
+  color: var(--muted);
+  font: inherit; font-size: 11px; font-weight: 650;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: color var(--m3-short) var(--m3-emphasized);
+}
+.seg-item svg { width: 20px; height: 20px; }
+.seg-item span { line-height: 1; letter-spacing: .01em; }
+.seg-item:hover { color: var(--text); }
+.seg-item[aria-checked="true"], .seg-item[aria-checked="true"]:hover { color: var(--on-accent); }
+.seg-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ============================================================
+   Расширенные настройки (progressive disclosure)
+
+   Классы и id здесь называются more-*, хотя блок — «расширенные настройки».
+   Причина не в стиле: `##.adv` и `###adv` — буквальные косметические фильтры
+   EasyList, и блокировщики рекламы вырезали блок ЦЕЛИКОМ на любом сайте.
+   Локально этого не видно (в браузере без расширений всё на месте), а у
+   пользователя половина формы просто исчезала. Обратно переименовывать нельзя.
+   ============================================================ */
+.more { border-top: 1px solid var(--glass-border); }
+/* Номер блока стоит РЯДОМ с кнопкой, а не внутри неё: 01 и 02 обязаны
+   выстроиться в одну колонку по левому краю секций — иначе нумерация не
+   читается как система. Внутри пилюли шестиугольник ещё и жался к кромке:
+   его силуэт шире всего по середине высоты, и одинаковый padding со всех
+   сторон выглядел неодинаковым. */
+.more-head {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: 14px 26px; min-width: 0;
+}
+.more-head .section-index { flex: none; }
+/* Кнопка-пилюля в духе M3 assist chip: ширина по содержимому, поэтому
+   state layer и ripple накрывают ровно кликабельную область. Раньше кнопка
+   растягивалась на всю строку, и ховер подсвечивал полосу во весь блок. */
+.more-toggle {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 9px;
+  min-height: 44px; padding: 0 16px;
+  background: var(--field-bg); border: 1px solid var(--field-border);
+  border-radius: var(--r-full);
+  color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; text-align: left;
+  transition: background var(--m3-short) var(--m3-emphasized),
+              border-color var(--m3-short) var(--m3-emphasized);
+}
+.more-toggle:hover { border-color: var(--field-hover); }
+/* Раскрытое состояние — тональное, как у выбранного чипа M3. */
+.more-toggle[aria-expanded="true"] {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.more-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.more-chevron {
+  flex: none; width: 15px; height: 15px; color: var(--muted);
+  transition: transform var(--m3-medium) var(--m3-emphasized),
+              color var(--m3-short) var(--m3-emphasized);
+}
+.more-toggle[aria-expanded="true"] .more-chevron { transform: rotate(90deg); color: var(--accent); }
+/* Сводка живёт снаружи кнопки: это подпись к блоку, а не орган управления.
+   Пропадает она чистой прозрачностью — ширину кнопки это не трогает. */
+.more-summary {
+  flex: 1; min-width: 0;
+  color: var(--faint); font-size: 12px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: opacity var(--m3-short) var(--m3-emphasized);
+}
+.more[data-open="true"] .more-summary { opacity: 0; }
+
+/* Раскрытие через grid-template-rows: 0fr -> 1fr анимируется, в отличие от
+   height:auto, и не требует измерять содержимое скриптом. */
+.more-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--m3-medium) var(--m3-emphasized); }
+.more[data-open="true"] .more-body { grid-template-rows: 1fr; }
+.more-inner { overflow: hidden; }
+.more-pad { padding: 4px 26px 24px; }
+
+/* ============================================================
+   Ползунок тайм-рейнджа
+   ============================================================ */
+.switch {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 13px; color: var(--muted); cursor: pointer;
+  -webkit-user-select: none; user-select: none;
+}
+/* Не width/height:0: с нулевым размером Chrome выкидывает поле из дерева
+   доступности, и скринридер перестаёт видеть переключатель вовсе. */
+.switch input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.switch-track {
+  position: relative; flex: none; width: 38px; height: 22px;
+  background: var(--field-bg); border: 1px solid var(--field-border);
+  border-radius: var(--r-full); transition: background var(--m3-short) var(--m3-emphasized),
+                                   border-color var(--m3-short) var(--m3-emphasized);
+}
+.switch-dot {
+  position: absolute; top: 3px; left: 3px; width: 14px; height: 14px;
+  background: var(--muted); border-radius: 50%;
+  transition: transform var(--m3-short) var(--m3-emphasized), background var(--m3-short) var(--m3-emphasized);
+}
+.switch input:checked + .switch-track {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+.switch input:checked + .switch-track .switch-dot {
+  transform: translateX(16px); background: var(--on-accent);
+}
+.switch input:focus-visible + .switch-track { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.range-value {
+  margin-left: auto; padding: 2px 9px;
+  background: var(--accent-soft); border-radius: var(--r-full);
+  color: var(--accent); font-size: 12px; font-weight: 620;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Перетаскивая ручку мышью, браузер заодно ВЫДЕЛЯЕТ подписи и тики вокруг —
+   и вокруг ползунка вспыхивает прямоугольник системного выделения. Выглядит
+   это как чужая подсветка неизвестного происхождения, поэтому выделение в зоне
+   ползунка запрещено целиком; копировать здесь всё равно нечего. */
+#windowField {
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.range-wrap {
+  /* Диаметр ручки живёт здесь, а не на .range: по нему считают позиции и
+     сам трек, и подписи шкалы, а они соседи, а не потомки друг друга. */
+  --thumb: 20px;
+  margin-top: 14px;
+  transition: opacity var(--m3-short) var(--m3-emphasized), filter var(--m3-short) var(--m3-emphasized);
+}
+.range-wrap[data-off="true"] { opacity: .4; filter: saturate(.2); }
+
+/* Два нативных input[type=range] лежат друг на друге: доступность с клавиатуры
+   и на мобильном достаётся бесплатно, а «двуручечность» даёт наложение.
+
+   Геометрия по вертикали: подписи 0–20, зазор 5, ручки 25–45 (центр 35), трек
+   29–41 (тот же центр 35), инпуты высотой 40 с верхом на 15 — центр опять 35.
+   Всё соосно, а подпись стоит в пяти пикселях над своей ручкой: раньше между
+   ними было восемнадцать плюс хвостик, и цифра читалась как отдельный объект,
+   висящий сам по себе.
+
+   --thumb читает и скрипт, и подписи шкалы: от диаметра ручки зависит, где
+   останавливается её центр. */
+.range { position: relative; height: 58px; }
+.range-lane { position: absolute; top: 0; left: 0; right: 0; height: 20px; }
+/* Толстый трек с полностью скруглёнными концами — форма слайдера M3. */
+.range-track {
+  position: absolute; top: 29px; left: 0; right: 0; height: 12px;
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--field-border);
+  border-radius: var(--r-full); overflow: hidden;
+}
+/* Stop indicators — точки на неактивных концах трека: подсказывают, что у
+   шкалы есть края и докуда её вообще можно тянуть. */
+.range-track::before, .range-track::after {
+  content: ""; position: absolute; top: 50%; z-index: 1;
+  width: 4px; height: 4px; margin-top: -2px; border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.range-track::before { left: calc(var(--thumb) / 2 - 2px); }
+.range-track::after { right: calc(var(--thumb) / 2 - 2px); }
+.range-fill {
+  position: absolute; top: 0; bottom: 0; z-index: 2; overflow: hidden;
+  border-radius: var(--r-full);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: left var(--m3-short) var(--m3-emphasized),
+              width var(--m3-short) var(--m3-emphasized);
+}
+/* Во время перетаскивания переходов быть не должно ВООБЩЕ. Нативная ручка идёт
+   за курсором в том же кадре, в котором меняется значение, а заливка с
+   transition догоняет её ещё 200 мс — ровно это и читается как «ручка едет
+   быстрее заливки». Позиции у них считаются из одного значения в одном
+   обработчике input, так что рассинхрону больше взяться неоткуда.
+
+   Сглаживание остаётся для клавиатуры и программных изменений: там шаг
+   дискретный, и мгновенный скачок выглядел бы рвано. */
+.range-wrap[data-dragging="true"] .range-fill,
+.range-wrap[data-dragging="true"] .range-bubble { transition: none; }
+/* «Жидкость»: блик бесконечно течёт слева направо внутри залитого участка.
+   Двигается transform, а не background-position, поэтому анимация живёт на
+   композиторе и не заставляет перерисовывать градиент каждый кадр. */
+.range-fill::after {
+  content: ""; position: absolute; top: -50%; bottom: -50%; left: 0; width: 55%;
+  background: linear-gradient(100deg, transparent,
+              rgba(255, 255, 255, .38), transparent);
+  animation: liquid 3.4s linear infinite;
+}
+@keyframes liquid {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(320%); }
+}
+/* Окно выключено — течь незачем: анимация не должна работать вхолостую. */
+.range-wrap[data-off="true"] .range-fill::after { animation: none; }
+.range input[type="range"] {
+  position: absolute; top: 15px; left: 0; width: 100%; height: 40px; margin: 0;
+  appearance: none; -webkit-appearance: none;
+  background: none; pointer-events: none;
+}
+.range input[type="range"]:focus { outline: none; }
+
+/* Ручка M3: залитая акцентом, со state layer кольцом вокруг (hover 8%, focus
+   10%, pressed 12% — те же непрозрачности, что у остальных поверхностей) и
+   пружиной на изменении размера. Под нажатием ручка УМЕНЬШАЕТСЯ, а кольцо
+   растёт: палец уже на месте, показывать надо захват, а не увеличение. */
+.range input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; pointer-events: auto;
+  width: var(--thumb); height: var(--thumb); border-radius: 50%;
+  background: linear-gradient(150deg, var(--accent), var(--accent-2));
+  border: none;
+  /* Кольцо-хват внутри ручки. Зазора между заливкой и ручкой больше нет —
+     полоса непрерывная, — поэтому отделять ручку приходится не разрывом, а
+     светлым кольцом внутри неё: так это читается одним компонентом с двумя
+     захватами, а не тремя отдельными кусками. */
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 0 var(--accent-soft);
+  cursor: grab;
+  transition: transform var(--m3-medium) var(--spring-gentle),
+              box-shadow var(--m3-short) var(--m3-emphasized);
+}
+.range input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.06);
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 9px var(--accent-soft);
+}
+.range input[type="range"]:active::-webkit-slider-thumb {
+  cursor: grabbing; transform: scale(.92);
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 12px var(--accent-soft);
+}
+/* Свой focus-visible вместо дефолтной рамки браузера: два кольца, оба в
+   акцентных ролях, поэтому фокус видно и на стекле, и на любой теме. */
+.range input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 4px var(--accent-soft),
+              0 0 0 6px color-mix(in srgb, var(--accent) 62%, transparent);
+}
+
+/* Подписи едут за ручками: цифра должна быть там, куда смотрит палец. */
+.range-bubble {
+  position: absolute; top: 0; transform: translateX(-50%);
+  padding: 2px 9px; border-radius: var(--r-full);
+  background: linear-gradient(150deg, var(--accent), var(--accent-2));
+  color: var(--on-accent);
+  font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1.5; pointer-events: none; white-space: nowrap;
+  box-shadow: var(--elev-2);
+  transition: left var(--m3-short) var(--m3-emphasized),
+              opacity var(--m3-short) var(--m3-emphasized),
+              transform var(--m3-medium) var(--spring-soft);
+}
+/* Скрываем через visibility, а НЕ display/hidden: у скрытого через display
+   элемента offsetWidth равен нулю, и порог схлопывания подписей выродился бы
+   в константу — именно так подписи и наезжали друг на друга у краёв. */
+.range-bubble.is-off { opacity: 0; visibility: hidden; }
+/* Слипшиеся подписи схлопываются в одну общую — так они не наезжают друг на
+   друга ни в одном положении ручек. */
+.range-bubble--merged { transform: translateX(-50%); }
+.range-wrap[data-off="true"] .range-bubble { opacity: 0; }
+.range input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  width: var(--thumb); height: var(--thumb); border-radius: 50%;
+  background: var(--accent); border: none; cursor: grab;
+  box-shadow: inset 0 0 0 2px var(--knob-grip), var(--elev-2),
+              0 0 0 0 var(--accent-soft);
+  transition: box-shadow var(--m3-short) var(--m3-emphasized);
+}
+.range input[type="range"]:hover::-moz-range-thumb {
+  box-shadow: var(--elev-1), 0 0 0 9px var(--accent-soft);
+}
+.range input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: var(--elev-1), 0 0 0 4px var(--accent-soft),
+              0 0 0 6px color-mix(in srgb, var(--accent) 62%, transparent);
+}
+.range input[type="range"]::-moz-range-track { background: none; }
+
+/* Подписи шкалы стоят там же, где останавливается ЦЕНТР ручки, — по той же
+   формуле, что и сами ручки: центр гуляет в пределах (ширина − диаметр), а не
+   по всей ширине. Прежний space-between растягивал подписи на полную ширину, и
+   они разъезжались с ручками до семи пикселей, причём вразнобой: «0» уходил
+   влево, «20» вправо, «60» совпадал случайно. Именно это и читалось как
+   перекошенность. Проценты в calc умножаются на число — этого достаточно,
+   чтобы повторить формулу без единой строки скрипта. */
+.range-ticks {
+  position: relative; height: 15px; margin-top: 4px;
+  color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.range-ticks span {
+  position: absolute; top: 0;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--v));
+  transform: translateX(-50%);
+}
+
+/* ============================================================
+   Кнопки
+   ============================================================ */
+.btn {
+  position: relative; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 12px 22px; border: 1px solid transparent; border-radius: var(--r-md);
+  font: inherit; font-size: 15px; font-weight: 590; color: var(--on-accent);
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: var(--elev-1), 0 8px 24px var(--accent-soft),
+              inset 0 1px 0 rgba(255, 255, 255, .2);
+  transition: transform var(--m3-short) var(--m3-emphasized),
+              box-shadow var(--m3-short) var(--m3-emphasized),
+              opacity var(--m3-short) var(--m3-emphasized);
+  min-height: 44px;
+}
+/* Блик проходит по кнопке на ховере. Двигается transform, не background-position,
+   поэтому анимация идёт на композиторе и не заставляет перерисовывать градиент. */
+.btn::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .26), transparent);
+  transform: translateX(0); opacity: 0;
+  pointer-events: none;
+}
+.btn:hover:not(:disabled)::after { animation: sheen .72s var(--m3-decelerate); }
+@keyframes sheen {
+  from { transform: translateX(0); opacity: 0; }
+  20% { opacity: 1; }
+  to { transform: translateX(340%); opacity: 0; }
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--elev-2), 0 12px 30px var(--accent-soft),
+              inset 0 1px 0 rgba(255, 255, 255, .24);
+}
+.btn:active:not(:disabled) { transform: translateY(0) scale(.988); }
+.btn:disabled { opacity: .62; cursor: default; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.btn-ghost {
+  background: var(--field-bg); border-color: var(--field-border);
+  box-shadow: none; color: var(--text); font-size: 13.5px; font-weight: 550;
+  padding: 8px 15px;
+}
+/* Подсветку даёт state layer класса .ripple — подменять ещё и фон значило бы
+   накладывать один и тот же отклик дважды. Кнопке остаётся рамка и подъём,
+   тот же на 1px, что у основной кнопки. */
+.btn-ghost:hover:not(:disabled) { border-color: var(--field-hover); transform: translateY(-1px); }
+.btn-ghost:active:not(:disabled) { transform: translateY(0) scale(.988); }
+/* Подтверждение действия: кнопка коротко «кивает» и зеленеет по-радиантски. */
+.btn-ghost.done {
+  color: var(--radiant);
+  border-color: color-mix(in srgb, var(--radiant) 55%, transparent);
+  background: var(--radiant-soft);
+  animation: nod .34s var(--spring);
+}
+@keyframes nod {
+  0% { transform: scale(1); } 45% { transform: scale(1.07); } 100% { transform: scale(1); }
+}
+
+.submit-zone {
+  display: grid; justify-items: center; gap: 10px;
+  padding: 22px 26px 24px; border-top: 1px solid var(--glass-border);
+  background: linear-gradient(180deg, transparent, var(--accent-soft));
+}
+.submit-row { display: flex; justify-content: center; }
+.submit-row .btn { min-width: 200px; }
+
+/* Крипволна вместо спиннера: три шеврона идут вперёд по очереди. Ожидание
+   в тему разбора, и по-прежнему две анимируемых величины на элемент. */
+.wave { display: inline-flex; align-items: center; gap: 3px; }
+.wave i {
+  width: 5px; height: 13px; background: currentColor; opacity: .32;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  animation: march .9s ease-in-out infinite;
+}
+.wave i:nth-child(2) { animation-delay: .15s; }
+.wave i:nth-child(3) { animation-delay: .3s; }
+@keyframes march {
+  0%, 100% { opacity: .3; transform: translateX(0); }
+  50%      { opacity: 1;  transform: translateX(4px); }
+}
+
+/* ============================================================
+   Статус, панели, результат
+   ============================================================ */
+.status {
+  text-align: center; color: var(--muted);
+  font-size: 13px; font-variant-numeric: tabular-nums; min-height: 0;
+  transition: opacity var(--m3-short) var(--m3-emphasized);
+}
+.status:empty { display: none; }
+
+.panel {
+  margin-top: 18px; padding: 14px 17px; border-radius: var(--r-md);
+  font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.panel::before { display: inline-block; margin-right: 8px; font-weight: 750; }
+.panel-error::before { content: "!"; }
+.panel-warn::before { content: "i"; }
+.panel-error { background: var(--danger-bg); border: 1px solid var(--danger-bd); color: var(--danger); }
+.panel-warn  { background: var(--warn-bg);  border: 1px solid var(--warn-bd);  color: var(--warn); }
+.panel strong { display: block; margin-bottom: 3px; font-weight: 620; }
+
+/* Результат окрашивается в цвета МОЕЙ фракции — это и есть смысловое
+   применение дуальности: по одному взгляду видно, за кого играл. */
+#result {
+  margin-top: 20px; padding: 18px; overflow: hidden;
+  transition: transform var(--m3-medium) var(--m3-emphasized),
+              box-shadow var(--m3-medium) var(--m3-emphasized),
+              border-color var(--m3-short) var(--m3-emphasized);
+}
+/* Лифт только у результата: форму, в которой печатают, дёргать нельзя. */
+#result:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+#result[data-side] {
+  border-color: color-mix(in srgb, var(--side) 34%, var(--glass-border));
+}
+#result[data-side="radiant"] { --side: var(--radiant); --side-soft: var(--radiant-soft); }
+#result[data-side="dire"] { --side: var(--dire); --side-soft: var(--dire-soft); }
+/* Полоса фракции по верхней кромке: разворачивается вместе с появлением. */
+#result[data-side]::before {
+  padding-top: 2px;
+  background: linear-gradient(90deg, var(--side), transparent 62%);
+  animation: edge .5s .1s var(--m3-decelerate) both;
+}
+@keyframes edge { from { opacity: 0; transform: scaleX(.4); transform-origin: left; }
+                  to { opacity: 1; transform: none; } }
+
+.side-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 3.5px 11px 3.5px 9px;
+  background: var(--side-soft, var(--field-bg));
+  border: 1px solid color-mix(in srgb, var(--side, var(--accent)) 45%, transparent);
+  border-radius: var(--r-full);
+  color: var(--side, var(--text)); font-size: 12.5px; font-weight: 620;
+}
+.side-badge[hidden] { display: none; }
+.side-badge svg { width: 13px; height: 13px; flex: none; }
+
+/* Сетка, а не flex-wrap: чипов бывает много, и при переносе кнопки уезжали на
+   отдельную третью строку, хотя место справа от чипов оставалось. Теперь у
+   кнопок своя колонка у правого края, а переносятся внутри своей колонки
+   только чипы. */
+.result-bar {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start; gap: var(--space-3); margin-bottom: 13px;
+}
+.meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chip {
+  padding: 3.5px 10px; background: var(--field-bg);
+  border: 1px solid var(--field-border); border-radius: var(--r-full);
+  font-size: 12.5px; font-weight: 550; color: var(--text);
+  font-variant-numeric: tabular-nums;
+  animation: chip-in .34s var(--m3-decelerate) both;
+}
+/* Чипы выезжают по очереди — мелочь, но именно она делает появление результата
+   похожим на «собралось», а не на «мигнуло». Задержка задана по позиции. */
+.meta > *:nth-child(1) { animation-delay: .04s; }
+.meta > *:nth-child(2) { animation-delay: .08s; }
+.meta > *:nth-child(3) { animation-delay: .12s; }
+.meta > *:nth-child(4) { animation-delay: .16s; }
+.meta > *:nth-child(5) { animation-delay: .2s; }
+.meta > *:nth-child(6) { animation-delay: .24s; }
+.meta > *:nth-child(n+7) { animation-delay: .28s; }
+@keyframes chip-in {
+  from { opacity: 0; transform: translateY(6px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+.chip[hidden] { display: none; }
+.chip-accent { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.actions { display: flex; gap: 8px; }
+
+pre#promptText {
+  margin: 0; max-height: 440px; padding: 15px 17px; overflow: auto;
+  background: var(--solid); border: 1px solid var(--field-border);
+  border-radius: var(--r-md);
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.62;
+  color: var(--code); white-space: pre; tab-size: 2;
+  scrollbar-color: var(--scroll) transparent;
+}
+pre#promptText::-webkit-scrollbar { width: 11px; height: 11px; }
+pre#promptText::-webkit-scrollbar-corner { background: transparent; }
+pre#promptText::-webkit-scrollbar-thumb {
+  background: var(--scroll); border: 3px solid transparent;
+  background-clip: content-box; border-radius: var(--r-full);
+}
+
+.disclaimer {
+  display: flex; gap: 9px; margin-top: 13px;
+  color: var(--muted); font-size: 12.5px; line-height: 1.5;
+}
+.disclaimer svg { flex: none; width: 15px; height: 15px; margin-top: 2px; color: var(--faint); }
+
+/* ============================================================
+   Фидбэк под результатом
+   ============================================================ */
+.feedback {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--glass-border);
+}
+.fb-q { color: var(--muted); font-size: 13px; }
+.fb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 36px; padding: 0;
+  background: var(--field-bg); border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  font-size: 17px; line-height: 1; cursor: pointer;
+  transition: transform var(--m3-short) var(--m3-emphasized), border-color var(--m3-short) var(--m3-emphasized),
+              background var(--m3-short) var(--m3-emphasized);
+}
+.fb-btn:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--field-hover); }
+.fb-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.fb-btn:disabled { cursor: default; }
+/* Выбранная оценка красится в свою фракцию: согласие — Radiant, несогласие — Dire. */
+.fb-btn[aria-pressed="true"][data-rating="1"] {
+  background: var(--radiant-soft); border-color: var(--radiant);
+}
+.fb-btn[aria-pressed="true"][data-rating="-1"] {
+  background: var(--dire-soft); border-color: var(--dire);
+}
+.fb-form { display: flex; gap: 8px; width: 100%; }
+.fb-form[hidden] { display: none; }
+.fb-form textarea { min-height: 44px; font-size: 14px; }
+.fb-form .btn { flex: none; align-self: flex-start; }
+.fb-note { color: var(--muted); font-size: 13px; }
+.fb-note[hidden] { display: none; }
+.fb-note[data-state="error"] { color: var(--danger); }
+
+.reveal { animation: reveal .3s var(--m3-decelerate) both; }
+@keyframes reveal { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+
+.foot { margin-top: 26px; text-align: center; color: var(--faint); font-size: 12.5px; }
+.foot code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+/* На узком экране шесть ячеек ужимаются, но остаются в одной строке: перенос
+   сломал бы и поездку шайбы, и сам смысл сегментированного контрола. */
+@media (max-width: 420px) {
+  .seg-item { min-height: 50px; gap: 3px; padding: 6px 0; font-size: 10.5px; }
+  .seg-item svg { width: 18px; height: 18px; }
+}
+
+@media (max-width: 760px) {
+  body { padding: 24px 14px 54px; }
+  /* Одна колонка: спаны на узком экране смысла не имеют. */
+  .row { grid-template-columns: 1fr; }
+  .span-2, .span-3,
+  form[data-mode="match"] .field--match-id,
+  form[data-mode="profile"] .field--account { grid-column: auto; }
+  header { text-align: left; }
+  .controls { position: static; justify-content: flex-start; margin-top: 12px; }
+  .ctl { height: 44px; }
+  .modes { max-width: none; }
+  .form-section { padding: 20px 17px; }
+  .more-head { padding: 14px 17px; }
+  .more-pad { padding: 4px 17px 20px; }
+  .more-summary { display: none; }
+  .submit-zone { padding: 20px 17px; }
+  .submit-row, .submit-row .btn { width: 100%; }
+  /* На узком экране кнопки встают под чипами во всю ширину. */
+  .result-bar { grid-template-columns: 1fr; }
+  .actions { width: 100%; }
+  .actions .btn { flex: 1; padding-inline: 12px; }
+  pre#promptText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55vh; }
+}
+
+/* Система просит меньше движения — отдаём меньше движения: декоративные
+   слои убираются совсем (обнулённая длительность оставила бы искры застывшими
+   посреди экрана), остальное становится мгновенным. */
+@media (prefers-reduced-motion: reduce) {
+  /* Искры и световой проход убираются целиком: движение — это и есть всё их
+     содержание, а застывшая посреди экрана искра выглядит грязью на стекле.
+     Орбы остаются: они и в покое работают как мягкая подсветка фона. */
+  .embers, .sheen, .range-fill::after { display: none; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* ============================================================
+   Analysis workspace foundation
+
+   Новый продуктовый этап начинается с отказа от glass-first presentation.
+   Старые селекторы пока сохранены ради обратной совместимости поведения, но
+   визуальный контракт уже другой: плотные поверхности, спокойная глубина,
+   строгая сетка и семантический цвет. Этот слой намеренно переопределяет
+   предыдущие декоративные правила до поэтапного удаления legacy CSS.
+   ============================================================ */
+:root {
+  --bg: #0b0e13;
+  --text: #eef1f6;
+  --muted: #9aa5b5;
+  --faint: #697587;
+  --glass-bg: #131821;
+  --glass-border: #27303d;
+  --glass-hi: transparent;
+  --field-bg: #0f141c;
+  --field-border: #2a3442;
+  --field-hover: #435166;
+  --solid: #0b1017;
+  --code: #dbe2ec;
+  --accent: #8e96ff;
+  --accent-2: #8e96ff;
+  --accent-soft: rgba(142, 150, 255, .14);
+  --surface-raised: #181e28;
+  --surface-muted: #10151d;
+  --surface-selected: #202741;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .32), 0 14px 36px rgba(0, 0, 0, .18);
+  --shadow-lift: var(--shadow);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, .28);
+  --elev-2: 0 2px 7px rgba(0, 0, 0, .26);
+  --elev-3: 0 10px 30px rgba(0, 0, 0, .32);
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --display: var(--font);
+}
+
+:root[data-theme="light"] {
+  --bg: #f3f5f7;
+  --text: #171b22;
+  --muted: #586577;
+  --faint: #818c9b;
+  --glass-bg: #ffffff;
+  --glass-border: #d9dee6;
+  --glass-hi: transparent;
+  --field-bg: #f7f8fa;
+  --field-border: #d6dce5;
+  --field-hover: #a9b3c1;
+  --solid: #f5f7fa;
+  --code: #222a36;
+  --accent: #5962d9;
+  --accent-2: #5962d9;
+  --accent-soft: rgba(89, 98, 217, .12);
+  --surface-raised: #ffffff;
+  --surface-muted: #eef1f4;
+  --surface-selected: #e8eafd;
+  --shadow: 0 1px 2px rgba(20, 29, 43, .07), 0 12px 30px rgba(20, 29, 43, .06);
+  --shadow-lift: var(--shadow);
+  --elev-1: 0 1px 2px rgba(20, 29, 43, .09);
+  --elev-2: 0 2px 7px rgba(20, 29, 43, .11);
+  --elev-3: 0 10px 30px rgba(20, 29, 43, .14);
+}
+
+body {
+  padding: 28px 32px 72px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent 260px),
+    var(--bg);
+}
+
+.glow {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--radiant) 6%, transparent), transparent 22%,
+      transparent 78%, color-mix(in srgb, var(--dire) 5%, transparent)),
+    linear-gradient(color-mix(in srgb, var(--glass-border) 26%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--glass-border) 26%, transparent) 1px, transparent 1px);
+  background-size: auto, 48px 48px, 48px 48px;
+  opacity: .32;
+}
+.orbs, .sheen, .embers, .grain { display: none; }
+body::before, body::after { display: none; }
+
+.wrap { max-width: 1240px; }
+
+header {
+  min-height: 54px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  text-align: left;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.logo {
+  gap: 10px;
+  font-family: var(--font);
+  font-size: 21px;
+  font-weight: 720;
+  letter-spacing: -.025em;
+}
+.logo svg { width: 24px; height: 24px; }
+.tagline { margin: 3px 0 0 34px; font-size: 13px; }
+.controls { position: static; margin-left: auto; }
+.ctl {
+  height: 38px;
+  background-color: var(--surface-raised);
+  border-color: var(--glass-border);
+  border-radius: var(--r-sm);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.modes {
+  max-width: 440px;
+  margin: 0 0 20px;
+  padding: 3px;
+  gap: 3px;
+  background: var(--surface-muted);
+  border-color: var(--glass-border);
+  border-radius: var(--r-md);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.modes-thumb {
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 4.5px);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(var(--r-md) - 3px);
+  background: var(--surface-raised);
+  box-shadow: var(--elev-1);
+}
+.modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(100% + 3px)); }
+.mode { min-height: 50px; padding: 7px 12px; border-radius: calc(var(--r-md) - 3px); }
+.mode[aria-selected="true"], .mode[aria-selected="true"]:hover { color: var(--text); }
+.mode[aria-selected="true"] .mode-sub { color: var(--muted); }
+.modes-note { justify-content: flex-start; margin: -12px 0 18px 4px; }
+
+.card {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.card::before, .card::after { display: none; }
+
+.form-section { padding: 25px 28px 27px; }
+.section-head {
+  gap: 9px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.section-index {
+  width: auto;
+  height: auto;
+  min-width: 23px;
+  padding-right: 8px;
+  clip-path: none;
+  border-right: 1px solid var(--field-border);
+  color: var(--accent);
+  background: none;
+  font-size: 11px;
+}
+
+input[type="text"], textarea, select.fld {
+  background-color: var(--field-bg);
+  border-radius: var(--r-sm);
+}
+input[type="text"]:focus, textarea:focus, select.fld:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.segment, .seg-roles { background: var(--surface-muted); border-radius: var(--r-sm); }
+.segment .thumb, .seg-thumb {
+  background: var(--surface-selected);
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--field-border));
+  box-shadow: none;
+}
+.segment input:checked + span,
+.seg-item[aria-checked="true"],
+.seg-item[aria-checked="true"]:hover { color: var(--text); }
+
+.more { border-color: var(--glass-border); }
+.more-head { padding: 15px 28px; }
+.more-toggle {
+  border-radius: var(--r-sm);
+  background: var(--field-bg);
+}
+.more-toggle[aria-expanded="true"] { background: var(--surface-selected); }
+.more-pad { padding: 5px 28px 28px; }
+
+.submit-zone {
+  grid-template-columns: 1fr auto;
+  justify-items: stretch;
+  align-items: center;
+  padding: 18px 28px;
+  background: var(--surface-muted);
+  border-color: var(--glass-border);
+}
+.submit-row { justify-content: flex-end; grid-column: 2; }
+.status { grid-column: 1; grid-row: 1; text-align: left; }
+.btn {
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  box-shadow: var(--elev-1);
+  font-weight: 650;
+}
+.btn::after { display: none; }
+.btn:hover:not(:disabled) { box-shadow: var(--elev-2); }
+.btn-ghost { background: var(--field-bg); }
+
+#result { border-radius: var(--r-lg); }
+#result:hover { transform: none; box-shadow: var(--shadow); }
+.chip, .side-badge { border-radius: var(--r-xs); }
+pre#promptText { border-radius: var(--r-sm); }
+.feedback { border-color: var(--glass-border); }
+.modal-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.modal { border-radius: var(--r-lg); }
+.modal li::before { border-radius: 50%; transform: none; background: var(--accent); }
+
+/* Match Explorer ------------------------------------------------------- */
+.workspace {
+  margin-top: 20px;
+  overflow: hidden;
+  animation: reveal .3s var(--m3-decelerate) both;
+}
+.workspace[hidden] { display: none; }
+.workspace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.workspace-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.source-badge, .quality-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-xs);
+  color: var(--muted);
+  background: var(--field-bg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.quality-badge { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 38%, var(--field-border)); }
+.workspace-title { margin: 0; font-size: 24px; line-height: 1.2; letter-spacing: -.025em; }
+.workspace-meta { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+.workspace-body { padding: 20px 24px 24px; }
+
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.metric-card {
+  min-width: 0;
+  padding: 14px 15px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  background: var(--surface-muted);
+}
+.metric-label { color: var(--muted); font-size: 11.5px; font-weight: 650; }
+.metric-value {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 720;
+  line-height: 1.15;
+  letter-spacing: -.025em;
+  font-variant-numeric: tabular-nums;
+}
+.metric-context { display: block; margin-top: 4px; color: var(--faint); font-size: 11.5px; }
+
+.explorer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+.explorer-grid--even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.explorer-panel {
+  min-width: 0;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  background: var(--field-bg);
+  overflow: hidden;
+}
+.explorer-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 16px 12px;
+}
+.explorer-panel-title { margin: 0; font-size: 14px; font-weight: 700; }
+.explorer-panel-sub { margin: 3px 0 0; color: var(--faint); font-size: 11.5px; }
+
+.chart-tabs { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 16px 12px; }
+.chart-tab {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.chart-tab[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--surface-selected);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--field-border));
+}
+.chart-tab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.chart-stage { padding: 0 10px 6px; }
+.overview-chart { display: block; width: 100%; min-height: 235px; overflow: visible; }
+.chart-grid-line { stroke: var(--field-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-zero-line { stroke: var(--field-hover); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.chart-area { fill: color-mix(in srgb, var(--accent) 12%, transparent); }
+.chart-dot { fill: var(--accent); stroke: var(--field-bg); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.chart-axis-label { fill: var(--faint); font: 11px var(--font); font-variant-numeric: tabular-nums; }
+.chart-summary {
+  margin: 0;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--field-border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.signal-list, .event-list { display: grid; gap: 0; }
+.signal-row, .event-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--field-border);
+}
+.signal-mark {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.signal-row[data-kind="strength"] .signal-mark { background: var(--radiant); }
+.signal-row[data-kind="inspect"] .signal-mark { background: var(--warn); }
+.signal-main, .event-main { min-width: 0; color: var(--text); font-size: 12.5px; font-weight: 620; }
+.signal-note, .event-note { display: block; margin-top: 2px; color: var(--faint); font-size: 11.5px; font-weight: 500; }
+.event-action {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.event-action:hover { background: var(--field-hover); }
+.event-action:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.event-action .event-main::after {
+  content: " →";
+  color: var(--accent);
+  opacity: .7;
+}
+.evidence-note {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--field-border);
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.scoreboard-panel { margin-top: 14px; }
+.scoreboard-scroll { overflow-x: auto; scrollbar-color: var(--scroll) transparent; }
+.scoreboard { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.scoreboard th {
+  padding: 9px 12px;
+  border-top: 1px solid var(--field-border);
+  border-bottom: 1px solid var(--field-border);
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .045em;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.scoreboard td {
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--field-border) 74%, transparent);
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.scoreboard th:first-child, .scoreboard td:first-child { text-align: left; }
+.scoreboard tr:last-child td { border-bottom: none; }
+.scoreboard tr[data-me="true"] { background: var(--surface-selected); }
+.hero-cell { display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 650; }
+.side-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dire); flex: none; }
+.side-dot.radiant { background: var(--radiant); }
+.me-mark { color: var(--accent); font-size: 10px; font-weight: 800; }
+
+.event-time {
+  min-width: 42px;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.draft-side { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.draft-group-label {
+  padding: 10px 16px 7px;
+  border-top: 1px solid var(--field-border);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.draft-group-note { color: var(--faint); font-weight: 500; letter-spacing: 0; text-transform: none; }
+.build-list { display: grid; }
+.build-row {
+  display: grid;
+  grid-template-columns: minmax(116px, .72fr) minmax(0, 2fr);
+  gap: 12px;
+  align-items: start;
+  padding: 11px 16px;
+  border-top: 1px solid var(--field-border);
+}
+.build-hero { color: var(--text); font-size: 12px; font-weight: 650; }
+.item-flow { display: flex; flex-wrap: wrap; gap: 5px; }
+.item-chip {
+  display: inline-flex;
+  gap: 5px;
+  padding: 3px 6px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-xs);
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.item-chip time { color: var(--accent); }
+.empty-state { padding: 18px 16px; border-top: 1px solid var(--field-border); color: var(--faint); font-size: 12px; }
+
+@media (max-width: 940px) {
+  .overview-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .explorer-grid, .explorer-grid--even { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  body { padding: 18px 14px 48px; }
+  header { display: block; min-height: 0; }
+  .tagline { margin-left: 34px; }
+  .controls { margin-top: 14px; }
+  .modes { max-width: none; }
+  .form-section { padding: 21px 18px 23px; }
+  .more-head { padding: 14px 18px; }
+  .more-pad { padding: 4px 18px 22px; }
+  .submit-zone { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 17px 18px; }
+  .submit-row, .status { grid-column: 1; }
+  .submit-row { grid-row: 1; }
+  .status { grid-row: 2; text-align: center; }
+  .workspace-head { display: block; padding: 19px 18px; }
+  .workspace-head .btn { width: 100%; margin-top: 16px; }
+  .workspace-body { padding: 16px 14px 18px; }
+  .overview-cards { grid-template-columns: 1fr 1fr; }
+  .metric-card { padding: 12px; }
+  .metric-value { font-size: 19px; }
+  .overview-chart { min-height: 210px; }
+}
+
+@media (max-width: 430px) {
+  .overview-cards { grid-template-columns: 1fr; }
+  .workspace-title { font-size: 21px; }
+}

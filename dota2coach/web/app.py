@@ -6,6 +6,7 @@
 """
 
 import asyncio
+import hashlib
 import json
 import pathlib
 import threading
@@ -13,7 +14,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, Literal, Optional, get_args
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -196,7 +197,28 @@ def _index_html() -> str:
         "defaultLang": i18n.DEFAULT_LANG,
     }
     script = f"<script>window.I18N = {json.dumps(payload, ensure_ascii=False)};</script>"
-    return html.replace("<!--I18N-->", script)
+    return (html.replace("<!--I18N-->", script)
+                .replace("__ASSET_VERSION__", _asset_version()))
+
+
+# Стили и скрипт живут отдельными файлами рядом с index.html. Отдаём их явными
+# маршрутами, а не StaticFiles на весь каталог: наружу должны смотреть ровно эти
+# два файла, а не всё, что когда-нибудь окажется в static/.
+_ASSETS = {"app.css": "text/css; charset=utf-8",
+           "app.js": "text/javascript; charset=utf-8"}
+
+
+def _asset_version() -> str:
+    """Короткий хэш содержимого ассетов — меняется ровно тогда, когда меняются они.
+
+    Версия в адресе позволяет отдавать файлы с долгим кэшем: после деплоя у
+    страницы другой ?v=, и браузер не подсунет пользователю старый скрипт к новой
+    разметке — именно такой рассинхрон ломает интерфейс «непонятно почему».
+    """
+    digest = hashlib.sha256()
+    for name in sorted(_ASSETS):
+        digest.update((STATIC_DIR / name).read_bytes())
+    return digest.hexdigest()[:12]
 
 
 @app.get("/", include_in_schema=False)
@@ -204,6 +226,23 @@ async def index() -> HTMLResponse:
     # no-store: страница одна и лежит рядом, а закэшированная версия после правки
     # стоит дороже, чем её повторная отдача.
     return HTMLResponse(_index_html(), headers={"Cache-Control": "no-store"})
+
+
+def _asset(name: str) -> Response:
+    return Response((STATIC_DIR / name).read_bytes(), media_type=_ASSETS[name],
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+# Два явных маршрута, а не шаблон «/{name}»: шаблон, объявленный выше /healthz,
+# перехватил бы и его, и хостинг счёл бы сервис мёртвым.
+@app.get("/app.css", include_in_schema=False)
+async def app_css() -> Response:
+    return _asset("app.css")
+
+
+@app.get("/app.js", include_in_schema=False)
+async def app_js() -> Response:
+    return _asset("app.js")
 
 
 @app.get("/healthz", include_in_schema=False)
