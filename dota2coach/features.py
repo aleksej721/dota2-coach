@@ -13,6 +13,7 @@
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from .anomalies import Anomaly, AnomalyDetector
@@ -186,6 +187,8 @@ class FeatureExtractor:
         return {
             "match_id": match.match_id,
             "patch": match.patch,
+            "date": (datetime.fromtimestamp(match.start_time, timezone.utc).strftime("%Y-%m-%d")
+                     if match.start_time else None),
             "mode": match.game_mode,
             "lobby": match.lobby_type,
             "duration": mmss(match.duration),
@@ -216,28 +219,36 @@ class FeatureExtractor:
             caveats.append(("caveat.draft_grouped", {"mode": match.game_mode}))
 
         picks = [r for r in rows if r["is_pick"]]
+        phased = not chronological and self._assign_phases(picks)
         return {
             "mode": match.game_mode,
             "chronological": chronological,
             "rows": rows,
             "picks": picks,
             "bans": [r for r in rows if not r["is_pick"]],
-            "my_pick": self._my_pick(picks, me),
+            "phased": phased,
+            "my_pick": self._my_pick(picks, me, phased),
+            "lanes": self._lanes(match, me),
             "radiant": [self._roster_row(p, me, policy) for p in match.radiant_players()],
             "dire": [self._roster_row(p, me, policy) for p in match.dire_players()],
         }
 
-    def _my_pick(self, picks: List[Dict[str, Any]], me: Player) -> Optional[Dict[str, Any]]:
-        """Место моего героя в очереди пиков и то, что было видно к этому моменту.
+    def _my_pick(self, picks: List[Dict[str, Any]], me: Player,
+                 phased: bool) -> Optional[Dict[str, Any]]:
+        """Место моего героя в драфте и то, что было видно в момент выбора.
 
-        Главный факт драфта для разбора. First pick выбирает вслепую и сам
-        становится мишенью для контрпика; последний пик видит почти весь состав
-        соперника, и «взял героя просто так» с него спрашивается строже.
+        Главный факт драфта для разбора: пик оценивается по той информации,
+        которая была на экране, а не по исходу матча.
 
-        Порядок доступен даже там, где OpenDota отдаёт пики и баны отдельными
-        группами: внутри пиков `order` — это очерёдность подтверждения выбора,
-        то есть ровно то, что игрок видел на экране, когда жал «выбрать».
-        Неизвестно только чередование пиков с банами — о нём и молчим.
+        В ранговом All Pick (phased=True) пики идут тремя фазами: 2+2, 2+2, 1+1.
+        Внутри фазы команды выбирают одновременно и выбор соперника не видят —
+        он открывается, когда фаза закончилась. Союзники видны сразу. Поэтому
+        важны три разных списка: кого из соперников я видел (прошлые фазы), кто
+        выбирал вслепую вместе со мной (моя фаза) и кто выбирал, УЖЕ видя моего
+        героя (следующие фазы, — это и есть возможный контрпик).
+
+        Без фаз (Captains Mode и нестандартные драфты) порядок трактуется как
+        строгая очередь: всё, что выше моего пика, было видно.
         """
         my_side = "Radiant" if me.is_radiant else "Dire"
         at = next((i for i, r in enumerate(picks)
@@ -245,20 +256,72 @@ class FeatureExtractor:
         if at is None:
             return None
 
-        before, after = picks[:at], picks[at + 1:]
-
-        def side_of(rows: List[Dict[str, Any]], mine: bool) -> List[str]:
+        def heroes(rows: List[Dict[str, Any]], mine: bool) -> List[str]:
             return [r["hero"] for r in rows if (r["side"] == my_side) is mine]
 
+        if phased:
+            phase = picks[at]["phase"]
+            return {
+                "phased": True,
+                "phase": phase,
+                "team_order": len(heroes(picks[:at], True)) + 1,
+                "enemies_visible": [r["hero"] for r in picks
+                                    if r["side"] != my_side and r["phase"] < phase],
+                "allies_before": heroes(picks[:at], True),
+                "enemies_blind": [r["hero"] for r in picks
+                                  if r["side"] != my_side and r["phase"] == phase],
+                "enemies_after": [r["hero"] for r in picks
+                                  if r["side"] != my_side and r["phase"] > phase],
+            }
+
+        before, after = picks[:at], picks[at + 1:]
         return {
+            "phased": False,
             "order": at + 1,
             "total": len(picks),
             "tag": "first" if at == 0 else "last" if at == len(picks) - 1 else "mid",
-            "enemies_before": side_of(before, False),
-            "allies_before": side_of(before, True),
-            "enemies_after": side_of(after, False),
-            "allies_after": side_of(after, True),
+            "enemies_before": heroes(before, False),
+            "allies_before": heroes(before, True),
+            "enemies_after": heroes(after, False),
         }
+
+    @staticmethod
+    def _assign_phases(picks: List[Dict[str, Any]]) -> bool:
+        """Раскладывает пики рангового All Pick по трём фазам, если данные сходятся.
+
+        OpenDota отдаёт пики All Pick в порядке подтверждения, и он ложится на
+        фазы ровно блоками: первые четыре — фаза 1 (по два от команды), следующие
+        четыре — фаза 2, последние два — ласт-пики. Проверено на реальных матчах.
+        Если блоки не сходятся (перепик, рандом, 11 записей) — фаз не выдумываем.
+        """
+        blocks = ((0, 4, 1), (4, 8, 2), (8, 10, 3))
+        if len(picks) != 10:
+            return False
+        for lo, hi, _ in blocks:
+            sides = [r["side"] for r in picks[lo:hi]]
+            if sides.count("Radiant") != sides.count("Dire"):
+                return False
+        for lo, hi, phase in blocks:
+            for r in picks[lo:hi]:
+                r["phase"] = phase
+        return True
+
+    @staticmethod
+    def _lanes(match: Match, me: Player) -> List[Dict[str, Any]]:
+        """Кто против кого стоял на линиях: низ, центр, верх.
+
+        Физическая линия OpenDota: 1 — низ (лёгкая Radiant), 2 — центр, 3 — верх
+        (лёгкая Dire). Роумеры и лесники в линию не попадают — это тоже факт.
+        """
+        out = []
+        for lane in (1, 2, 3):
+            row = {"lane": lane, "radiant": [], "dire": []}
+            for p in match.players:
+                if p.lane == lane:
+                    tag = p.hero_name + ("★" if p is me else "")
+                    row["radiant" if p.is_radiant else "dire"].append(tag)
+            out.append(row)
+        return out
 
     def _roster_row(self, p: Player, me: Player, policy: Policy) -> Dict[str, Any]:
         return {"hero": p.hero_name, "position_key": self._position_key(p, me, policy),
@@ -669,6 +732,11 @@ class FeatureExtractor:
         rad_deaths = dire_deaths = 0
         fallen: List[str] = []
         participants = []
+        # Кто был в бою, а кого не было — по обеим сторонам и на ЛЮБОЙ глубине.
+        # «Проиграли 3 на 5» и «проиграли 5 на 5» — разные бои с разными
+        # выводами, а без этой строки модель видит только счёт потерь.
+        present = {"mine": [], "theirs": []}
+        absent = {"mine": [], "theirs": []}
 
         for idx, p in enumerate(match.players):
             if idx >= len(tf_players):
@@ -681,8 +749,15 @@ class FeatureExtractor:
                     rad_deaths += deaths
                 else:
                     dire_deaths += deaths
-            # Игрок «участвовал», если умер или нанёс урон. Ненулевой gold_delta
-            # набегает и у того, кто в это время спокойно фармил на другой карте.
+            # Игрок «участвовал», если умер, нанёс урон по героям или кого-то
+            # убил. По gold_delta и healing участие НЕ определяем: золото набегает
+            # и у того, кто фармил на другом конце карты, а healing в данных боя
+            # включает обычную регенерацию — у керри, стоявшего в лесу, его сотни.
+            took_part = bool(deaths or fp.get("damage") or any(
+                v for k, v in (fp.get("killed") or {}).items()
+                if str(k).startswith("npc_dota_hero_")))
+            team = "mine" if p.is_radiant == me.is_radiant else "theirs"
+            (present if took_part else absent)[team].append(self._short_tag(p, me))
             if detailed and (deaths or fp.get("damage")):
                 participants.append({
                     "who": self._tag(p, me),
@@ -722,6 +797,8 @@ class FeatureExtractor:
                 "killed": killed,
             },
             "participants": participants,
+            "presence": {"mine": len(present["mine"]), "theirs": len(present["theirs"]),
+                         "absent_mine": absent["mine"], "absent_theirs": absent["theirs"]},
             "in_lane": (tf.get("start") or 0) <= LANE_WINDOW_SEC,
         }
 

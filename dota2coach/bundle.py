@@ -183,6 +183,7 @@ class BundleBuilder:
                              score=s("tf.score", mine=tf["my_losses"],
                                      theirs=tf["enemy_losses"]),
                              verdict=s(tf["verdict"]), me=mine))
+                out.append("    " + self._presence(tf["presence"], s))
                 out.append("    " + s("tf.fallen",
                                       heroes=", ".join(tf["fallen"]) or s("dash")))
                 for p in tf["participants"]:
@@ -227,6 +228,7 @@ class BundleBuilder:
         out = [
             s("meta.line", match_id=m["match_id"], patch=m["patch"], mode=m["mode"],
               lobby=m["lobby"], duration=m["duration"]),
+            s("meta.date", date=m["date"] or "?"),
             s("meta.result", result=s("meta.win" if m["win"] else "meta.lose"),
               side=m["my_side"], winner=m["winner"]),
             s("meta.me", hero=m["hero"],
@@ -254,13 +256,25 @@ class BundleBuilder:
             out.append(s("draft.grouped", mode=d["mode"]))
             listed = ", ".join(f"{r['side'][0]}:{r['hero']}" for r in d["bans"]) or s("dash")
             out.append(f"  {s('draft.bans')}: {listed}")
-            # Пики — по одному в строку с номером: их очерёдность и есть главный
-            # факт драфта, а в слитой строке через запятую она не читается.
-            out.append(f"  {s('draft.picks_ordered')}")
-            for n, r in enumerate(d["picks"], 1):
-                out.append(f"    #{n:>2} {r['side'][0]} {r['hero']}")
+            if d.get("phased"):
+                # Фазы, а не сквозная очередь: внутри фазы соперник выбирает
+                # вслепую, и «кто за кем» внутри неё ничего не значит.
+                out.append(f"  {s('draft.phased_intro')}")
+                def heroes(phase: int, side: str) -> str:
+                    return ", ".join(r["hero"] for r in d["picks"]
+                                     if r.get("phase") == phase and r["side"] == side) or s("dash")
+
+                for phase in (1, 2, 3):
+                    row = s("draft.phase_row", n=phase, radiant=heroes(phase, "Radiant"),
+                            dire=heroes(phase, "Dire"))
+                    out.append(f"    {row}")
+            else:
+                out.append(f"  {s('draft.picks_ordered')}")
+                for n, r in enumerate(d["picks"], 1):
+                    out.append(f"    #{n:>2} {r['side'][0]} {r['hero']}")
 
         out += self._my_pick(d.get("my_pick"), s)
+        out += self._lanes(d.get("lanes") or [], s)
 
         for side, rows in (("Radiant", d["radiant"]), ("Dire", d["dire"])):
             out.append(f"{side}:")
@@ -272,11 +286,27 @@ class BundleBuilder:
         """Во что я пикнулся: что было на экране, когда я подтверждал выбор."""
         if not my:
             return []
-        out = ["", s("draft.my_pick", n=my["order"], total=my["total"],
-                     tag=s("draft.pick_tag." + my["tag"]))]
-        for key in ("enemies_before", "allies_before", "enemies_after"):
+        if my["phased"]:
+            out = ["", s("draft.my_pick_phased", phase=my["phase"], n=my["team_order"],
+                         tag=s(f"draft.phase_tag.{my['phase']}"))]
+            keys = ("enemies_visible", "allies_before", "enemies_blind", "enemies_after")
+        else:
+            out = ["", s("draft.my_pick", n=my["order"], total=my["total"],
+                         tag=s("draft.pick_tag." + my["tag"]))]
+            keys = ("enemies_before", "allies_before", "enemies_after")
+        for key in keys:
             heroes = ", ".join(my[key]) or s("dash")
             out.append(f"  {s('draft.' + key, heroes=heroes)}")
+        return out
+
+    def _lanes(self, lanes: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
+        if not lanes:
+            return []
+        out = ["", s("draft.lanes")]
+        for row in lanes:
+            out.append("  " + s("draft.lane_row", lane=s(f"draft.lane.{row['lane']}"),
+                                radiant=", ".join(row["radiant"]) or s("dash"),
+                                dire=", ".join(row["dire"]) or s("dash")))
         return out
 
     def _scoreboard(self, rows: List[Dict[str, Any]], s: i18n.Strings) -> List[str]:
@@ -428,6 +458,7 @@ class BundleBuilder:
                          lane=s("tf.lane_tag") if tf["in_lane"] else "",
                          score=s("tf.score", mine=tf["my_losses"], theirs=tf["enemy_losses"]),
                          verdict=s(tf["verdict"]), me=mine))
+            out.append("    " + self._presence(tf["presence"], s))
 
             if tf["fallen"] or detailed:
                 out.append("    " + s("tf.fallen",
@@ -439,6 +470,14 @@ class BundleBuilder:
         if not detailed:
             out.append(f"  {s('tf.more')}")
         return out
+
+    def _presence(self, pr: Dict[str, Any], s: i18n.Strings) -> str:
+        line = s("tf.presence", mine=pr["mine"], theirs=pr["theirs"])
+        if pr["absent_mine"]:
+            line += "; " + s("tf.absent_mine", heroes=", ".join(pr["absent_mine"]))
+        if pr["absent_theirs"]:
+            line += "; " + s("tf.absent_theirs", heroes=", ".join(pr["absent_theirs"]))
+        return line
 
     def _damage(self, rows: List[Dict[str, Any]]) -> List[str]:
         out = []

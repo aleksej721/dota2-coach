@@ -18,23 +18,28 @@ from typing import List
 from .i18n import Strings
 from .policy import Policy
 
-# Разделы ответа в фиксированном порядке. Ключ 0 добавляется только тогда,
-# когда у игрока есть свой вопрос: без него нумерация начинается с картины матча.
+# Разделы ответа в фиксированном порядке. Ключи смысловые, а номера расставляет
+# _sections: раньше номер был зашит и в ключ, и в текст заголовка, и каждое
+# переупорядочивание оборачивалось перенумерацией трёх словарей. Раздел «note»
+# (ответ на вопрос игрока) добавляется нулевым, только когда вопрос задан.
 #
-# s1 (что произошло в матче) идёт первым и намеренно не про игрока: объективный
+# draft идёт первым: пик оценивается по тому, что было на экране в момент
+# выбора, — до всякого исхода матча. Иначе проигранный матч задним числом делает
+# плохим любой пик, а выигранный — любой хорошим.
+#
+# story (что произошло в матче) — следом и намеренно не про игрока: объективный
 # нарратив обязан получаться одинаковым для любого из десяти игроков. Разбор,
 # начатый с личных цифр, подгоняет матч под игрока — любая его просадка выглядит
 # причиной, хотя чаще всего она следствие.
 #
-# s4 (драфт и билд) стоит после главного leak’а и до разбора по стадиям: это
-# рамка, в которой стадии только и имеют смысл — герой, взятый под конкретную
-# идею, и сборка против конкретного состава. Раздел обязателен всегда, даже
-# когда ни драфт, ни билд проблемой не были: «вопросов нет» — тоже вывод.
+# build отделён от драфта: драфт решается до матча, сборка — по ходу, против уже
+# известного состава, и смешивать их значило оценивать одно через другое.
 #
-# s7 (гипотезы) и s8 (вопросы игроку) закрывают ответ намеренно: разбор — это
-# начало разговора, а не финальный вердикт. Модель обязана оставить на столе
-# несколько версий и спросить то, чего в данных нет.
-_FORMAT_SECTIONS = ("s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9")
+# hypotheses и questions закрывают ответ намеренно: разбор — это начало
+# разговора, а не финальный вердикт. Модель обязана оставить на столе несколько
+# версий и спросить то, чего в данных нет.
+_FORMAT_SECTIONS = ("draft", "story", "verdict", "good", "leak", "build", "stages",
+                    "actions", "hypotheses", "questions")
 
 
 def method_lines(policy: Policy, s: Strings) -> List[str]:
@@ -58,6 +63,9 @@ def method_lines(policy: Policy, s: Strings) -> List[str]:
     rules.append(s("method.agency"))
     rules.append(s("method.worst_metric"))
     rules.append(s("method.team_root"))
+    # Бои: кто в них был, а не только счёт потерь. Стоит в блоке причинности —
+    # «проиграли бой» часто значит «дрались вчетвером против пятерых».
+    rules.append(s("method.fights"))
     rules.append(s("method.pivot"))
     rules.append(s("method.context_frame"))
     rules.append(s("method.hero_mechanics"))
@@ -94,13 +102,16 @@ def method_lines(policy: Policy, s: Strings) -> List[str]:
 
 # Разделы ответа для профиля. Другие, чем у одного матча: там разбирают эпизод,
 # здесь — привычку, и «разбор по стадиям одного матча» смысла не имеет.
-_PROFILE_SECTIONS = ("p1", "p2", "p3", "p4", "p5", "p6", "p7")
+_PROFILE_SECTIONS = ("portrait", "stable", "leak", "timeline", "plan",
+                     "hypotheses", "questions")
 
 
 def _sections(keys: List[str], prefix: str, policy: Policy, s: Strings) -> List[str]:
     out = [s(f"{prefix}.intro"), ""]
-    for key in keys:
-        out.append(f"### {s(f'{prefix}.{key}.title')}")
+    # Нумерация от нуля, если первым идёт ответ на вопрос игрока, иначе от единицы.
+    first = 0 if keys and keys[0] == "note" else 1
+    for number, key in enumerate(keys, first):
+        out.append(f"### {number}. {s(f'{prefix}.{key}.title')}")
         role_key = f"{prefix}.{key}.body.role.{policy.role}"
         out.append(s(role_key) if policy.has_role and s.has(role_key)
                    else s(f"{prefix}.{key}.body"))
@@ -112,7 +123,7 @@ def format_lines(policy: Policy, s: Strings) -> List[str]:
     """Структура ответа: заголовок раздела + что в нём должно быть."""
     keys = list(_FORMAT_SECTIONS)
     if policy.has_note:
-        keys.insert(0, "s0")
+        keys.insert(0, "note")
     return _sections(keys, "format", policy, s)
 
 
@@ -159,5 +170,5 @@ def profile_method_lines(policy: Policy, matches: int, s: Strings) -> List[str]:
 def profile_format_lines(policy: Policy, s: Strings) -> List[str]:
     keys = list(_PROFILE_SECTIONS)
     if policy.has_note:
-        keys.insert(0, "p0")
+        keys.insert(0, "note")
     return _sections(keys, "profile.format", policy, s)

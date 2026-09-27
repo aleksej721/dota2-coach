@@ -134,6 +134,9 @@ class Match:
     radiant_win: bool
     parsed: bool
     region: Optional[int] = None
+    # Unix-время начала матча. Нужно ради точного патча: OpenDota отдаёт только
+    # мажорную версию («7.41»), а буквенную (7.41f) можно определить по дате.
+    start_time: Optional[int] = None
     players: List[Player] = field(default_factory=list)
     picks_bans: List[PickBan] = field(default_factory=list)
     objectives: List[Objective] = field(default_factory=list)

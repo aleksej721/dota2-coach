@@ -41,6 +41,7 @@ def from_opendota(raw: Dict[str, Any], constants: Constants) -> Match:
         teamfights=raw.get("teamfights") or [],
         radiant_gold_adv=raw.get("radiant_gold_adv") or [],
         radiant_xp_adv=raw.get("radiant_xp_adv") or [],
+        start_time=raw.get("start_time"),
     )
 
 

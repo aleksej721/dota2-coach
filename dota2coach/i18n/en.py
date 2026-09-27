@@ -15,6 +15,8 @@ PROMPT = {
 
     "sec.meta": "META",
     "meta.line": "Match {match_id} | patch {patch} | {mode} / {lobby} | duration {duration}",
+    "meta.date":
+        "Match date: {date} (UTC). OpenDota only gives the major patch version; work out the exact lettered version from this date.",
     "meta.result": "Result: {result} (my side — {side}, winner — {winner})",
     "meta.win": "WIN",
     "meta.lose": "LOSS",
@@ -202,42 +204,42 @@ PROMPT = {
         "match_id and ask for that match to be analyzed separately.",
 
     "profile.format.intro": "Follow this order and these section headings:",
-    "profile.format.p0.title": "0. Answer to the main request",
-    "profile.format.p0.body":
+    "profile.format.note.title": "Answer to the main request",
+    "profile.format.note.body":
         "A direct answer to the player's question from the sample data. If the aggregates "
         "are not enough for a full answer, say what exactly is missing and which match to "
         "analyze separately.",
-    "profile.format.p1.title": "1. Portrait of the player from this sample",
-    "profile.format.p1.body":
+    "profile.format.portrait.title": "Portrait of the player from this sample",
+    "profile.format.portrait.body":
         "3–4 lines of connected prose: what kind of player these matches show, and the ONE "
         "main thing that holds them back most often. No bullet list.",
-    "profile.format.p2.title": "2. What works consistently",
-    "profile.format.p2.body":
+    "profile.format.stable.title": "What works consistently",
+    "profile.format.stable.body":
         "1–2 strengths visible across the sample rather than in a single match — with "
         "numbers. The player must know what to keep doing.",
-    "profile.format.p3.title": "3. The main repeating leak",
-    "profile.format.p3.body":
+    "profile.format.leak.title": "The main repeating leak",
+    "profile.format.leak.body":
         "One most expensive habit. Mandatory: in how many matches it appeared, numbers from "
         "the deviations block, and the mechanism — why it costs so much. Do not dump "
         "everything here: there is one leak.",
-    "profile.format.p4.title": "4. Where the game breaks in time",
-    "profile.format.p4.body":
+    "profile.format.timeline.title": "Where the game breaks in time",
+    "profile.format.timeline.body":
         "Analysis by stage: on which stretches the advantage is lost systematically and what "
         "happens in the game at that time. If no stretch sags — say so and explain where the "
         "games are lost instead.",
-    "profile.format.p5.title": "5. Plan for the next matches",
-    "profile.format.p5.body":
+    "profile.format.plan.title": "Plan for the next matches",
+    "profile.format.plan.body":
         "2–4 measurable goals with checkable numbers and how many matches are needed to see "
         "a shift. Bad: \"play more actively\". Good: \"CS@10 ≥ 45 in three matches in a "
         "row\". The goals must hit the leak from section 3, not be a generic list.",
-    "profile.format.p6.title": "6. Hypotheses: what is behind these patterns",
-    "profile.format.p6.body":
+    "profile.format.hypotheses.title": "Hypotheses: what is behind these patterns",
+    "profile.format.hypotheses.body":
         "2–3 COMPETING explanations for the repeating problems, from different areas: hero "
         "choice and draft, build habits, behaviour in fights, farm time management, "
         "positioning. For each: evidence from the sample, what would confirm or refute it, "
         "and how confident you are.",
-    "profile.format.p7.title": "7. Questions for me",
-    "profile.format.p7.body":
+    "profile.format.questions.title": "Questions for me",
+    "profile.format.questions.body":
         "2–3 short diagnostic questions that would narrow things down: about intent, the "
         "plan for the game, party composition, a change of role or patch — that is, about "
         "what is NOT in the aggregates. You may also ask for a specific match_id from the "
@@ -311,6 +313,32 @@ PROMPT = {
     "draft.grouped":
         "Draft ({mode}). The source returns picks and bans as separate groups: the order "
         "WITHIN the picks is real, how bans interleaved with them is unknown.",
+    "draft.phased_intro":
+        "Ranked All Pick: picks happen in three phases — 2+2, 2+2 and last picks 1+1. Within a phase both teams pick simultaneously and cannot see the other side's choice; it is revealed when the phase ends. Allies are visible immediately.",
+    "draft.phase_row":
+        "Phase {n}: Radiant — {radiant} | Dire — {dire}",
+    "draft.my_pick_phased":
+        "MY PICK — phase {phase} of 3, my team's pick #{n} ({tag}).",
+    "draft.phase_tag.1":
+        "first phase: no enemy heroes visible at all, a blind pick",
+    "draft.phase_tag.2":
+        "second phase: the two enemy heroes from phase one are visible",
+    "draft.phase_tag.3":
+        "last pick: four enemy heroes visible, only their last pick is hidden",
+    "draft.enemies_visible":
+        "enemies I could see when I picked: {heroes}",
+    "draft.enemies_blind":
+        "enemy picked at the same time, without seeing my hero: {heroes}",
+    "draft.lanes":
+        "Lane setup (who stood against whom):",
+    "draft.lane_row":
+        "{lane}: Radiant — {radiant} | Dire — {dire}",
+    "draft.lane.1":
+        "bottom (Radiant safe lane, Dire off lane)",
+    "draft.lane.2":
+        "middle",
+    "draft.lane.3":
+        "top (Radiant off lane, Dire safe lane)",
     "draft.bans": "Bans",
     "draft.picks": "Picks",
     "draft.picks_ordered": "Picks in the order they were locked in:",
@@ -325,7 +353,7 @@ PROMPT = {
         "last pick: the enemy line-up was almost fully known",
     "draft.enemies_before": "enemies visible when I picked: {heroes}",
     "draft.allies_before": "allies visible when I picked: {heroes}",
-    "draft.enemies_after": "enemy heroes picked after mine: {heroes}",
+    "draft.enemies_after": "enemy picked already seeing my hero (a possible counter-pick): {heroes}",
 
     "sec.scoreboard": "SCOREBOARD (final)",
     "scoreboard.columns":
@@ -408,6 +436,9 @@ PROMPT = {
     "tf.even": "even trade",
     "tf.me": "me: damage {damage}, deaths {deaths}, Δgold {gold}",
     "tf.me_killed": "killed: {heroes}",
+    "tf.presence": "in the fight: ours {mine}/5, theirs {theirs}/5",
+    "tf.absent_mine": "missing on our side: {heroes}",
+    "tf.absent_theirs": "missing on theirs: {heroes}",
     "tf.fallen": "died: {heroes}",
     "tf.detail":
         "{who}: Δgold={gold}, Δxp={xp}, deaths={deaths}, damage={damage}, healing={healing}",
@@ -502,18 +533,27 @@ PROMPT = {
         "executable at that level, and if you recommend something above it, explain why it "
         "matters and where to start.",
     "method.draft":
-        "Analyse the DRAFT, not just the execution. The anchor is the \"MY PICK\" block in "
-        "the DRAFT section. A first pick was made blind, and it was the enemy who adapted to "
-        "it: cover such a pick briefly. If the pick was not first — you must analyse WHAT "
-        "the player picked into: which enemy heroes were already on screen and what the "
-        "choice meant against them. For a core, look at both synergy with my team and the "
-        "match-up against specific enemy heroes; for a support, look first at synergy with "
-        "my core and the other support. Reason from general Dota 2 knowledge. If you are "
-        "unsure about a specific match-up or about how the hero plays in this patch, say "
-        "\"not sure\" outright and name what would settle it. Inventing meta you do not know "
-        "is strictly forbidden: an honest \"I don't know\" is worth more than a confident "
-        "mistake. A single match cannot tell whether the player is practising this hero or "
-        "picking to the draft — do not assume, ask it in \"Questions for me\".",
+        "Analyse the DRAFT separately from the result. A pick is judged by what was on "
+        "screen when it was made — a lost match does not make it bad in hindsight, a "
+        "won one does not make it good. The anchor is the \"MY PICK\" block in the "
+        "DRAFT section. In ranked All Pick picks happen in three phases (2+2, 2+2, "
+        "1+1) and the enemy's choice is hidden within a phase: in phase one the player "
+        "picked blind, in phase two they saw two enemy heroes, on the last pick four. "
+        "The bar for \"picked the wrong hero\" rises with each phase. You must cover: "
+        "(a) MATCH-UPS — how my hero plays against every visible enemy and against "
+        "those the enemy took already seeing me; (b) the LANE — from the lane setup "
+        "block: who I stood with and against, whether it is a winning or a hard lane "
+        "for my hero and whose lane it is by draft; (c) SYNERGY with my team; (d) META "
+        "— how strong the hero is in this patch. You MUST use web search if you have "
+        "it: my hero's win rate and the specific match-ups in exactly this patch (work "
+        "out the lettered version from the match date in META), its place in the meta, "
+        "popular builds — Dotabuff, STRATZ, Dota2ProTracker, patch notes. Name the "
+        "source and patch next to every number. No search — say so in one line at the "
+        "top of the section and rely on general Dota 2 knowledge, marking your "
+        "confidence. Inventing win rates or meta is forbidden: an honest \"I don't "
+        "know\" beats a confident mistake. A single match cannot tell whether the "
+        "player practises this hero or picks to the draft — ask in the questions "
+        "section.",
     "method.build":
         "Judge the build in CONTEXT, not in a vacuum. The ITEMS section carries all ten "
         "heroes' builds with timings: check my items against what the enemies built (what I "
@@ -596,6 +636,17 @@ PROMPT = {
         "answer format). Be honest about the limit: per-second timelines and coordinates do "
         "not exist in the source and will not appear in the magnifier either — it gives "
         "more DETAIL, not different data. Do not promise what the tool cannot deliver.",
+    "method.fights":
+        "In every fight look at WHO WAS IN IT, not just the loss count: each fight in "
+        "the TEAMFIGHTS section has a line \"in the fight: ours N/5, theirs M/5\" and "
+        "the list of who was missing. Losing 3 against 5 and losing 5 against 5 are "
+        "different fights with different conclusions. Cover: was my hero missing from "
+        "fights where he was needed, or did he join fights where his presence decided "
+        "nothing; which enemy systematically skipped fights and what he was doing "
+        "instead — farming, split-pushing, taking objectives; do the absences line up "
+        "with lost towers and Roshan. Presence is determined by damage, deaths and "
+        "kills, so a player standing nearby without dealing damage counts as absent — "
+        "keep that in mind when drawing conclusions.",
     "method.anomalies":
         "The \"STATISTICALLY UNUSUAL IN THE DATA\" block already lists the deviations. Work "
         "through each one: either explain it with an in-game cause, or honestly dismiss it "
@@ -663,12 +714,12 @@ PROMPT = {
 
     "sec.format": "ANSWER FORMAT",
     "format.intro": "Keep the order and the section headings:",
-    "format.s0.title": "0. Answer to the main question",
-    "format.s0.body":
+    "format.note.title": "Answer to the main question",
+    "format.note.body":
         "A direct answer to the player's question, with numbers from the data. If the data "
         "is not enough for a full answer, say exactly what is missing.",
-    "format.s1.title": "1. What happened in this match",
-    "format.s1.body":
+    "format.story.title": "What happened in this match",
+    "format.story.body":
         "The objective picture of the match, WITHOUT tying it to my player: 3–4 lines on how "
         "the game arrived at its outcome. You must name: the turning point — the minute the "
         "advantage flipped (from ECONOMY, where the sign changes are listed); the gold and "
@@ -677,67 +728,74 @@ PROMPT = {
         "section must read the same no matter whose eyes the match is seen through: it is "
         "about the MATCH, not about me. Personal mistakes come below and are analysed "
         "INSIDE this picture.",
-    "format.s2.title": "2. Verdict",
-    "format.s2.body":
+    "format.verdict.title": "Verdict",
+    "format.verdict.body":
         "2–3 lines: how the player did overall and the ONE main thing to fix. "
         "Prose, not a list.",
-    "format.s3.title": "3. What went well",
-    "format.s3.body":
+    "format.good.title": "What went well",
+    "format.good.body":
         "1–2 points with concrete numbers. This is not politeness: the player needs to know "
         "what to repeat in the next games.",
-    "format.s4.title": "4. The main leak",
-    "format.s4.body":
+    "format.leak.title": "The main leak",
+    "format.leak.body":
         "The single most expensive problem — with evidence: concrete timings, numbers and "
         "their consequences in this match. Show the chain \"what happened → what it cost\". "
         "Two mandatory conditions: it must be a decision that was WITHIN THEIR POWER, and "
         "one taken while the game was still holding. State the state of the game at that "
         "moment with a number. If the costliest thing by the numbers happened in an already "
         "lost position — explain it separately and say plainly that it is not the leak.",
-    "format.s5.title": "5. Draft and build",
-    "format.s5.body":
-        "Two mandatory parts, both short and grounded in the data. "
-        "DRAFT: where my pick sat in the queue and what that meant. If it was not the first "
-        "pick — name the enemy heroes that were already visible and judge whether the hero "
-        "was taken FOR an idea (against a specific hero, for a combo with my team) or simply "
-        "as the usual comfort pick. Then check against the facts of the match whether that "
-        "idea was actually carried out: if the hero was taken against the enemy carry, point "
-        "at damage, fights and timings rather than general words. "
-        "BUILD: what was bought, when, and how appropriate it was AGAINST THIS line-up — "
-        "with an eye on the enemies' and allies' items from the ITEMS section. A line about "
-        "the build is mandatory every time, even when the build was not a problem: "
-        "\"standard build, timings fine, no questions\" is a conclusion too, and the player "
-        "must see it.",
-    "format.s6.title": "6. Stage-by-stage review — ordered by impact",
-    "format.s6.body":
+    "format.draft.title":
+        "Draft, lanes and match-ups",
+    "format.draft.body":
+        "Start with the pick — before any talk of the result. The phase the player "
+        "picked in and what they could see. Match-ups against the visible enemy heroes "
+        "and against those the enemy took already seeing them. The lane: with whom, "
+        "against whom, whose lane it is by draft and whether it favours this hero. "
+        "Synergy with the team. The hero's strength in this patch — win rate, meta, "
+        "place in the pool; with source and patch version if you can search, or "
+        "explicitly marked \"from general knowledge\" if not. Finish with one line: "
+        "the pick was built around an idea, neutral, or risky — and why.",
+    "format.build.title":
+        "Build",
+    "format.build.body":
+        "Separately from the draft: what was bought, when, and how appropriate it was "
+        "AGAINST THIS line-up — with an eye on the enemies' and allies' items from the "
+        "ITEMS section. Do not question the hero's standard core items. If you can "
+        "search the web, compare the build with the popular ones in this patch and "
+        "name the differences. The section is mandatory every time, even when the "
+        "build was not a problem: \"standard build, timings fine, no questions\" is a "
+        "conclusion too.",
+    "format.stages.title": "Stage-by-stage review — ordered by impact",
+    "format.stages.body":
         "Not chronologically, but from the most influential to the least. Every claim carries "
         "a number or a timestamp. A stage that went fine gets one line and you move on.",
-    "format.s7.title": "7. What to do in the next games",
-    "format.s7.body":
+    "format.actions.title": "What to do in the next games",
+    "format.actions.body":
         "2–4 measurable actions. Bad: \"farm better\". Good: \"CS@10 ≥ 55 — by staying on your "
         "own creep wave after the support leaves instead of walking into the jungle\". "
         "Each action carries a number the player can check themselves against.",
-    "format.s7.body.role.3":
+    "format.actions.body.role.3":
         "2–4 measurable offlane actions: first-entry timing, targets controlled, damage "
         "absorbed or a favorable trade. Each action needs a number/timing from this match; "
         "do not make simply dying less the goal.",
-    "format.s7.body.role.4":
+    "format.actions.body.role.4":
         "2–4 measurable soft-support actions: a rotation/stack timing, participation, "
         "control, vision or a utility item. Each needs a number/timing from this match. "
         "Do not set CS or GPM targets; they are irrelevant to this role.",
-    "format.s7.body.role.5":
+    "format.actions.body.role.5":
         "2–4 measurable hard-support actions: a stack/ward timing, participation, healing, "
         "control or a defensive item. Each needs a number/timing from this match. Do not "
         "set CS/GPM targets or demand fewer deaths without context.",
-    "format.s8.title": "8. Hypotheses: why the match ended this way",
-    "format.s8.body":
+    "format.hypotheses.title": "Hypotheses: why the match ended this way",
+    "format.hypotheses.body":
         "2–3 COMPETING explanations of the outcome, drawn from different areas: draft, "
         "build and timings, key fights, farm, positioning. Each needs: (a) evidence from "
         "the data — a number or a timing, preferably tied to the deviations block; (b) what "
         "would confirm or refute it; (c) how confident you are. The hypotheses must differ "
         "in substance, not be restatements of one idea. If the data clearly points at one "
         "cause, say so — but still name what would refute it.",
-    "format.s9.title": "9. Questions for me and the next step",
-    "format.s9.body":
+    "format.questions.title": "Questions for me and the next step",
+    "format.questions.body":
         "First, 2–3 short diagnostic questions whose answers would narrow the analysis "
         "down. Ask about what is NOT in the data: intent, the plan for the game, "
         "communication, what was visible on screen, whether an ability window was up. For "
