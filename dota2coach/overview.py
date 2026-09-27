@@ -170,6 +170,13 @@ def build_match_overview(match: Match, me: Player,
     my_team = radiant if me.is_radiant else dire
     gold = _ints(match.radiant_gold_adv)
     xp = _ints(match.radiant_xp_adv)
+    # OpenDota отдаёт перевес с точки зрения Radiant. Для игрока за Dire такой
+    # ряд перевёрнут: выигранный матч рисовался уходящим в −16k и противоречил
+    # промпту, где перевес всегда считается для МОЕЙ команды. Сырые ряды
+    # оставлены для совместимости, UI и точки перелома — с позиции игрока.
+    side = 1 if me.is_radiant else -1
+    team_gold = [side * value for value in gold]
+    team_xp = [side * value for value in xp]
 
     return {
         "schema_version": OVERVIEW_SCHEMA_VERSION,
@@ -211,10 +218,12 @@ def build_match_overview(match: Match, me: Player,
         "economy": {
             "radiant_gold_adv": gold,
             "radiant_xp_adv": xp,
-            "gold_points": _timeline(gold),
-            "xp_points": _timeline(xp),
-            "gold_turning_points": _turning_points(gold),
-            "xp_turning_points": _turning_points(xp),
+            "team_gold_adv": team_gold,
+            "team_xp_adv": team_xp,
+            "gold_points": _timeline(team_gold),
+            "xp_points": _timeline(team_xp),
+            "gold_turning_points": _turning_points(team_gold),
+            "xp_turning_points": _turning_points(team_xp),
         },
         "draft": {
             # Captains Mode хранит настоящую хронологию. All Draft обычно

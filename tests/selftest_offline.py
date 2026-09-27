@@ -651,6 +651,13 @@ def main():
     assert overview["players"][0]["series"]["last_hits"][10] == 90
     assert all("name" in item for item in overview["players"][0]["items"])
     assert overview["economy"]["radiant_gold_adv"][10] == 2200
+    # Перевес в обзоре — с позиции МОЕЙ команды, как в промпте. Для Dire ряд
+    # обязан быть зеркалом Radiant, иначе выигранный матч рисуется проигранным.
+    sign = 1 if me.is_radiant else -1
+    assert overview["economy"]["team_gold_adv"][10] == sign * 2200
+    dire_me = next(p for p in match.players if not p.is_radiant)
+    mirrored = build_match_overview(match, dire_me, {})
+    assert mirrored["economy"]["team_gold_adv"][10] == -2200
     assert overview["objectives"][2]["kind"] == "roshan"
     assert overview["teamfights"][0]["me"]["damage"] == 1500
     assert set(overview["draft"]) == {"chronological", "picks", "bans"}

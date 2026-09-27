@@ -3488,8 +3488,8 @@ pre#promptText { border-radius: var(--r-sm); }
     svg.replaceChildren();
     const me = (currentOverview.players || []).find((player) => player.is_me) || {};
     const config = {
-      gold: [currentOverview.economy && currentOverview.economy.radiant_gold_adv, "explorer.chart.gold", true],
-      xp: [currentOverview.economy && currentOverview.economy.radiant_xp_adv, "explorer.chart.xp", true],
+      gold: [currentOverview.economy && currentOverview.economy.team_gold_adv, "explorer.chart.gold", true],
+      xp: [currentOverview.economy && currentOverview.economy.team_xp_adv, "explorer.chart.xp", true],
       networth: [me.series && me.series.net_worth, "explorer.chart.networth", false],
       last_hits: [me.series && me.series.last_hits, "explorer.chart.last_hits", false],
     }[chartSeries];
