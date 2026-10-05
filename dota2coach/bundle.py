@@ -22,6 +22,13 @@ if TYPE_CHECKING:  # только для аннотаций: profile импор�
     from .profile import MatchDigest, ProfileFeatures
 
 
+def _k(value: Optional[int]) -> str:
+    """12345 -> 12.3k: в сводке важен порядок величины, а не последняя цифра."""
+    if value is None:
+        return "?"
+    return f"{value / 1000:.1f}k" if abs(value) >= 1000 else str(value)
+
+
 def _signed(value: Any) -> str:
     if value is None:
         return "?"
@@ -40,6 +47,8 @@ class BundleBuilder:
             data.add(s("sec.window", start=features.window["start"],
                        end=features.window["end"]),
                      self._window(features.window, s))
+        if features.facts:
+            data.add(s("sec.facts"), self._facts(features.facts, s))
         if features.role_impact:
             data.add(s("sec.role_impact"), self._role_impact(features.role_impact, s))
         if policy.shows("anomalies"):
@@ -241,6 +250,58 @@ class BundleBuilder:
             out.append(s("meta.level", mmr=policy.mmr))
         if policy.has_window:
             out.append(s("meta.window", start=policy.window[0], end=policy.window[1]))
+        return out
+
+    _RANKS = {1: "Herald", 2: "Guardian", 3: "Crusader", 4: "Archon", 5: "Legend",
+              6: "Ancient", 7: "Divine", 8: "Immortal"}
+
+    def _facts(self, f: Dict[str, Any], s: i18n.Strings) -> List[str]:
+        out = [s("facts.note")]
+
+        rank = f.get("rank")
+        rank_text = (f"{self._RANKS.get(rank // 10, '?')} {rank % 10 or ''}".strip()
+                     if rank else s("facts.unknown"))
+        party = f.get("party")
+        party_text = (s("facts.solo") if party == 1 else
+                      s("facts.party", n=party) if party else s("facts.unknown"))
+        out.append(s("facts.player", rank=rank_text, party=party_text))
+        out.append(s("facts.team", ours=f["kills"][0], theirs=f["kills"][1],
+                     my=f["my_deaths"], team=f["team_deaths"],
+                     nw=f["nw_share"], dmg=f["dmg_share"]))
+
+        if f["pairs"]:
+            out += ["", s("facts.pairs")]
+            for pair in f["pairs"]:
+                points = ", ".join(
+                    f"{x['m']}' {_k(x['mine'])}/{_k(x['theirs'])}" for x in pair["earned"])
+                out.append("  " + s("facts.pair_row", role=pair["role"], mine=pair["mine"],
+                                    theirs=pair["theirs"], points=points or s("dash"),
+                                    nw_mine=_k(pair["nw"][0]), nw_theirs=_k(pair["nw"][1])))
+
+        if f["gold"]:
+            out += ["", s("facts.gold")]
+            for g in f["gold"]:
+                rows = ", ".join(f"{s('facts.gold.' + r['key'])} {r['pct']}%" for r in g["rows"])
+                out.append(f"  {g['who']} ({_k(g['total'])}): {rows}")
+
+        out += ["", s("facts.deaths", n=len(f["deaths"]))]
+        for d in f["deaths"]:
+            where = s("facts.in_fight" if d["in_fight"] else "facts.pickoff")
+            killer = d["killer"] or "?"
+            dead = ", " + s("facts.dead_for", sec=d["dead_for"]) if d.get("dead_for") else ""
+            out.append(f"  {d['time']} — {killer}, {where}{dead}")
+
+        dt = f.get("damage_taken")
+        if dt:
+            types = ", ".join(f"{s('facts.dmg.' + k)} {v}%" for k, v in dt["by_type"].items())
+            out += ["", s("facts.damage_taken", total=_k(dt["total"]), types=types,
+                          through=dt["through_bkb"], blocked=dt["blocked_by_bkb"])]
+            for src in dt["sources"]:
+                name = s("facts.attacks") if src["attack"] else src["name"]
+                mark = (s("facts.through_bkb") if src["through_bkb"] is True else
+                        s("facts.blocked_bkb") if src["through_bkb"] is False else "")
+                kind = s("facts.dmg." + src["type"])
+                out.append(f"  {name}: {_k(src['value'])} ({kind}{', ' + mark if mark else ''})")
         return out
 
     def _draft(self, d: Dict[str, Any], s: i18n.Strings) -> List[str]:

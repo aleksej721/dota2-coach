@@ -78,6 +78,10 @@ class Constants:
     def item_name(self, key: Optional[str]) -> str:
         return (key or "").replace("item_", "")
 
+    def damage_source(self, key: Optional[str]) -> Dict[str, Any]:
+        """Источник полученного урона: имя, тип урона, проходит ли сквозь BKB."""
+        return {"name": key or "?", "type": None, "through_bkb": None, "item": False}
+
     def item_cost(self, key: Optional[str]) -> int:
         return 0
 
@@ -303,6 +307,32 @@ class ConstantsRepo(Constants):
         if not isinstance(items, dict):
             return {}
         return items.get(key.replace("item_", "")) or {}
+
+    def damage_source(self, key: Optional[str]) -> Dict[str, Any]:
+        """Источник полученного урона по ключу OpenDota.
+
+        Ключ — внутреннее имя способности («death_prophet_exorcism») или предмета
+        («radiance»); «null» означает автоатаки. Тип урона и «проходит ли сквозь
+        BKB» берём из справочника способностей как есть: это не наша оценка героя,
+        а свойство способности, и именно его модель раньше угадывала по памяти.
+        """
+        # through_bkb — «BKB от этого урона НЕ защитил бы». Для автоатак это так:
+        # BKB даёт иммунитет к магии, а не к физическим ударам.
+        if not key or key == "null":
+            return {"name": None, "type": "Physical", "through_bkb": True, "item": False,
+                    "attack": True}
+        abilities = self._load("abilities")
+        entry = abilities.get(key) if isinstance(abilities, dict) else None
+        if entry:
+            bkb = entry.get("bkbpierce")
+            return {"name": entry.get("dname") or key, "type": entry.get("dmg_type"),
+                    "through_bkb": (bkb == "Yes") if bkb in ("Yes", "No") else None,
+                    "item": False}
+        item = self._item_entry(key)
+        if item:
+            return {"name": item.get("dname") or key, "type": None, "through_bkb": None,
+                    "item": True}
+        return {"name": key, "type": None, "through_bkb": None, "item": False}
 
     def item_name(self, key: Optional[str]) -> str:
         if not key:

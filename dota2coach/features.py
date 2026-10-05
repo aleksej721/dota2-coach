@@ -84,6 +84,9 @@ class Features:
     # Выбранный игроком промежуток под лупой. Пусто, если окно не задано.
     window: Dict[str, Any] = field(default_factory=dict)
     role_impact: Dict[str, Any] = field(default_factory=dict)
+    # Картина матча, посчитанная заранее: командный контекст, пары по ролям,
+    # источники золота, смерти и тип полученного урона. См. _key_facts.
+    facts: Dict[str, Any] = field(default_factory=dict)
     # Статистические отклонения — сырьё для гипотез модели, см. anomalies.py.
     anomalies: List[Anomaly] = field(default_factory=list)
     # Оговорки, которые зависят от того, что мы отфильтровали или чего нет в
@@ -113,6 +116,8 @@ class FeatureExtractor:
         f = Features()
         f.meta = self._meta(match, me, policy)
         f.scoreboard = [self._score_row(p, me) for p in match.players]
+        if policy.shows("facts"):
+            f.facts = self._key_facts(match, me, policy)
 
         if policy.shows("anomalies"):
             # min_cost=0: детектору нужна вся сборка, иначе накопленная
@@ -205,6 +210,124 @@ class FeatureExtractor:
             "assists": me.assists,
             "parsed": match.parsed,
         }
+
+    # --- КАРТИНА МАТЧА (посчитано заранее) -------------------------------------
+
+    # Коды причин изменения золота Valve (EDOTA_ModifyGold_Reason). Отдельно
+    # показываем только то, что объясняет «откуда деньги»; остальное — прочее.
+    _GOLD_SOURCES = (("13", "creeps"), ("14", "neutrals"), ("12", "heroes"),
+                     ("11", "buildings"), ("15", "roshan"), ("17", "runes"))
+    _FACT_MINUTES = (10, 20, 30)
+
+    def _key_facts(self, match: Match, me: Player, policy: Policy) -> Dict[str, Any]:
+        """Выводы, которые модель раньше угадывала, а теперь получает готовыми.
+
+        Каждый блок закрывает конкретный класс ошибок разбора:
+          * пары по ролям и доля в нетворте — «кор перегружен» или «отстал сам»;
+          * источники золота — «гонка фарма» по GPM, где смешаны крипы и убийства;
+          * смерти и тип полученного урона — советы по BKB вслепую.
+        Блок симметричен по командам там, где это возможно, — на нём же строится
+        режим разбора игры целиком, без привязки к одному игроку.
+        """
+        mine = [p for p in match.players if p.is_radiant == me.is_radiant]
+        theirs = [p for p in match.players if p.is_radiant != me.is_radiant]
+        team_nw = sum(p.net_worth_final for p in mine) or 1
+        team_dmg = sum(p.hero_damage for p in mine) or 1
+        fights = [(tf.get("start") or 0, tf.get("end") or 0) for tf in match.teamfights]
+
+        def by_position(team: List[Player]) -> Dict[str, Player]:
+            out: Dict[str, Player] = {}
+            for p in team:
+                key = self._position_key(p, me, policy)
+                if key in ROLES and key not in out:
+                    out[key] = p
+            return out
+
+        my_roles, their_roles = by_position(mine), by_position(theirs)
+        pairs = []
+        for role in ROLES:
+            a, b = my_roles.get(role), their_roles.get(role)
+            if not a or not b:
+                continue
+            pairs.append({
+                "role": role,
+                "mine": self._short_tag(a, me), "theirs": self._short_tag(b, me),
+                "earned": [{"m": m, "mine": _at(a.gold_t, m), "theirs": _at(b.gold_t, m)}
+                           for m in self._FACT_MINUTES if _at(a.gold_t, m) is not None],
+                "nw": [a.net_worth_final, b.net_worth_final],
+            })
+
+        my_counterpart = their_roles.get(self._position_key(me, me, policy))
+        gold = [self._gold_sources(me, me)]
+        if my_counterpart:
+            gold.append(self._gold_sources(my_counterpart, me))
+
+        deaths = []
+        for d in me.deaths_log:
+            when = d.get("time") or 0
+            deaths.append({
+                "time": mmss(when),
+                "killer": self._c.npc_to_hero(d.get("key")) if d.get("key") else None,
+                "in_fight": any(lo - 15 <= when <= hi + 15 for lo, hi in fights),
+                "dead_for": d.get("time_dead"),
+            })
+
+        return {
+            "rank": me.rank_tier,
+            "party": me.party_size,
+            "kills": [sum(p.kills for p in mine), sum(p.kills for p in theirs)],
+            "my_deaths": me.deaths,
+            "team_deaths": sum(p.deaths for p in mine),
+            "nw_share": round(100 * me.net_worth_final / team_nw),
+            "dmg_share": round(100 * me.hero_damage / team_dmg),
+            "pairs": pairs,
+            "gold": gold,
+            "deaths": deaths,
+            "damage_taken": self._damage_taken(me),
+        }
+
+    def _gold_sources(self, p: Player, me: Player) -> Dict[str, Any]:
+        income = {k: v for k, v in p.gold_reasons.items() if v > 0 and k not in ("1", "6")}
+        total = sum(income.values()) or 1
+        rows = [{"key": name, "gold": income.get(code, 0),
+                 "pct": round(100 * income.get(code, 0) / total)}
+                for code, name in self._GOLD_SOURCES]
+        known = {code for code, _ in self._GOLD_SOURCES}
+        other = sum(v for k, v in income.items() if k not in known)
+        rows.append({"key": "other", "gold": other, "pct": round(100 * other / total)})
+        return {"who": self._short_tag(p, me), "total": sum(income.values()),
+                "rows": [r for r in rows if r["gold"]]}
+
+    def _damage_taken(self, p: Player, top: int = 5) -> Dict[str, Any]:
+        """Полученный урон за матч: доли по типу и что BKB не остановил бы."""
+        total = sum(v for v in p.damage_received_by.values() if v > 0)
+        if not total:
+            return {}
+        by_type: Dict[str, int] = {}
+        through_bkb = blocked_by_bkb = 0
+        sources = []
+        for key, value in sorted(p.damage_received_by.items(), key=lambda kv: -kv[1]):
+            if value <= 0:
+                continue
+            info = self._c.damage_source(key)
+            kind = info["type"] or ("item" if info["item"] else "unknown")
+            by_type[kind] = by_type.get(kind, 0) + value
+            if info["through_bkb"] is True:
+                through_bkb += value
+            elif info["through_bkb"] is False:
+                blocked_by_bkb += value
+            if len(sources) < top:
+                sources.append({"key": key, "name": info["name"], "type": kind,
+                                "through_bkb": info["through_bkb"],
+                                "attack": bool(info.get("attack")), "value": value})
+
+        def pct(value: int) -> int:
+            return round(100 * value / total)
+
+        return {"total": total,
+                "by_type": {k: pct(v) for k, v in sorted(by_type.items(), key=lambda kv: -kv[1])},
+                "through_bkb": pct(through_bkb), "blocked_by_bkb": pct(blocked_by_bkb),
+                "sources": sources}
 
     # --- DRAFT ----------------------------------------------------------------
 
@@ -744,7 +867,13 @@ class FeatureExtractor:
             fp = tf_players[idx]
             deaths = fp.get("deaths") or 0
             if deaths:
-                fallen.append(self._short_tag(p, me))
+                # Время смерти — из журнала смертей игрока: «керри умер первым»
+                # и «керри умер последним» — разные выводы о драке.
+                lo, hi = (tf.get("start") or 0) - 5, (tf.get("end") or 0) + 5
+                when = next((e.get("time") for e in p.deaths_log
+                             if lo <= (e.get("time") or -1) <= hi), None)
+                fallen.append((when if when is not None else 10 ** 9,
+                               self._short_tag(p, me) + (f" {mmss(when)}" if when is not None else "")))
                 if p.is_radiant:
                     rad_deaths += deaths
                 else:
@@ -788,7 +917,8 @@ class FeatureExtractor:
             "my_losses": my_losses,
             "enemy_losses": enemy_losses,
             "verdict": verdict,
-            "fallen": fallen,
+            # По порядку гибели, а не по номеру слота.
+            "fallen": [tag for _, tag in sorted(fallen)],
             "me": {
                 "damage": mine.get("damage") or 0,
                 "deaths": mine.get("deaths") or 0,

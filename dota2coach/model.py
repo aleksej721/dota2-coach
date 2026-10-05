@@ -78,7 +78,10 @@ class Player:
     damage_taken_total: int = 0
 
     # --- поминутные ряды (индекс = минута) ---
-    gold_t: List[int] = field(default_factory=list)    # кумулятивный нетворт
+    # Накопленное ЗАРАБОТАННОЕ золото по минутам, а не нетворт: потраченное и
+    # потерянное при смерти оно не вычитает. Звать его «нетвортом» нельзя —
+    # на матче 9019547886 у TB 25.8k по ряду против 23.3k настоящего нетворта.
+    gold_t: List[int] = field(default_factory=list)
     xp_t: List[int] = field(default_factory=list)
     lh_t: List[int] = field(default_factory=list)
     dn_t: List[int] = field(default_factory=list)
@@ -116,6 +119,15 @@ class Player:
 
     # --- бенчмарки OpenDota: {metric: {"raw": x, "pct": 0..1}} ---
     benchmarks: Dict[str, Any] = field(default_factory=dict)
+    # Откуда пришло золото: код причины Valve -> сумма (крипы, герои, строения…).
+    gold_reasons: Dict[str, int] = field(default_factory=dict)
+    # Смерти: [{time, key=убийца npc}] и полученный урон по источникам за матч
+    # (способность или предмет; 'null' — автоатаки).
+    deaths_log: List[Dict[str, Any]] = field(default_factory=list)
+    damage_received_by: Dict[str, int] = field(default_factory=dict)
+    # Рейтинг (rank_tier: десятки — медаль, единицы — звезда) и размер пати.
+    rank_tier: Optional[int] = None
+    party_size: Optional[int] = None
 
     @property
     def net_worth(self) -> int:

@@ -27,6 +27,36 @@ PROMPT = {
         "Requested analysis window: {start}–{end} min (see its own section; the rest of "
         "the match is given as a summary).",
 
+    "sec.facts": "MATCH PICTURE (pre-computed)",
+    "facts.note": "A summary computed from the data before any interpretation. \"Earned\" is gold accumulated by the minute, not net worth: it does not subtract gold spent or lost on death.",
+    "facts.unknown": "unknown",
+    "facts.solo": "solo",
+    "facts.party": "party of {n}",
+    "facts.player": "Player: rank {rank}, {party}.",
+    "facts.team": "Team kills: us {ours} / them {theirs}. My deaths: {my} of the team's {team}. My share of team net worth: {nw}%, of hero damage: {dmg}%.",
+    "facts.pairs": "Role pairs — gold earned by the minute (us/them), final net worth:",
+    "facts.pair_row": "pos {role}: {mine} vs {theirs} — {points}; net worth {nw_mine}/{nw_theirs}",
+    "facts.gold": "Where the gold came from (share of earned gold, death losses excluded):",
+    "facts.gold.creeps": "creeps",
+    "facts.gold.neutrals": "neutrals",
+    "facts.gold.heroes": "heroes",
+    "facts.gold.buildings": "buildings",
+    "facts.gold.roshan": "Roshan",
+    "facts.gold.runes": "runes",
+    "facts.gold.other": "other",
+    "facts.deaths": "My deaths ({n}): time — killer, in a fight or a pick-off, time dead:",
+    "facts.in_fight": "in a fight",
+    "facts.pickoff": "outside a fight (pick-off)",
+    "facts.dead_for": "dead {sec} s",
+    "facts.damage_taken": "Damage taken over the match: {total} — {types}. BKB would not have stopped {through}% of it and would have stopped {blocked}% (the rest is items and unknown sources). Largest sources:",
+    "facts.attacks": "auto-attacks",
+    "facts.through_bkb": "through BKB",
+    "facts.blocked_bkb": "blocked by BKB",
+    "facts.dmg.Physical": "physical",
+    "facts.dmg.Magical": "magical",
+    "facts.dmg.Pure": "pure",
+    "facts.dmg.item": "from items",
+    "facts.dmg.unknown": "type unknown",
     "sec.window": "WINDOW {start}–{end} MIN — MAXIMUM DETAIL",
     "window.note":
         "I asked to look at the {start}–{end} min stretch under a magnifier: below are the "
@@ -372,7 +402,7 @@ PROMPT = {
     "bench.tower_damage": "building damage",
     "bench.stuns_per_min": "stun/min",
 
-    "sec.networth": "ECONOMY: TEAM ADVANTAGE AND NET WORTH CURVES",
+    "sec.networth": "ECONOMY: TEAM ADVANTAGE AND ACCUMULATED GOLD",
     "nw.note":
         "Points every {step} min plus the final minute; swings are listed separately. "
         "Source granularity is 1 point per minute (OpenDota's maximum).",
@@ -384,7 +414,7 @@ PROMPT = {
     "nw.no_swings": "— (the advantage never changed sign)",
     "nw.swing_row": "m{m}: {text} ({gold} gold)",
     "nw.peak": "Peak: {best} at m{best_m}; low: {worst} at m{worst_m}",
-    "nw.curves": "Net worth curves:",
+    "nw.curves": "Accumulated earned gold per minute (not net worth: spent and lost gold is not subtracted):",
 
     "sec.items": "ITEMS AND TIMINGS (assembled items; components and consumables hidden)",
     "items.kind.key": "key items",

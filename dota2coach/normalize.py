@@ -53,7 +53,11 @@ def _player(p: Dict[str, Any], radiant_win: bool, constants: Constants) -> Playe
 
     # damage: {npc_name -> урон}. Оставляем только урон по героям.
     damage = p.get("damage") or {}
-    damage_by_hero = {k: v for k, v in damage.items() if str(k).startswith("npc_dota_hero_")}
+    # Урон по собственному герою — артефакт (иллюзии, отражения): у Terrorblade
+    # он доходил до 5.5k «по самому себе». Целью разбора такой урон не является.
+    own = constants.hero_npc(hero_id)
+    damage_by_hero = {k: v for k, v in damage.items()
+                      if str(k).startswith("npc_dota_hero_") and k != own}
 
     return Player(
         account_id=p.get("account_id"),
@@ -110,8 +114,30 @@ def _player(p: Dict[str, Any], radiant_win: bool, constants: Constants) -> Playe
         courier_kills=p.get("courier_kills", 0) or 0,
         observer_kills=p.get("observer_kills", 0) or 0,
         sentry_kills=p.get("sentry_kills", 0) or 0,
-        benchmarks=p.get("benchmarks") or {},
+        benchmarks=_benchmarks(p.get("benchmarks") or {}),
+        gold_reasons={str(k): int(v or 0) for k, v in (p.get("gold_reasons") or {}).items()},
+        deaths_log=p.get("deaths_log") or [],
+        damage_received_by={str(k): int(v or 0) for k, v in
+                            (p.get("damage_inflictor_received") or {}).items()},
+        rank_tier=p.get("rank_tier"),
+        party_size=p.get("party_size"),
     )
+
+
+def _benchmarks(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Перцентили OpenDota без артефакта нулевого значения.
+
+    При нулевом значении метрики OpenDota отдаёт перцентиль вплоть до 0.94 —
+    «лечение 94-й перцентиль» у керри без единой единицы лечения. Детектор
+    отклонений честно выносил это в промпт, и модель обязана была обсуждать
+    шум. Ноль — это отсутствие метрики, а не её крайнее значение.
+    """
+    out: Dict[str, Any] = {}
+    for metric, value in raw.items():
+        if isinstance(value, dict) and not value.get("raw"):
+            continue
+        out[metric] = value
+    return out
 
 
 def _lane_key(p: Player) -> str:
