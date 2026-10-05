@@ -143,6 +143,10 @@ class AnalyzeRequest(BaseModel):
     # Необязателен: без него сервер тянет матч обычным путём.
     raw_match: Optional[Dict[str, Any]] = Field(
         None, description="сырой ответ OpenDota, уже скачанный браузером")
+    # Короткий промпт-уточнение по отрезку для того же чата (нужно окно).
+    followup: bool = False
+    # Разбор матча целиком, без привязки к игроку: account_id и hero не нужны.
+    whole_game: bool = False
 
 
 class AnalyzeResponse(BaseModel):
@@ -259,7 +263,7 @@ async def healthz() -> dict:
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
-    if req.account_id is None and not (req.hero or "").strip():
+    if not req.whole_game and req.account_id is None and not (req.hero or "").strip():
         raise HTTPException(422, {"kind": "player_not_specified", "message": ""})
 
     window = None
@@ -270,7 +274,9 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
 
     policy = Policy(depth=resolve_depth(req.depth, req.model), focus=req.focus,
                     note=req.note, model=req.model, lang=req.lang, mmr=req.mmr,
-                    role=req.role, window=window)
+                    role=None if req.whole_game else req.role, window=window,
+                    followup=req.followup and window is not None,
+                    whole_game=req.whole_game)
 
     try:
         # Блокирующие requests уводим в пул потоков, чтобы не держать event loop.

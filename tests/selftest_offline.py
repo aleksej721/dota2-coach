@@ -526,6 +526,26 @@ def check_scaffold(match, me, extractor, builder, quick_text):
                                Policy(focus="draft"))
     assert "Драфт подробно" in draft_text, "при фокусе draft драфт идёт отдельным разделом"
 
+    # Разбор игры целиком: без «моего» игрока, своя методика, перспектива Radiant.
+    game = Policy(whole_game=True)
+    game_text = builder.build(extractor.extract(match, me, game), game)
+    assert "★" not in game_text, "в разборе игры целиком не должно быть «моего» игрока"
+    for marker in ("ЦЕЛИКОМ", "## КАРТИНА МАТЧА", "в скольких из",
+                   "### 3. Кто на самом деле решал игру", "Перевес Radiant"):
+        assert marker in game_text, f"разбор игры: нет «{marker}»"
+    for gone in ("## РОЛЕВЫЕ ПОКАЗАТЕЛИ", "## СТАТИСТИЧЕСКИ НЕОБЫЧНОЕ", "МОЙ ПИК",
+                 "Что было в твоих руках", "Перевес моей команды"):
+        assert gone not in game_text, f"разбор игры: лишнее «{gone}»"
+
+    # Уточнение: только отрезок, без повторения общего разбора.
+    follow = Policy(window=(5, 10), followup=True)
+    follow_text = builder.build(extractor.extract(match, me, follow), follow)
+    assert "УТОЧНЕНИЕ" in follow_text and "## ОКНО 5–10 МИН" in follow_text
+    for gone in ("## КАК ГОТОВИТЬ РАЗБОР", "## ДРАФТ", "## КАРТИНА МАТЧА",
+                 "## СКОРБОРД", "дан сводкой"):
+        assert gone not in follow_text, f"уточнение тащит общий разбор: «{gone}»"
+    assert len(follow_text) < len(quick_text), "уточнение обязано быть короче полного промпта"
+
     # Пустая заметка = отсутствие заметки, поведение не меняется.
     blank = Policy(depth="quick", focus="full", note="   ")
     assert blank.has_note is False

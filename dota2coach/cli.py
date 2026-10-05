@@ -55,6 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="игровой промежуток в минутах (напр. 30-40) — он будет "
                         "показан с максимальной детализацией по всем героям, "
                         "а остальной матч сжат до сводки")
+    a.add_argument("--game", action="store_true",
+                   help="разобрать матч целиком, без привязки к игроку (--me не нужен)")
+    a.add_argument("--followup", action="store_true",
+                   help="короткий промпт-уточнение по --window для того же чата, "
+                        "без повтора общего разбора")
     a.add_argument("--no-cache", action="store_true",
                    help="не брать сырой ответ матча из .cache — сходить в API заново")
 
@@ -114,8 +119,9 @@ def parse_window(raw: Optional[str]) -> Optional[Tuple[int, int]]:
 
 
 def run_analyze(args: argparse.Namespace) -> int:
-    if args.me is None and not args.hero:
-        print("Ошибка: укажи --me <account_id> ИЛИ --hero <имя героя>.", file=sys.stderr)
+    if not args.game and args.me is None and not args.hero:
+        print("Ошибка: укажи --me <account_id> ИЛИ --hero <имя героя> "
+              "(или --game для разбора матча целиком).", file=sys.stderr)
         return 2
 
     try:
@@ -128,7 +134,8 @@ def run_analyze(args: argparse.Namespace) -> int:
     try:
         policy = Policy(depth=resolve_depth(args.depth, args.model), focus=args.focus,
                         note=args.note, model=args.model, lang=args.lang, mmr=args.mmr,
-                        role=args.role, window=window)
+                        role=None if args.game else args.role, window=window,
+                        followup=args.followup, whole_game=args.game)
     except ValueError as e:
         print(f"Ошибка: {e}", file=sys.stderr)
         return 2

@@ -44,6 +44,20 @@ class Strings:
     def has(self, key: str) -> bool:
         return key in self._prompt
 
+    def overlay(self, prefix: str) -> "Strings":
+        """Тот же словарь, где ключ сперва ищется с префиксом.
+
+        Нужен режиму разбора игры целиком: там «перевес моей команды» должен
+        стать «перевесом Radiant», а строка боя — потерять «я: урон…». Вместо
+        условий по всему конвейеру — переопределения game.* поверх обычных
+        текстов: чего нет в переопределениях, берётся как есть.
+        """
+        layered = Strings(self.lang)
+        base = self._prompt
+        layered._prompt = {**base, **{k[len(prefix):]: v for k, v in base.items()
+                                      if k.startswith(prefix)}}
+        return layered
+
 
 def load(lang: str) -> Strings:
     return Strings(lang if lang in _MODULES else DEFAULT_LANG)

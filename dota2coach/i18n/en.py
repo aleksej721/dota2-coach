@@ -679,6 +679,90 @@ PROMPT = {
         "What the player could see when picking, how his hero matches up with the enemy heroes "
         "and his own team by what they are about, how the lanes turned out and whether the "
         "pick served an idea.",
+    # --- разбор игры целиком и промпт-уточнение ---
+    "game.header.title":
+        "=== DOTA 2 WHOLE-MATCH REVIEW REQUEST ===",
+    "game.header.role":
+        "You are an experienced Dota 2 analyst. Below is the data of a whole match from OpenDota, not tied to any single player ([R]=Radiant, [D]=Dire). Take facts about the match from this data. Use your own knowledge of the game — hero mechanics, items, drafting, timings.",
+    "game.meta.result":
+        "Winner: {winner}.",
+    "game.nw.team":
+        "Radiant advantage (>0 — Radiant ahead), gold / xp:",
+    "game.nw.swing_ahead":
+        "Radiant took the lead",
+    "game.nw.swing_behind":
+        "Dire took the lead",
+    "game.window.team":
+        "Radiant advantage per minute of the window:",
+    "game.tf.header":
+        "Fight {n}: {start}–{end}{lane} | {score} — {verdict}",
+    "game.tf.score":
+        "losses: Radiant {mine} / Dire {theirs}",
+    "game.tf.win":
+        "Radiant won it",
+    "game.tf.lose":
+        "Dire won it",
+    "game.tf.presence":
+        "in the fight: Radiant {mine}/5, Dire {theirs}/5",
+    "game.tf.absent_mine":
+        "missing from Radiant: {heroes}",
+    "game.tf.absent_theirs":
+        "missing from Dire: {heroes}",
+    "game.facts.pairs":
+        "Role pairs — gold earned by the minute (Radiant/Dire), final net worth:",
+    "game.facts.teams":
+        "Kills: Radiant {rk} / Dire {dk}. Team net worth: Radiant {rnw} / Dire {dnw}.",
+    "game.facts.players":
+        "Each hero: net worth and share of the team, share of the team's hero damage, building damage, deaths (in fights), how many of the {fights} fights he took part in, where the gold came from:",
+    "game.facts.player_row":
+        "{who} pos {pos}: net worth {nw} ({nw_share}%), damage {dmg_share}%, buildings {towers}, deaths {deaths} (in fights {fight_deaths}), fights {fights}/{total}; gold: {gold}",
+    "game.limit.roles":
+        "- Player positions are a lane/net-worth heuristic; it is wrong more often for supports.",
+    "game.caveat.items_filtered":
+        "- Items: assembled only, costing more than {others} gold; components, consumables and wards are hidden.",
+    "game.principle.story":
+        "Find why the game went the way it did: where it turned, what caused it and how the winning side converted its advantage into a win. Do not restate the statistics — explain what they mean.",
+    "game.principle.impact":
+        "Judge a hero's contribution by his role and by what he influenced, not by the biggest damage or KDA. Look at which fights he was in and which he missed, when he died, where his gold came from: buildings and Roshan mean map pressure, heroes mean fights, creeps and neutrals mean farm. Lots of damage in lost fights, and little damage from a hero who won the map with pressure, are both common.",
+    "game.format.intro":
+        "Answer:",
+    "game.format.note.title":
+        "Answer to the main question",
+    "game.format.note.body":
+        "A direct answer to the question from the \"PLAYER'S MAIN QUESTION\" block.",
+    "game.format.flow.title":
+        "How the game went",
+    "game.format.flow.body":
+        "One paragraph: how the match developed, where it turned and what caused it.",
+    "game.format.why_won.title":
+        "Why this side won",
+    "game.format.why_won.body":
+        "2–3 main reasons — draft, lanes, fights, map, decisions. The most important first.",
+    "game.format.deciders.title":
+        "Who really decided the game",
+    "game.format.deciders.body":
+        "2–4 heroes from both sides and exactly how they affected the result — based on the data, not on the biggest damage. If someone's contribution looks big by the numbers but did not affect the result, say that too.",
+    "game.format.losers.title":
+        "What the losing side could have done",
+    "game.format.losers.body":
+        "Where the losers had a window to turn the game and what it required. If there was no window, say so.",
+    "game.format.draft.title":
+        "Draft in detail",
+    "game.format.draft.body":
+        "What each side built by what its heroes are about, how the lanes turned out and whose draft played better in this game.",
+    "followup.title":
+        "=== FOLLOW-UP: MATCH {match_id}, {start}–{end} MIN ===",
+    "followup.intro":
+        "We are continuing the review of the same match as above in this chat. Below is the {start}–{end} min stretch, minute by minute and undecimated: all ten heroes, purchases, kills and fights. My player is {hero} (★).",
+    "followup.window.note": "Below are the actions of ALL heroes in this stretch, undecimated.",
+    "followup.sec_task":
+        "WHAT TO DO",
+    "followup.task":
+        "Break this stretch down: what happened in it and why, what was in my player's hands and what could have been done differently. Rely on this data and on what we have already discussed above. Short, without repeating the general review.",
+    "game.followup.intro":
+        "We are continuing the review of the same match as above in this chat. Below is the {start}–{end} min stretch, minute by minute and undecimated: all ten heroes, purchases, kills and fights.",
+    "game.followup.task":
+        "Break this stretch down: what happened in it, why, and who decided it. Rely on this data and on what we have already discussed above. Short, without repeating the general review.",
 }
 
 UI = {

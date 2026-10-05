@@ -68,6 +68,13 @@ class Pipeline:
         веб-интерфейс окрашивает результат в цвета его фракции.
         """
         match = self._source.fetch_match(match_id)
+        if policy.whole_game:
+            # Без «меня»: точкой отсчёта служит игрок Radiant, чтобы перспектива
+            # перевеса была определённой, а роль не подставляется вовсе — иначе в
+            # шапку попало бы «оценивай моего игрока как поз. 1».
+            me = match.radiant_players()[0] if match.radiant_players() else match.players[0]
+            features = self._extractor.extract(match, me, policy)
+            return self._builder.build(features, policy), match, me
         me = self._find_me(match, account_id, hero)
         # Роль пользователя переопределяет эвристику только для его профиля.
         # Match не мутируем: позиции остальных игроков остаются фактами

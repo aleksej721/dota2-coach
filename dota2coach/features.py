@@ -117,7 +117,8 @@ class FeatureExtractor:
         f.meta = self._meta(match, me, policy)
         f.scoreboard = [self._score_row(p, me) for p in match.players]
         if policy.shows("facts"):
-            f.facts = self._key_facts(match, me, policy)
+            f.facts = (self._game_facts(match, me, policy) if policy.whole_game
+                       else self._key_facts(match, me, policy))
 
         if policy.shows("anomalies"):
             # min_cost=0: детектору нужна вся сборка, иначе накопленная
@@ -286,6 +287,71 @@ class FeatureExtractor:
             "damage_taken": self._damage_taken(me),
         }
 
+    @staticmethod
+    def _took_part(fp: Dict[str, Any]) -> bool:
+        """Был ли игрок в драке: урон по героям, смерть или убийство героя.
+
+        gold_delta и healing не годятся: золото набегает и у того, кто фармил на
+        другом конце карты, а healing включает обычную регенерацию.
+        """
+        return bool(fp.get("deaths") or fp.get("damage") or any(
+            v for k, v in (fp.get("killed") or {}).items()
+            if str(k).startswith("npc_dota_hero_")))
+
+    def _game_facts(self, match: Match, me: Player, policy: Policy) -> Dict[str, Any]:
+        """Картина матча без привязки к игроку: по каждому из десяти героев.
+
+        Цель — чтобы «кто решал игру» читалось не по урону и KDA, а по тому, на
+        что игрок влиял: в скольких драках был, когда умирал, откуда брал золото
+        (строения и Рошан — давление на карту, герои — драки, крипы — фарм).
+        """
+        fights = [(tf.get("start") or 0, tf.get("end") or 0) for tf in match.teamfights]
+        presence = [0] * len(match.players)
+        for tf in match.teamfights:
+            for idx, fp in enumerate(tf.get("players") or []):
+                if idx < len(presence) and self._took_part(fp):
+                    presence[idx] += 1
+
+        teams: Dict[str, List[Player]] = {"radiant": match.radiant_players(),
+                                          "dire": match.dire_players()}
+        totals = {side: {"nw": sum(p.net_worth_final for p in ps),
+                         "dmg": sum(p.hero_damage for p in ps) or 1,
+                         "kills": sum(p.kills for p in ps)}
+                  for side, ps in teams.items()}
+
+        players = []
+        for idx, p in enumerate(match.players):
+            side = "radiant" if p.is_radiant else "dire"
+            deaths_in_fights = sum(
+                1 for d in p.deaths_log
+                if any(lo - 15 <= (d.get("time") or 0) <= hi + 15 for lo, hi in fights))
+            players.append({
+                "who": self._short_tag(p, me).replace("★", ""),
+                "position": self._position_key(p, None, policy),
+                "nw": p.net_worth_final,
+                "nw_share": round(100 * p.net_worth_final / (totals[side]["nw"] or 1)),
+                "dmg_share": round(100 * p.hero_damage / totals[side]["dmg"]),
+                "tower_damage": p.tower_damage,
+                "deaths": p.deaths, "deaths_in_fights": deaths_in_fights,
+                "fights": presence[idx], "gold": self._gold_sources(p, me)["rows"],
+            })
+
+        radiant_roles = {p.position_key: p for p in teams["radiant"] if p.position_key in ROLES}
+        dire_roles = {p.position_key: p for p in teams["dire"] if p.position_key in ROLES}
+        pairs = []
+        for role in ROLES:
+            a, b = radiant_roles.get(role), dire_roles.get(role)
+            if a and b:
+                pairs.append({"role": role, "mine": a.hero_name, "theirs": b.hero_name,
+                              "earned": [{"m": m, "mine": _at(a.gold_t, m), "theirs": _at(b.gold_t, m)}
+                                         for m in self._FACT_MINUTES if _at(a.gold_t, m) is not None],
+                              "nw": [a.net_worth_final, b.net_worth_final]})
+
+        return {"whole_game": True, "fights_total": len(match.teamfights),
+                "kills": [totals["radiant"]["kills"], totals["dire"]["kills"]],
+                "nw": [totals["radiant"]["nw"], totals["dire"]["nw"]],
+                "pairs": pairs, "players": players}
+
     def _gold_sources(self, p: Player, me: Player) -> Dict[str, Any]:
         income = {k: v for k, v in p.gold_reasons.items() if v > 0 and k not in ("1", "6")}
         total = sum(income.values()) or 1
@@ -350,7 +416,7 @@ class FeatureExtractor:
             "picks": picks,
             "bans": [r for r in rows if not r["is_pick"]],
             "phased": phased,
-            "my_pick": self._my_pick(picks, me, phased),
+            "my_pick": None if policy.whole_game else self._my_pick(picks, me, phased),
             "lanes": self._lanes(match, me),
             "radiant": [self._roster_row(p, me, policy) for p in match.radiant_players()],
             "dire": [self._roster_row(p, me, policy) for p in match.dire_players()],
@@ -608,7 +674,7 @@ class FeatureExtractor:
         for p in match.players:
             if full_log and p is me:
                 timings, kind = self._full_purchases(p), "full"
-            elif p is me:
+            elif p is me and not policy.whole_game:
                 timings, kind = self.assembled_purchases(p, KEY_ITEM_COST), "key"
             else:
                 timings, kind = self.assembled_purchases(p, MAJOR_ITEM_COST), "major"
@@ -882,9 +948,7 @@ class FeatureExtractor:
             # убил. По gold_delta и healing участие НЕ определяем: золото набегает
             # и у того, кто фармил на другом конце карты, а healing в данных боя
             # включает обычную регенерацию — у керри, стоявшего в лесу, его сотни.
-            took_part = bool(deaths or fp.get("damage") or any(
-                v for k, v in (fp.get("killed") or {}).items()
-                if str(k).startswith("npc_dota_hero_")))
+            took_part = self._took_part(fp)
             team = "mine" if p.is_radiant == me.is_radiant else "theirs"
             (present if took_part else absent)[team].append(self._short_tag(p, me))
             if detailed and (deaths or fp.get("damage")):

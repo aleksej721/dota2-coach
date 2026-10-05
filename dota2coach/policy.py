@@ -128,6 +128,15 @@ _FOCUS_OVERRIDES: Dict[str, Dict[str, int]] = {
     },
 }
 
+# Разбор игры целиком: секции, которые описывают «моего» игрока, скрыты, а те,
+# что сравнивают всех, раскрыты на всех десятерых.
+_WHOLE_GAME: Dict[str, int] = {
+    "role_impact": HIDDEN, "anomalies": HIDDEN, "laning": HIDDEN, "combat": HIDDEN,
+    "damage": HIDDEN, "abilities": HIDDEN, "buffs": HIDDEN,
+    "benchmarks": EXPANDED, "networth": EXPANDED, "facts": SUMMARY, "draft": SUMMARY,
+}
+
+
 @dataclass(frozen=True)
 class Policy:
     depth: str = "quick"
@@ -148,6 +157,14 @@ class Policy:
     # сводки. Иначе детализация окна утонула бы в общем объёме — а весь смысл
     # запроса в том, чтобы внимание модели ушло именно туда.
     window: Optional[Tuple[int, int]] = None
+    # Короткий промпт-уточнение для того же чата: только отрезок под лупой, без
+    # роли тренера, драфта и методики — всё это модель уже получила первым
+    # промптом. Требует window.
+    followup: bool = False
+    # Разбор матча целиком, без привязки к одному игроку. Внутри конвейера точкой
+    # отсчёта служит игрок Radiant, но всё «моё» — роль, отклонения, лайнинг,
+    # мой пик, звёздочка — в промпт не попадает.
+    whole_game: bool = False
     # Внутреннее происхождение роли после Pipeline.resolve_role(); не является
     # пользовательским флагом и не участвует в сравнении Policy.
     role_source: str = field(default="auto", repr=False, compare=False)
@@ -165,6 +182,8 @@ class Policy:
                 raise ValueError(f"window должен быть парой (начало, конец) с концом "
                                  f"строго больше начала, получено {self.window!r}")
             object.__setattr__(self, "window", (int(start), int(end)))
+        if self.followup and self.window is None:
+            raise ValueError("followup требует window: уточнение — это всегда отрезок матча")
         if self.model not in MODELS:
             raise ValueError(f"model должен быть одним из {MODELS}, получено {self.model!r}")
         # Незнакомый язык не роняет разбор — молча откатываемся на язык по умолчанию.
@@ -215,6 +234,13 @@ class Policy:
         # полным логом: ради этого её и просили.
         if section == "window":
             return FULL_LOG if self.has_window else HIDDEN
+        # Уточнение — это только окно: остальное модель уже видела в этом чате.
+        if self.followup:
+            return HIDDEN
+        if self.whole_game:
+            override = _WHOLE_GAME.get(section)
+            if override is not None:
+                return override
 
         override = _FOCUS_OVERRIDES[self.focus].get(section)
         if override is not None:

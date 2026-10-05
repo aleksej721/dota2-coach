@@ -38,6 +38,10 @@ def _signed(value: Any) -> str:
 class BundleBuilder:
     def build(self, features: Features, policy: Policy) -> str:
         s = i18n.load(policy.lang)
+        if policy.whole_game:
+            s = s.overlay("game.")
+        if policy.followup:
+            return self._unstar(self._followup(features, policy, s), policy)
 
         data = Group("match_data")
         data.add(s("sec.meta"), self._meta(features.meta, policy, s))
@@ -48,7 +52,9 @@ class BundleBuilder:
                        end=features.window["end"]),
                      self._window(features.window, s))
         if features.facts:
-            data.add(s("sec.facts"), self._facts(features.facts, s))
+            facts = (self._game_facts(features.facts, s) if features.facts.get("whole_game")
+                     else self._facts(features.facts, s))
+            data.add(s("sec.facts"), facts)
         if features.role_impact:
             data.add(s("sec.role_impact"), self._role_impact(features.role_impact, s))
         if policy.shows("anomalies"):
@@ -89,15 +95,53 @@ class BundleBuilder:
             groups.append(note)
 
         method = Group("method")
-        method.add(s("sec.method"), scaffold.method_lines(policy, s))
+        method.add(s("sec.method"), scaffold.game_method_lines(policy, s) if policy.whole_game
+                   else scaffold.method_lines(policy, s))
         groups.append(method)
 
         answer = Group("output_format")
-        answer.add(s("sec.format"), scaffold.format_lines(policy, s))
+        answer.add(s("sec.format"), scaffold.game_format_lines(policy, s) if policy.whole_game
+                   else scaffold.format_lines(policy, s))
         groups.append(answer)
 
         body = renderer_for(policy.model).document(groups)
-        return f"{s('header.title')}\n\n{body}"
+        return self._unstar(f"{s('header.title')}\n\n{body}", policy)
+
+    @staticmethod
+    def _unstar(text: str, policy: Policy) -> str:
+        """В разборе игры целиком «моего» игрока нет — звёздочка не нужна."""
+        if not policy.whole_game:
+            return text
+        return text.replace("★ ", "").replace("★", "")
+
+    def _followup(self, f: Features, policy: Policy, s: i18n.Strings) -> str:
+        """Промпт-уточнение по отрезку матча — для того же чата, что и основной.
+
+        Без роли тренера, драфта, картины матча и методики: модель всё это уже
+        получила первым промптом, и повтор только съел бы её внимание. Здесь
+        ровно то, чего в первом промпте не было, — отрезок без прореживания.
+        """
+        start, end = policy.window
+        meta = f.meta
+        intro = Group("context")
+        intro.add(None, [s("followup.intro", match_id=meta["match_id"], start=start, end=end,
+                           hero=meta.get("hero", ""))])
+        data = Group("match_window")
+        # Пояснения внутри окна — свои: «остальной матч дан сводкой» здесь неправда,
+        # сводки в уточнении нет вовсе, она осталась в первом промпте.
+        data.add(s("sec.window", start=start, end=end),
+                 self._window(f.window, s.overlay("followup.")))
+        groups = [intro, data]
+        if policy.has_note:
+            note = Group("player_question")
+            note.add(s("sec.note"), self._note(policy))
+            groups.append(note)
+        task = Group("task")
+        task.add(s("followup.sec_task"),
+                 [s("followup.task"), s("method.language", language=s("answer_language"))])
+        groups.append(task)
+        body = renderer_for(policy.model).document(groups)
+        return f"{s('followup.title', match_id=meta['match_id'], start=start, end=end)}\n\n{body}"
 
     # --- общие помощники ------------------------------------------------------
 
@@ -240,12 +284,13 @@ class BundleBuilder:
             s("meta.date", date=m["date"] or "?"),
             s("meta.result", result=s("meta.win" if m["win"] else "meta.lose"),
               side=m["my_side"], winner=m["winner"]),
-            s("meta.me", hero=m["hero"],
-              position=self._position(s, m["position_key"], m["lane_key"]),
-              level=m["level"], k=m["kills"], d=m["deaths"], a=m["assists"]),
             s("meta.export", depth=policy.depth, focus=policy.focus,
               model=profile(policy.model).label),
         ]
+        if not policy.whole_game:
+            out.insert(3, s("meta.me", hero=m["hero"],
+                            position=self._position(s, m["position_key"], m["lane_key"]),
+                            level=m["level"], k=m["kills"], d=m["deaths"], a=m["assists"]))
         if policy.mmr:
             out.append(s("meta.level", mmr=policy.mmr))
         if policy.has_window:
@@ -302,6 +347,28 @@ class BundleBuilder:
                         s("facts.blocked_bkb") if src["through_bkb"] is False else "")
                 kind = s("facts.dmg." + src["type"])
                 out.append(f"  {name}: {_k(src['value'])} ({kind}{', ' + mark if mark else ''})")
+        return out
+
+    def _game_facts(self, f: Dict[str, Any], s: i18n.Strings) -> List[str]:
+        out = [s("facts.note"),
+               s("game.facts.teams", rk=f["kills"][0], dk=f["kills"][1],
+                 rnw=_k(f["nw"][0]), dnw=_k(f["nw"][1]))]
+        if f["pairs"]:
+            out += ["", s("facts.pairs")]
+            for pair in f["pairs"]:
+                points = ", ".join(
+                    f"{x['m']}' {_k(x['mine'])}/{_k(x['theirs'])}" for x in pair["earned"])
+                out.append("  " + s("facts.pair_row", role=pair["role"], mine=pair["mine"],
+                                    theirs=pair["theirs"], points=points or s("dash"),
+                                    nw_mine=_k(pair["nw"][0]), nw_theirs=_k(pair["nw"][1])))
+        out += ["", s("game.facts.players", fights=f["fights_total"])]
+        for p in f["players"]:
+            gold = ", ".join(f"{s('facts.gold.' + r['key'])} {r['pct']}%" for r in p["gold"])
+            out.append("  " + s("game.facts.player_row", who=p["who"], pos=p["position"],
+                                nw=_k(p["nw"]), nw_share=p["nw_share"],
+                                dmg_share=p["dmg_share"], towers=_k(p["tower_damage"]),
+                                deaths=p["deaths"], fight_deaths=p["deaths_in_fights"],
+                                fights=p["fights"], total=f["fights_total"], gold=gold))
         return out
 
     def _draft(self, d: Dict[str, Any], s: i18n.Strings) -> List[str]:

@@ -131,3 +131,41 @@ def profile_format_lines(policy: Policy, s: Strings) -> List[str]:
     if policy.has_note:
         keys.insert(0, "note")
     return _sections(keys, "profile.format", policy, s)
+
+
+# --- разбор игры целиком -------------------------------------------------------
+
+# Без «моего» игрока вопросы другие: не «что было в твоих руках», а почему игра
+# пошла так, кто на самом деле её решал и что могла сделать проигравшая сторона.
+_GAME_SECTIONS = ("flow", "why_won", "deciders", "losers")
+
+
+def game_method_lines(policy: Policy, s: Strings) -> List[str]:
+    """Как думать над матчем без привязки к игроку.
+
+    Главная ловушка такого разбора — «MVP тот, у кого больше урона». Принцип
+    impact уводит от неё: вклад читается по роли и по тому, на что игрок влиял.
+    Общие принципы про знание игры, драфт и краткость — те же, что в разборе
+    одного игрока.
+    """
+    rules: List[str] = []
+    if policy.has_note:
+        rules.append(s("method.note_priority"))
+    for key in ("game.principle.story", "game.principle.impact", "principle.knowledge",
+                "principle.draft", "principle.brief"):
+        rules.append(s(key))
+    rules.append(s("method.language", language=s("answer_language")))
+    out = [s("method.intro")]
+    out += [f"{i}. {rule}" for i, rule in enumerate(rules, 1)]
+    if policy.focus != "full":
+        out += ["", s("method.focus", focus=s(f"focus.{policy.focus}"))]
+    return out
+
+
+def game_format_lines(policy: Policy, s: Strings) -> List[str]:
+    keys = list(_GAME_SECTIONS)
+    if policy.focus == "draft":
+        keys.insert(1, "draft")
+    if policy.has_note:
+        keys.insert(0, "note")
+    return _sections(keys, "game.format", policy, s)
