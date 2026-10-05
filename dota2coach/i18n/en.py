@@ -6,9 +6,10 @@ PROMPT = {
 
     "header.title": "=== DOTA 2 MATCH REVIEW REQUEST ===",
     "header.role":
-        "You are an experienced personal Dota 2 coach. Below are structured FACTS from one "
-        "of my matches, taken from OpenDota (my player is marked ★; [R]=Radiant, [D]=Dire). "
-        "Rely ONLY on these facts; if something is missing, say so instead of inventing it.",
+        "You are an experienced Dota 2 coach. Below is the data of one of my matches from "
+        "OpenDota (my player is marked ★; [R]=Radiant, [D]=Dire). Take facts about the match "
+        "from this data. Use your own knowledge of the game — hero mechanics, items, drafting, "
+        "timings.",
     "header.note_pointer":
         "IMPORTANT: there is a \"PLAYER'S MAIN QUESTION\" block below — start the review with it.",
     "header.role_profile": "Evaluate my player as {role} ({source}).",
@@ -538,156 +539,52 @@ PROMPT = {
     "sec.note": "PLAYER'S MAIN QUESTION",
 
     "sec.method": "HOW TO PREPARE THE REVIEW",
-    "method.intro": "Rules you must follow:",
-    "method.evidence":
-        "Back every claim with a number or a timestamp from the data above. "
-        "No number — no claim.",
-    "method.no_generic":
-        "Generic advice not tied to THIS match is FORBIDDEN: \"ward more\", \"communicate "
-        "with your team\", \"farm better\", \"play safer\". If a piece of advice cannot be "
-        "backed by a number from the data, do not give it at all.",
-    "method.impact_first":
-        "Sort by the cost of the mistake, not by time: start with what was most expensive "
-        "(gold, xp, objectives, lost fights), then the small stuff.",
-    "method.explain_why":
-        "Explain the mechanism instead of handing out a rule. The player must understand "
-        "WHY it happened, otherwise the advice will not transfer to the next game.",
-    "method.no_invention":
-        "If the data is insufficient for a conclusion, say so plainly and name the missing "
-        "fact. Do not invent it.",
-    "method.balance":
-        "Do not turn the review into a list of complaints: name the strengths as "
-        "specifically as the mistakes.",
+    "method.intro":
+        "How to think:",
     "method.calibrate":
         "Player's level: {level}. Calibrate the advice to it — suggest what is realistically "
         "executable at that level, and if you recommend something above it, explain why it "
         "matters and where to start.",
-    "method.draft":
-        "Analyse the DRAFT separately from the result. A pick is judged by what was on "
-        "screen when it was made — a lost match does not make it bad in hindsight, a "
-        "won one does not make it good. The anchor is the \"MY PICK\" block in the "
-        "DRAFT section. In ranked All Pick picks happen in three phases (2+2, 2+2, "
-        "1+1) and the enemy's choice is hidden within a phase: in phase one the player "
-        "picked blind, in phase two they saw two enemy heroes, on the last pick four. "
-        "The bar for \"picked the wrong hero\" rises with each phase. You must cover: "
-        "(a) MATCH-UPS — how my hero plays against every visible enemy and against "
-        "those the enemy took already seeing me; (b) the LANE — from the lane setup "
-        "block: who I stood with and against, whether it is a winning or a hard lane "
-        "for my hero and whose lane it is by draft; (c) SYNERGY with my team; (d) META "
-        "— how strong the hero is in this patch. You MUST use web search if you have "
-        "it: my hero's win rate and the specific match-ups in exactly this patch (work "
-        "out the lettered version from the match date in META), its place in the meta, "
-        "popular builds — Dotabuff, STRATZ, Dota2ProTracker, patch notes. Name the "
-        "source and patch next to every number. No search — say so in one line at the "
-        "top of the section and rely on general Dota 2 knowledge, marking your "
-        "confidence. Inventing win rates or meta is forbidden: an honest \"I don't "
-        "know\" beats a confident mistake. A single match cannot tell whether the "
-        "player practises this hero or picks to the draft — ask in the questions "
-        "section.",
-    "method.build":
-        "Judge the build in CONTEXT, not in a vacuum. The ITEMS section carries all ten "
-        "heroes' builds with timings: check my items against what the enemies built (what I "
-        "was building against, and whether I was in time) and what my allies built (what the "
-        "team had already covered and what it lacked). \"Item finished late\" only means "
-        "something relative to something else: my income, the pace of the rest of my build, "
-        "or the timing of an enemy item.",
-    "method.narrative_first":
-        "First establish WHAT was happening in the match, and only then look for the "
-        "personal mistake inside that picture. The objective narrative — the turning point, "
-        "the gold and xp trajectory, control of objectives and Roshan, the gap between the "
-        "two carries — does not depend on whose eyes the match is seen through, and must "
-        "come out the same for any of the ten players. A review that starts from personal "
-        "numbers inevitably bends the match to fit the player: any dip of theirs looks like "
-        "a cause, when most often it is a consequence. The order is the reverse: the match "
-        "first, the person in it second.",
-    "method.worst_metric":
-        "Apply the agency lens to the player's MOST VISIBLE bad number, whatever their role "
-        "is. \"11 deaths on a mid\", \"low GPM on a carry\", \"few wards on a support\" are "
-        "candidates for analysis, not a finished conclusion: first check whether it is a "
-        "cause of the loss or a consequence of the collapse after the turning point. And "
-        "remember that the price of a metric depends on the role: deaths cost differently "
-        "for a mid, a support and a carry; farm is critical for a carry and irrelevant for "
-        "a support; bare KDA on its own means almost nothing. A cluster of events — three "
-        "deaths inside one short window, say — is a reason to look exactly there, not "
-        "automatic blame.",
-    "method.team_root":
-        "The root of the problem may lie outside the player, and saying so is part of the "
-        "job. If the data shows it outright — a gap between the two carries, someone else's "
-        "lane collapsing, an enemy line-up the team could not handle — name it honestly and "
-        "with numbers. Two limits. Do not shift all the blame onto allies: the player almost "
-        "always keeps a share of it, and that share must be named. And do not agree with "
-        "\"my teammates threw it\" when the numbers do not support it: the assessment must "
-        "be well-founded, not comfortable. Analysing someone else's player is a supported "
-        "scenario: suggest running THE SAME match with that hero's name instead of my "
-        "account_id, to see the game through their eyes.",
-    "method.agency":
-        "CAUSE BEFORE BLAME. Before calling anything the player's mistake, work out whether "
-        "it was within their power. Separate the player's DECISION from a CONSEQUENCE of the "
-        "state of the game. Check it against data that is already above: the trajectory of "
-        "my team's gold and xp advantage and its swings (ECONOMY section); who took which "
-        "towers and when, who took Roshan and the Aegis (OBJECTIVES section); and the net "
-        "worth curves — mine against the enemy cores. If the team had already lost the map "
-        "by the time of the episode, \"slow farm\" and \"late item\" are a consequence, not "
-        "a mistake. Blame without that check is the most common and most useless thing a "
-        "review can contain.",
-    "method.pivot":
-        "Look for the main leak where the game was STILL ALIVE, not where the number is "
-        "biggest. The most striking deviation almost always sits at the end, once the "
-        "outcome is already settled, and analysing it is pointless: in a lost position "
-        "everything looks bad. Find the most controllable decision at a moment when it "
-        "still changed something, and state the state of the game at that moment with a "
-        "number from ECONOMY — for example \"it was only −2.5k here, the game was still "
-        "holding\". Explain the late collapse, but do not call it the leak.",
-    "method.context_frame":
-        "Read percentiles and averages through the state of the game, not in a vacuum. Low "
-        "GPM, late items and modest damage are symptoms of lost space if OBJECTIVES show "
-        "the map was gone. Write it that way: \"percentile N looks low, but after losing "
-        "the towers at minute M it is a normal figure\". Account for the team as well: the "
-        "allies' lanes and the combined threat of the enemy line-up. A core can be "
-        "structurally overloaded — that is not the same as \"dealt too little\".",
-    "method.hero_mechanics":
-        "Respect the mechanics of the specific hero. Do not question their standard core "
-        "items — they are standard for a reason. Remember that many heroes have their "
-        "effectiveness tied to an ability window or to accumulated farm: such a hero is not "
-        "\"useful for free\" at any minute, and demanding an even contribution across the "
-        "whole game is meaningless. If you are unsure what an item or ability does on this "
-        "hero, say so rather than invent it.",
-    "method.no_positional":
-        "There is NO positional or per-second data in this prompt. That means \"engaged "
-        "badly\", \"went in without vision\", \"stood in the wrong place\" are claims you "
-        "cannot make. This data cannot tell \"dived in\" from \"got caught on the way\": "
-        "name both versions, say which is more plausible and on what grounds, and ask the "
-        "player in the questions section.",
-    "method.zoom":
-        "The tool has a magnifier: the site's advanced settings take a time window, and "
-        "inside it the data comes UNDECIMATED — all ten heroes per minute, purchases, kills "
-        "and fights. If the review has come down to a specific episode, that is the "
-        "player's next step, and naming it with concrete minutes is mandatory (see the "
-        "answer format). Be honest about the limit: per-second timelines and coordinates do "
-        "not exist in the source and will not appear in the magnifier either — it gives "
-        "more DETAIL, not different data. Do not promise what the tool cannot deliver.",
-    "method.fights":
-        "In every fight look at WHO WAS IN IT, not just the loss count: each fight in "
-        "the TEAMFIGHTS section has a line \"in the fight: ours N/5, theirs M/5\" and "
-        "the list of who was missing. Losing 3 against 5 and losing 5 against 5 are "
-        "different fights with different conclusions. Cover: was my hero missing from "
-        "fights where he was needed, or did he join fights where his presence decided "
-        "nothing; which enemy systematically skipped fights and what he was doing "
-        "instead — farming, split-pushing, taking objectives; do the absences line up "
-        "with lost towers and Roshan. Presence is determined by damage, deaths and "
-        "kills, so a player standing nearby without dealing damage counts as absent — "
-        "keep that in mind when drawing conclusions.",
-    "method.anomalies":
-        "The \"STATISTICALLY UNUSUAL IN THE DATA\" block already lists the deviations. Work "
-        "through each one: either explain it with an in-game cause, or honestly dismiss it "
-        "if the match context makes it normal (for example, the role or the flow of the "
-        "game). Silently ignoring a deviation is not allowed. Do not invent deviations that "
-        "are not listed there.",
-    "method.dialogue":
-        "This is the START of the analysis, not a final verdict. Do not present conclusions "
-        "as settled: finish with 2–3 competing hypotheses and 2–3 questions for me (the "
-        "\"Hypotheses\" and \"Questions for me\" sections), so the analysis can be narrowed "
-        "down in the next message.",
+    "principle.questions":
+        "Answer TWO different questions and do not mix them. The first — why the game went the "
+        "way it did: at the level of the match and both teams, where it turned and what caused "
+        "it. The second — what was in my player's hands: what he could have done differently "
+        "and whether that would have changed the result. The honest answer \"the player's best "
+        "would not have changed the result here\" is acceptable; do not look for a mistake for "
+        "the sake of form.",
+    "principle.knowledge":
+        "Base claims about what happened in the match on the data. Apply knowledge of hero and "
+        "item mechanics freely, but tie it to events of this match, so that the conclusion "
+        "explains what happened here rather than restating general advice. There is no "
+        "positional or per-second data: how exactly a trade went or who caught whom is not "
+        "visible — if it matters for the conclusion, say it is an assumption. The deviations "
+        "block is a hint where to look, not a mandatory list.",
+    "principle.causality":
+        "Separate cause from consequence. Before calling something a mistake, check against "
+        "the match picture whether it was in the player's hands and whether the game was still "
+        "alive at that moment: in a lost position everything looks bad. The price of a metric "
+        "depends on the role. In fights, look at who took part, not just the score.",
+    "principle.build":
+        "Judge the build by two questions. A core has to survive the fights where he is needed "
+        "and deal damage there: alive but dealing no damage is a problem; dealing damage but "
+        "dying before he gets it out is too. A support has to survive and get his job done. "
+        "Look at what was missing at specific moments of the match — damage or survivability — "
+        "and whether the build covered it. Damage taken by type and the deaths are in the "
+        "match picture.",
+    "principle.draft":
+        "Judge the draft by what the heroes are about — what each one does, what he is strong "
+        "at and weak against by his mechanics, how the lanes fit — with your own understanding "
+        "of the game, not with win-rate lists. A pick is judged by what was visible when it "
+        "was made, not by the result of the match.",
+    "principle.solo":
+        "Advise what the player does with his own hands. If he played solo (see the match "
+        "picture), do not build advice on coordination with teammates.",
+    "principle.brief":
+        "Write like a coach after the game: short, the main thing first. Do not restate the "
+        "data — I have it. If there is nothing to say in a section, write one line and move "
+        "on.",
+    "profile.method.knowledge":
+        "Base claims about the sample on the data; use your own knowledge of the game.",
     "method.language": "Answer in {language}.",
     "method.note_priority":
         "The player has a specific question (the \"PLAYER'S MAIN QUESTION\" block). It is the "
@@ -743,101 +640,45 @@ PROMPT = {
         "item timings.",
 
     "sec.format": "ANSWER FORMAT",
-    "format.intro": "Keep the order and the section headings:",
+    "format.intro":
+        "Answer:",
+    "format.why.title":
+        "Why the game went this way",
+    "format.why.body":
+        "One paragraph about the whole match, not tied to my player: where it turned, what "
+        "caused it, how the winning side won.",
+    "format.control.title":
+        "What was in your hands",
+    "format.control.body":
+        "How much the result depended on my player — high, medium or low — and why. What he "
+        "could have done differently and whether it would have changed the result; the most he "
+        "could have achieved in this game. If there was no significant mistake, say so.",
+    "format.observations.title":
+        "Key observations",
+    "format.observations.body":
+        "2–3 most important conclusions about this match — what really mattered: draft, build, "
+        "fights, farm, decisions. Not everything.",
+    "format.action.title":
+        "For the next game",
+    "format.action.body":
+        "One concrete action the player can do himself.",
+    "format.clarify.title":
+        "What to clarify",
+    "format.clarify.body":
+        "Only if the conclusion is shaky without it: 1–2 questions about what is not in the "
+        "data. If a key episode is worth a minute-by-minute look, name its minutes — on the "
+        "site you can select that stretch and get a separate prompt for it. If there is "
+        "nothing to clarify, skip the section.",
     "format.note.title": "Answer to the main question",
     "format.note.body":
         "A direct answer to the player's question, with numbers from the data. If the data "
         "is not enough for a full answer, say exactly what is missing.",
-    "format.story.title": "What happened in this match",
-    "format.story.body":
-        "The objective picture of the match, WITHOUT tying it to my player: 3–4 lines on how "
-        "the game arrived at its outcome. You must name: the turning point — the minute the "
-        "advantage flipped (from ECONOMY, where the sign changes are listed); the gold and "
-        "xp trajectory before and after it; who controlled the objectives — towers, Roshan, "
-        "the Aegis; and the gap between the two carries from the net worth curves. This "
-        "section must read the same no matter whose eyes the match is seen through: it is "
-        "about the MATCH, not about me. Personal mistakes come below and are analysed "
-        "INSIDE this picture.",
-    "format.verdict.title": "Verdict",
-    "format.verdict.body":
-        "2–3 lines: how the player did overall and the ONE main thing to fix. "
-        "Prose, not a list.",
-    "format.good.title": "What went well",
-    "format.good.body":
-        "1–2 points with concrete numbers. This is not politeness: the player needs to know "
-        "what to repeat in the next games.",
-    "format.leak.title": "The main leak",
-    "format.leak.body":
-        "The single most expensive problem — with evidence: concrete timings, numbers and "
-        "their consequences in this match. Show the chain \"what happened → what it cost\". "
-        "Two mandatory conditions: it must be a decision that was WITHIN THEIR POWER, and "
-        "one taken while the game was still holding. State the state of the game at that "
-        "moment with a number. If the costliest thing by the numbers happened in an already "
-        "lost position — explain it separately and say plainly that it is not the leak.",
     "format.draft.title":
-        "Draft, lanes and match-ups",
+        "Draft in detail",
     "format.draft.body":
-        "Start with the pick — before any talk of the result. The phase the player "
-        "picked in and what they could see. Match-ups against the visible enemy heroes "
-        "and against those the enemy took already seeing them. The lane: with whom, "
-        "against whom, whose lane it is by draft and whether it favours this hero. "
-        "Synergy with the team. The hero's strength in this patch — win rate, meta, "
-        "place in the pool; with source and patch version if you can search, or "
-        "explicitly marked \"from general knowledge\" if not. Finish with one line: "
-        "the pick was built around an idea, neutral, or risky — and why.",
-    "format.build.title":
-        "Build",
-    "format.build.body":
-        "Separately from the draft: what was bought, when, and how appropriate it was "
-        "AGAINST THIS line-up — with an eye on the enemies' and allies' items from the "
-        "ITEMS section. Do not question the hero's standard core items. If you can "
-        "search the web, compare the build with the popular ones in this patch and "
-        "name the differences. The section is mandatory every time, even when the "
-        "build was not a problem: \"standard build, timings fine, no questions\" is a "
-        "conclusion too.",
-    "format.stages.title": "Stage-by-stage review — ordered by impact",
-    "format.stages.body":
-        "Not chronologically, but from the most influential to the least. Every claim carries "
-        "a number or a timestamp. A stage that went fine gets one line and you move on.",
-    "format.actions.title": "What to do in the next games",
-    "format.actions.body":
-        "2–4 measurable actions. Bad: \"farm better\". Good: \"CS@10 ≥ 55 — by staying on your "
-        "own creep wave after the support leaves instead of walking into the jungle\". "
-        "Each action carries a number the player can check themselves against.",
-    "format.actions.body.role.3":
-        "2–4 measurable offlane actions: first-entry timing, targets controlled, damage "
-        "absorbed or a favorable trade. Each action needs a number/timing from this match; "
-        "do not make simply dying less the goal.",
-    "format.actions.body.role.4":
-        "2–4 measurable soft-support actions: a rotation/stack timing, participation, "
-        "control, vision or a utility item. Each needs a number/timing from this match. "
-        "Do not set CS or GPM targets; they are irrelevant to this role.",
-    "format.actions.body.role.5":
-        "2–4 measurable hard-support actions: a stack/ward timing, participation, healing, "
-        "control or a defensive item. Each needs a number/timing from this match. Do not "
-        "set CS/GPM targets or demand fewer deaths without context.",
-    "format.hypotheses.title": "Hypotheses: why the match ended this way",
-    "format.hypotheses.body":
-        "2–3 COMPETING explanations of the outcome, drawn from different areas: draft, "
-        "build and timings, key fights, farm, positioning. Each needs: (a) evidence from "
-        "the data — a number or a timing, preferably tied to the deviations block; (b) what "
-        "would confirm or refute it; (c) how confident you are. The hypotheses must differ "
-        "in substance, not be restatements of one idea. If the data clearly points at one "
-        "cause, say so — but still name what would refute it.",
-    "format.questions.title": "Questions for me and the next step",
-    "format.questions.body":
-        "First, 2–3 short diagnostic questions whose answers would narrow the analysis "
-        "down. Ask about what is NOT in the data: intent, the plan for the game, "
-        "communication, what was visible on screen, whether an ability window was up. For "
-        "example: \"did the game go wrong in a fight or already in the draft?\", \"did you "
-        "engage at 28:00 yourself or were you caught on the way?\". Do not ask about things "
-        "already answered by the numbers above.\n"
-        "Then ONE line about the next step, and it is mandatory: name a time window in "
-        "minutes around the decisive episode and suggest opening it in the site's advanced "
-        "settings and regenerating the review — inside the window the data comes "
-        "undecimated. Take the window with room on both sides of the episode and give it as "
-        "numbers, not words: \"set the window to 24–32 min\". If the match has no decisive "
-        "episode, say so — and suggest whatever makes sense instead.",
+        "What the player could see when picking, how his hero matches up with the enemy heroes "
+        "and his own team by what they are about, how the lanes turned out and whether the "
+        "pick served an idea.",
 }
 
 UI = {

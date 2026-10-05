@@ -18,85 +18,46 @@ from typing import List
 from .i18n import Strings
 from .policy import Policy
 
-# Разделы ответа в фиксированном порядке. Ключи смысловые, а номера расставляет
-# _sections: раньше номер был зашит и в ключ, и в текст заголовка, и каждое
-# переупорядочивание оборачивалось перенумерацией трёх словарей. Раздел «note»
-# (ответ на вопрос игрока) добавляется нулевым, только когда вопрос задан.
+# Разделы ответа. Их четыре, и это сознательно мало. Прежний формат из десяти
+# обязательных разделов давал простыню, где главное тонуло, и заставлял модель
+# заполнять каждый — в том числе «главную ошибку игрока» там, где честный ответ
+# «значимой ошибки не было».
 #
-# draft идёт первым: пик оценивается по тому, что было на экране в момент
-# выбора, — до всякого исхода матча. Иначе проигранный матч задним числом делает
-# плохим любой пик, а выигранный — любой хорошим.
+# why и control — два разных вопроса, и их нельзя смешивать: почему игра пошла
+# так (на уровне матча) и что было в руках игрока (изменило бы это исход).
+# clarify идёт последним и пропускается, если уточнять нечего: вопросы и
+# предложение лупы в каждом ответе превращались в ритуал.
 #
-# story (что произошло в матче) — следом и намеренно не про игрока: объективный
-# нарратив обязан получаться одинаковым для любого из десяти игроков. Разбор,
-# начатый с личных цифр, подгоняет матч под игрока — любая его просадка выглядит
-# причиной, хотя чаще всего она следствие.
-#
-# build отделён от драфта: драфт решается до матча, сборка — по ходу, против уже
-# известного состава, и смешивать их значило оценивать одно через другое.
-#
-# hypotheses и questions закрывают ответ намеренно: разбор — это начало
-# разговора, а не финальный вердикт. Модель обязана оставить на столе несколько
-# версий и спросить то, чего в данных нет.
-_FORMAT_SECTIONS = ("draft", "story", "verdict", "good", "leak", "build", "stages",
-                    "actions", "hypotheses", "questions")
+# Драфт подробно — отдельным разделом только при фокусе draft: в обычном разборе
+# он одно из наблюдений, а не обязательная глава.
+_FORMAT_SECTIONS = ("why", "control", "observations", "action", "clarify")
 
 
 def method_lines(policy: Policy, s: Strings) -> List[str]:
-    """Правила, по которым модель обязана готовить разбор."""
-    rules: List[str] = []
+    """Как модели думать над разбором.
 
-    # Порядок не случайный: сначала то, что чаще всего нарушается.
+    Принципов семь, и в них нет ни одного примера с конкретным героем. Раньше
+    правил было больше двадцати: большинство появлялись заплатками на нехватку
+    данных («не вини за фарм», «не утверждай про BKB»), и модель тратила внимание
+    на соблюдение запретов вместо разбора. Теперь недостающее посчитано в секции
+    «Картина матча», а знание игры модели разрешено и ожидается.
+    """
+    rules: List[str] = []
     if policy.has_note:
         rules.append(s("method.note_priority"))
     if policy.has_role:
         rules.append(s(f"method.role.{policy.role}"))
-    rules.append(s("method.evidence"))
-    rules.append(s("method.no_generic"))
-    # Блок причинности. Стоит выше остального содержательного намеренно: без него
-    # разбор по умолчанию скатывается в перечисление низких перцентилей и винит
-    # игрока в симптомах уже проигранной карты. Порядок внутри блока — это
-    # порядок рассуждения: сначала «его ли это решение», затем «когда игра ещё
-    # была живой», затем «как читать цифры», затем «что за герой», и в конце
-    # граница того, чего по этим данным сказать нельзя вовсе.
-    rules.append(s("method.narrative_first"))
-    rules.append(s("method.agency"))
-    rules.append(s("method.worst_metric"))
-    rules.append(s("method.team_root"))
-    # Бои: кто в них был, а не только счёт потерь. Стоит в блоке причинности —
-    # «проиграли бой» часто значит «дрались вчетвером против пятерых».
-    rules.append(s("method.fights"))
-    rules.append(s("method.pivot"))
-    rules.append(s("method.context_frame"))
-    rules.append(s("method.hero_mechanics"))
-    rules.append(s("method.no_positional"))
-    # Драфт и билд — единственные две оси, о которых модель молчит охотнее
-    # всего: по ним нет готовых чисел, и без прямого требования разбор
-    # сваливается в пересказ статистики. Правило про драфт заодно ставит
-    # границу честности: рассуждать из общих знаний можно, выдумывать мету —
-    # нельзя, и «не уверен» здесь допустимый ответ.
-    rules.append(s("method.draft"))
-    rules.append(s("method.build"))
-    # Идут вместе: без разбора аномалий гипотезы вырождаются в общие места,
-    # а без диалогового правила модель выдаёт «финальный вердикт» и замолкает.
-    rules.append(s("method.anomalies"))
-    rules.append(s("method.dialogue"))
-    # Идёт следом за диалоговым правилом: оба про то, что разбор продолжается.
-    # Лупа — единственный способ добавить деталей, не выходя за пределы того, что
-    # источник вообще отдаёт, поэтому модель обязана про неё знать и предлагать её.
-    rules.append(s("method.zoom"))
-    rules.append(s("method.impact_first"))
-    rules.append(s("method.explain_why"))
-    rules.append(s("method.balance"))
-    rules.append(s("method.no_invention"))
+    for key in ("questions", "knowledge", "causality", "build", "draft", "solo", "brief"):
+        rules.append(s(f"principle.{key}"))
     if policy.mmr:
         rules.append(s("method.calibrate", level=policy.mmr))
     rules.append(s("method.language", language=s("answer_language")))
 
     out = [s("method.intro")]
     out += [f"{i}. {rule}" for i, rule in enumerate(rules, 1)]
-    out.append("")
-    out.append(s("method.focus", focus=s(f"focus.{policy.focus}")))
+    if policy.focus != "full":
+        out.append("")
+        out.append(s("method.focus", focus=s(f"focus.{policy.focus}")))
     return out
 
 
@@ -122,6 +83,8 @@ def _sections(keys: List[str], prefix: str, policy: Policy, s: Strings) -> List[
 def format_lines(policy: Policy, s: Strings) -> List[str]:
     """Структура ответа: заголовок раздела + что в нём должно быть."""
     keys = list(_FORMAT_SECTIONS)
+    if policy.focus == "draft":
+        keys.insert(keys.index("observations"), "draft")
     if policy.has_note:
         keys.insert(0, "note")
     return _sections(keys, "format", policy, s)
@@ -130,9 +93,9 @@ def format_lines(policy: Policy, s: Strings) -> List[str]:
 def profile_method_lines(policy: Policy, matches: int, s: Strings) -> List[str]:
     """Правила для кросс-матчевого разбора.
 
-    Общие с одиночным разбором правила переиспользуются как есть; добавляются
-    три, специфичные именно для профиля: разбирать повторяющееся, помнить про
-    размер выборки и не притворяться, что полные данные матчей под рукой.
+    Свои правила профиля (повторяющееся, размер выборки, причинность, пул
+    героев, нет полных данных) плюс общие принципы краткости и советов под
+    соло-паб.
     """
     rules: List[str] = []
 
@@ -151,13 +114,9 @@ def profile_method_lines(policy: Policy, matches: int, s: Strings) -> List[str]:
     # Поэтому правило про пул героев живёт только здесь.
     rules.append(s("profile.method.hero_pool"))
     rules.append(s("profile.method.no_raw"))
-    rules.append(s("method.evidence"))
-    rules.append(s("method.no_generic"))
-    rules.append(s("method.dialogue"))
-    rules.append(s("method.impact_first"))
-    rules.append(s("method.explain_why"))
-    rules.append(s("method.balance"))
-    rules.append(s("method.no_invention"))
+    rules.append(s("profile.method.knowledge"))
+    rules.append(s("principle.solo"))
+    rules.append(s("principle.brief"))
     if policy.mmr:
         rules.append(s("method.calibrate", level=policy.mmr))
     rules.append(s("method.language", language=s("answer_language")))
