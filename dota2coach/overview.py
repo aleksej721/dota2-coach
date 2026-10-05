@@ -101,6 +101,10 @@ def _player(player: Player, me: Optional[Player],
         "hero_healing": player.hero_healing,
         "damage_taken": player.damage_taken_total,
         "lane_efficiency_pct": player.lane_efficiency_pct,
+        # Секунды смертей: метки на графике сессии показывают, где игрок умирал.
+        "death_times": sorted(int(entry.get("time", 0) or 0)
+                              for entry in (player.deaths_log or [])
+                              if isinstance(entry, dict)),
         "series": {
             "net_worth": _ints(player.gold_t),
             "xp": _ints(player.xp_t),

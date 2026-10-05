@@ -684,6 +684,10 @@ def main():
     assert neutral["perspective"]["neutral"] is True
     assert not any(player["is_me"] for player in neutral["players"])
     assert neutral["signals"] == []
+    # Метки смертей на графике: секунды из deaths_log, по возрастанию.
+    assert all(isinstance(player["death_times"], list) for player in overview["players"])
+    assert all(times == sorted(times)
+               for times in (player["death_times"] for player in overview["players"]))
 
     check_opendota_recovery(constants)
     check_loc_tokens()

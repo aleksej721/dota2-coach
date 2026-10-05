@@ -167,6 +167,13 @@
         </div>
       </div>
 
+      <!-- Последние игры по сохранённому account_id: клик подставляет ID матча.
+           Список тянет браузер у OpenDota, как и сами матчи. -->
+      <div class="recent" id="recent" hidden>
+        <span class="recent-title" data-i18n="recent.title"></span>
+        <div class="recent-list" id="recentList"></div>
+      </div>
+
       <div class="field" id="heroField" data-only="match" hidden>
         <span class="lbl"><label for="hero" data-i18n="field.hero"></label></span>
         <input id="hero" type="text" data-i18n-ph="field.hero.ph">
@@ -289,6 +296,7 @@
         <span class="chip chip-accent" id="chipNote" hidden></span>
       </div>
       <div class="actions">
+        <button type="button" class="btn ripple" id="openChatBtn"></button>
         <button type="button" class="btn btn-ghost ripple" id="copyBtn"></button>
         <button type="button" class="btn btn-ghost ripple" id="downloadBtn"></button>
       </div>
@@ -346,6 +354,11 @@
             <svg class="overview-chart" id="overviewChart" viewBox="0 0 800 250"
                  role="img" aria-labelledby="chartTitle chartSummary"></svg>
           </div>
+          <div class="chart-legend" id="chartLegend" aria-hidden="true">
+            <span class="legend-fight" data-i18n="chart.legend.fights"></span>
+            <span class="legend-death" id="legendDeath" data-i18n="chart.legend.deaths"></span>
+            <span class="legend-roshan" data-i18n="chart.legend.roshan"></span>
+          </div>
           <p class="chart-summary" id="chartSummary" aria-live="polite"></p>
         </article>
 
@@ -395,18 +408,9 @@
         <div class="panel panel-error" id="followupError" hidden></div>
       </div>
 
-      <div class="followup-result" id="followupResult" hidden>
-        <div class="result-bar">
-          <div class="meta">
-            <span class="chip chip-accent" id="followupWindow"></span>
-            <span class="chip" id="followupTokens"></span>
-          </div>
-          <div class="actions">
-            <button type="button" class="btn btn-ghost ripple" id="followupCopy"></button>
-          </div>
-        </div>
-        <pre class="prompt-text" id="followupText"></pre>
-      </div>
+      <!-- История уточнений: новый промпт не затирает прошлые — к любому можно
+           вернуться и скопировать снова. Свежий сверху и раскрыт. -->
+      <div class="followup-list" id="followupList"></div>
 
       <details class="match-details" id="matchDetails">
         <summary>

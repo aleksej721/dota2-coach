@@ -1124,4 +1124,18 @@ UI = {
     "hint.model":
         "Only the packaging changes, the data is identical. Claude reads structure "
         "better through XML tags, ChatGPT and Gemini prefer plain markdown.",
+
+    # --- последние игры, метки графика, история уточнений ---
+    "recent.title": "Recent games",
+    "recent.win": "win",
+    "recent.lose": "loss",
+    "recent.pick": "Use match {id}",
+    "chart.legend.fights": "fights",
+    "chart.legend.deaths": "my deaths",
+    "chart.legend.roshan": "Roshan",
+    "chart.marker.roshan": "Roshan killed · {time}",
+    "chart.marker.death": "My death · {time}",
+    "session.show": "Show",
+    "session.hide": "Hide",
+    "result.open_chat": "Copy and open {model}",
 }

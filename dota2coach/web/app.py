@@ -363,6 +363,19 @@ async def profile_plan(matches: int = DEFAULT_MATCHES, hero: Optional[str] = Non
         raise _source_failure(e)
 
 
+@app.get("/api/heroes")
+async def heroes() -> Response:
+    """Имена героев по id — для списка последних матчей на странице.
+
+    Сами матчи страница берёт у OpenDota со своего IP, а справочник у сервера
+    уже прогрет (и у него есть зеркало). Список меняется с патчами, поэтому кэш
+    на час, а не навсегда.
+    """
+    names = await run_in_threadpool(_shared_pipeline().hero_names)
+    return Response(json.dumps(names, ensure_ascii=False), media_type="application/json",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
 @app.post("/api/profile", response_model=ProfileResponse)
 async def profile(req: ProfileRequest) -> ProfileResponse:
     policy = Policy(model=req.model, lang=req.lang, mmr=req.mmr, note=req.note)

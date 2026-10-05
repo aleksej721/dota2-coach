@@ -1981,3 +1981,68 @@ pre.prompt-text { border-radius: var(--r-sm); }
   .mode-sub { display: none; }
   .mode { min-height: 42px; }
 }
+
+/* Последние игры ------------------------------------------------------- */
+.recent[hidden] { display: none; }
+.recent { margin-top: var(--space-3); }
+.recent-title { display: block; margin-bottom: 7px; color: var(--muted); font-size: 12.5px; font-weight: 560; }
+/* Лента прокручивается вбок, а не переносится: восемь игр в три строки
+   раздули бы форму, которую только что сделали короче. */
+.recent-list {
+  display: flex; gap: 7px; overflow-x: auto; padding-bottom: 4px;
+  scrollbar-width: thin; scrollbar-color: var(--scroll) transparent;
+}
+.recent-item {
+  position: relative; overflow: hidden; flex: none;
+  display: grid; gap: 1px; justify-items: start;
+  min-width: 128px; padding: 7px 11px 7px 12px;
+  border: 1px solid var(--field-border); border-radius: var(--r-sm);
+  background: var(--field-bg); color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
+  box-shadow: inset 3px 0 0 var(--dire);
+}
+.recent-item[data-win="true"] { box-shadow: inset 3px 0 0 var(--radiant); }
+.recent-item:hover { border-color: var(--field-hover); }
+.recent-item[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--field-bg));
+}
+.recent-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.recent-hero { font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.recent-meta { color: var(--faint); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Метки на графике ------------------------------------------------------ */
+.chart-fight { fill: color-mix(in srgb, var(--warn) 70%, transparent); }
+.chart-roshan { fill: var(--accent); stroke: var(--field-bg); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.chart-death { stroke: var(--dire); stroke-width: 2.2; stroke-linecap: round; fill: none; vector-effect: non-scaling-stroke; }
+.chart-fight, .chart-roshan, .chart-death { cursor: help; }
+.chart-legend {
+  display: flex; flex-wrap: wrap; gap: 4px 16px;
+  padding: 0 16px 10px; color: var(--faint); font-size: 11.5px;
+}
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend span[hidden] { display: none; }
+.chart-legend span::before { content: ""; flex: none; }
+.legend-fight::before { width: 14px; height: 5px; border-radius: 1.5px; background: color-mix(in srgb, var(--warn) 70%, transparent); }
+.legend-roshan::before { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+.legend-death::before { content: "\00d7" !important; color: var(--dire); font-size: 15px; font-weight: 700; line-height: 1; }
+
+/* История уточнений ----------------------------------------------------- */
+.followup-list { display: grid; gap: 12px; margin-top: 16px; }
+.followup-list:empty { display: none; }
+.followup-item {
+  padding: 14px; border: 1px solid var(--field-border);
+  border-radius: var(--r-sm); background: var(--field-bg);
+}
+.followup-item[data-open="false"] .result-bar { margin-bottom: 0; }
+.followup-item pre[hidden] { display: none; }
+.followup-question {
+  min-width: 0; max-width: 100%; color: var(--muted); font-size: 12.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.btn[hidden] { display: none; }
+
+@media (max-width: 760px) {
+  .actions { flex-wrap: wrap; }
+  #openChatBtn { flex-basis: 100%; }
+}

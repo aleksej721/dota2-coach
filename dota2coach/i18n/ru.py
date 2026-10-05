@@ -1143,4 +1143,18 @@ UI = {
     "hint.model":
         "Меняется только упаковка промпта, данные те же. Claude лучше читает структуру "
         "через XML-теги, ChatGPT и Gemini — обычный markdown.",
+
+    # --- последние игры, метки графика, история уточнений ---
+    "recent.title": "Последние игры",
+    "recent.win": "победа",
+    "recent.lose": "поражение",
+    "recent.pick": "Подставить матч {id}",
+    "chart.legend.fights": "драки",
+    "chart.legend.deaths": "мои смерти",
+    "chart.legend.roshan": "Рошан",
+    "chart.marker.roshan": "Рошан убит · {time}",
+    "chart.marker.death": "Моя смерть · {time}",
+    "session.show": "Показать",
+    "session.hide": "Скрыть",
+    "result.open_chat": "Копировать и открыть {model}",
 }

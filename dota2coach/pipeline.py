@@ -96,6 +96,10 @@ class Pipeline:
         """Прогревает справочники. Сеть трогает, данные матчей — нет."""
         self._constants.warm()
 
+    def hero_names(self) -> Dict[int, str]:
+        """id -> имя героя: страница подписывает ими последние матчи игрока."""
+        return self._constants.hero_names()
+
     def overview_items(self, match: Match, me: Optional[Player]
                        ) -> Dict[int, List[Dict[str, Any]]]:
         """Собранные предметы для UI: мои ключевые и крупные у остальных.

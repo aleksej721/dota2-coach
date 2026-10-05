@@ -37,6 +37,10 @@
   // скачанным браузером матчем. Промпт по отрезку отправляет его же, меняя
   // только окно и вопрос, — матч второй раз не качается.
   let session = null;
+  // Промпты по отрезкам этой сессии, свежий первым: { window, prompt, note, open }.
+  let followups = [];
+  // Модель, под которую собран текущий промпт: на неё ведёт «открыть чат».
+  let currentModel = null;
   // Контекст последнего разбора — он же контекст отзыва. account_id сюда
   // намеренно НЕ попадает: он опознаёт человека, а для оценки качества не нужен.
   let fbContext = null;
@@ -121,6 +125,7 @@
     // У поля героя есть своё состояние: оно раскрывается по ссылке «не знаю ID»,
     // и общий цикл по режимам не должен показывать его сам.
     $("heroField").hidden = mode !== "match" || !heroOpen;
+    loadRecent();
     for (const btn of document.querySelectorAll(".mode")) {
       btn.setAttribute("aria-selected", String(btn.dataset.mode === mode));
     }
@@ -144,6 +149,7 @@
       hide(errorEl, warnEl, workspaceEl, resultEl);
       currentOverview = null;
       session = null;
+      history.replaceState(null, "", location.pathname);
       closeHint();
       applyMode(); savePrefs();
     });
@@ -451,7 +457,9 @@
 
     $("fbSend").textContent = t("feedback.send");
     $("copyBtn").textContent = t("result.copy");
-    $("followupCopy").textContent = t("result.copy");
+    renderOpenChat();
+    renderFollowups();
+    renderRecent();
     if (!followupBusy) $("followupBtn").textContent = t("session.submit");
     renderChartTabs();
     $("downloadBtn").textContent = t("result.download");
@@ -730,6 +738,95 @@
     await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
     return results;
   };
+
+  /* ============================================================
+     Последние игры игрока
+     ============================================================ */
+  /* По сохранённому account_id страница сама подтягивает последние игры: ID
+     матча больше не нужно копировать с Dotabuff. Запрос идёт со своего IP, как
+     и сами матчи; имена героев — у сервера, его справочник уже прогрет. */
+  const RECENT_LIMIT = 8;
+  let heroNames = null;                       // Promise<{ hero_id: имя }>
+  let recent = { account: null, rows: [] };
+  let recentTimer = null;
+
+  const loadHeroNames = () => {
+    if (!heroNames) {
+      heroNames = fetch("/api/heroes")
+        .then((res) => (res.ok ? res.json() : {}))
+        .catch(() => { heroNames = null; return {}; });
+    }
+    return heroNames;
+  };
+
+  async function loadRecent() {
+    const id = numOrNull($("accountId").value);
+    if (mode === "profile" || badAccount(id)) {
+      recent = { account: null, rows: [] };
+      renderRecent();
+      return;
+    }
+    if (recent.account === id) { renderRecent(); return; }
+    recent = { account: id, rows: [] };
+    renderRecent();
+    try {
+      const [rows, names] = await Promise.all([
+        odFetch(`/players/${id}/recentMatches`), loadHeroNames(),
+      ]);
+      if (recent.account !== id) return;       // пока грузили, ID поменяли
+      recent.rows = (Array.isArray(rows) ? rows : []).slice(0, RECENT_LIMIT)
+        .map((row) => ({ ...row, hero: names[row.hero_id] || null }));
+    } catch {
+      recent.rows = [];
+    }
+    renderRecent();
+  }
+
+  const timeAgo = (unixSeconds) => {
+    const diff = Math.round(unixSeconds - Date.now() / 1000);
+    const format = new Intl.RelativeTimeFormat(localeForLang(), { numeric: "auto" });
+    const abs = Math.abs(diff);
+    if (abs < 3600) return format.format(Math.round(diff / 60), "minute");
+    if (abs < 86400) return format.format(Math.round(diff / 3600), "hour");
+    return format.format(Math.round(diff / 86400), "day");
+  };
+
+  function renderRecent() {
+    const host = $("recentList");
+    host.replaceChildren();
+    const rows = mode === "profile" ? [] : recent.rows;
+    $("recent").hidden = !rows.length;
+    const current = parseMatchId($("matchId").value);
+    for (const row of rows) {
+      // player_slot < 128 — Radiant.
+      const win = (Number(row.player_slot) < 128) === Boolean(row.radiant_win);
+      const item = makeNode("button", "recent-item ripple");
+      item.type = "button";
+      item.dataset.win = String(win);
+      item.setAttribute("aria-pressed", String(row.match_id === current));
+      item.title = t("recent.pick", { id: row.match_id });
+      item.append(
+        makeNode("span", "recent-hero", row.hero || `#${row.hero_id}`),
+        makeNode("span", "recent-meta", [
+          t(win ? "recent.win" : "recent.lose"),
+          `${row.kills || 0}/${row.deaths || 0}/${row.assists || 0}`,
+          timeAgo(Number(row.start_time || 0) + Number(row.duration || 0)),
+        ].join(" · ")),
+      );
+      item.addEventListener("click", () => {
+        $("matchId").value = row.match_id;
+        renderRecent();
+        submitBtn.focus({ preventScroll: true });
+      });
+      host.append(item);
+    }
+  }
+
+  $("accountId").addEventListener("input", () => {
+    clearTimeout(recentTimer);
+    recentTimer = setTimeout(loadRecent, 700);
+  });
+  $("matchId").addEventListener("input", renderRecent);
 
   /* Для профиля: план запроса (hero_id и линию умеют вычислять только
      справочники сервера) → список матчей игрока → сами матчи. Ошибка плана —
@@ -1267,6 +1364,7 @@
       makeSvg("path", { d: line, class: "chart-path" }),
       makeSvg("circle", { cx: points.at(-1)[0], cy: points.at(-1)[1], r: 4, class: "chart-dot" }),
     );
+    drawChartMarkers(svg, xAt, last);
     const inside = values.slice(from, to + 1);
     $("chartSummary").textContent = t("session.chart.summary", {
       start: windowState.start,
@@ -1274,6 +1372,39 @@
       from: formatSigned(inside[0]),
       to: formatSigned(inside.at(-1)),
     });
+  }
+
+  /* Метки моментов: драки — полосой у нижнего края, смерти моего героя и
+     Рошан — точками у верхнего. Это ответ на «а какой момент выделять»: глаз
+     сразу видит, где игра сгущалась. Подробности — во всплывающей подписи. */
+  function drawChartMarkers(svg, xAt, last) {
+    const { top, height } = CHART;
+    const at = (seconds) => xAt(Math.max(0, Math.min(last, Number(seconds) / 60)));
+    const titled = (node, text) => { node.append(makeSvg("title", {}, text)); return node; };
+
+    for (const fight of currentOverview.teamfights || []) {
+      const x1 = at(fight.start), x2 = at(fight.end);
+      const range = `${formatClock(fight.start)}–${formatClock(fight.end)}`;
+      svg.append(titled(makeSvg("rect", {
+        x: x1, y: top + height - 7, width: Math.max(3, x2 - x1), height: 5, rx: 1.5,
+        class: "chart-fight",
+      }), t("explorer.fight.row", { index: fight.index, range })));
+    }
+    for (const objective of currentOverview.objectives || []) {
+      if (objective.kind !== "roshan") continue;
+      svg.append(titled(makeSvg("circle", {
+        cx: at(objective.time), cy: top + 7, r: 4.5, class: "chart-roshan",
+      }), t("chart.marker.roshan", { time: formatClock(objective.time) })));
+    }
+    const me = (currentOverview.players || []).find((player) => player.is_me);
+    for (const seconds of (me && me.death_times) || []) {
+      const x = at(seconds), y = top + 18;
+      svg.append(titled(makeSvg("path", {
+        d: `M${x - 4},${y - 4} L${x + 4},${y + 4} M${x + 4},${y - 4} L${x - 4},${y + 4}`,
+        class: "chart-death",
+      }), t("chart.marker.death", { time: formatClock(seconds) })));
+    }
+    $("legendDeath").hidden = !(me && (me.death_times || []).length);
   }
 
   // Протягивание по графику: нажали — начало отрезка, отпустили — конец.
@@ -1373,10 +1504,21 @@
 
     const m = CFG.models.find((x) => x.code === data.model);
     $("chipModel").textContent = m ? m.label : data.model;
+    currentModel = data.model;
+    renderOpenChat();
 
     const isProfile = mode === "profile";
     const isGame = mode === "game";
-    hide($("followupResult"), $("followupError"));
+    followups = [];
+    renderFollowups();
+    hide($("followupError"));
+    // Адрес запоминает матч и режим: ссылкой можно поделиться, а после
+    // перезагрузки ID матча уже стоит в поле.
+    if (!isProfile && session) {
+      const query = new URLSearchParams({ match: session.body.match_id });
+      if (isGame) query.set("mode", "game");
+      history.replaceState(null, "", "?" + query);
+    }
     $("followupNote").value = "";
     $("resultHead").hidden = isProfile || !data.overview;
     // Сессия открывается сразу, а подробности — свёрнутыми: к ним приходят
@@ -1497,11 +1639,12 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showError(res.status, data, $("followupError")); return; }
-      $("followupText").textContent = data.prompt;
-      $("followupWindow").textContent = t("window.range", windowState);
-      $("followupTokens").textContent = t("result.tokens", { n: estimateTokens(data.prompt) });
-      $("followupResult").hidden = false;
-      $("followupResult").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      for (const item of followups) item.open = false;
+      followups.unshift({ window: windowState, prompt: data.prompt,
+                          note: $("followupNote").value.trim(), open: true });
+      renderFollowups();
+      $("followupList").firstElementChild
+        .scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch {
       showPanel($("followupError"), t("err.offline"), t("err.offline.body"));
     } finally {
@@ -1611,20 +1754,84 @@
     }, 1800);
   };
 
-  const copyFrom = (pre) => async (e) => {
-    const btn = e.currentTarget;
+  /* true — текст в буфере; false — буфер недоступен, и текст выделен, чтобы
+     его можно было скопировать руками. */
+  const copyPre = async (pre) => {
     try {
       await navigator.clipboard.writeText(pre.textContent);
-      confirmAction(btn, "result.copied", "result.copy");
+      return true;
     } catch {
       const r = document.createRange();
       r.selectNodeContents(pre);
       const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
-      confirmAction(btn, "result.selected", "result.copy");
+      return false;
     }
   };
+
+  const copyFrom = (pre) => async (e) => {
+    const btn = e.currentTarget;
+    confirmAction(btn, (await copyPre(pre)) ? "result.copied" : "result.selected", "result.copy");
+  };
   $("copyBtn").addEventListener("click", copyFrom(promptEl));
-  $("followupCopy").addEventListener("click", copyFrom($("followupText")));
+
+  /* «Копировать и открыть чат»: промпт в буфер, чат выбранной модели — в новой
+     вкладке. Вкладку открываем после копирования: новая вкладка забирает фокус,
+     а без фокуса страница писать в буфер не может. */
+  const CHAT_URLS = {
+    chatgpt: "https://chatgpt.com/",
+    claude: "https://claude.ai/new",
+    gemini: "https://gemini.google.com/app",
+  };
+
+  function renderOpenChat() {
+    const btn = $("openChatBtn");
+    const model = CFG.models.find((x) => x.code === currentModel);
+    btn.hidden = !CHAT_URLS[currentModel];
+    btn.textContent = t("result.open_chat", { model: model ? model.label : "" });
+  }
+
+  $("openChatBtn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const copied = await copyPre(promptEl);
+    if (!copied) { confirmAction(btn, "result.selected", "result.copy"); return; }
+    window.open(CHAT_URLS[currentModel], "_blank", "noopener");
+    btn.textContent = t("result.copied") + " \u2713";
+    btn.classList.add("done");
+    setTimeout(() => { btn.classList.remove("done"); renderOpenChat(); }, 1800);
+  });
+
+  /* История промптов по отрезкам. Перерисовывается целиком: элементов единицы,
+     а так язык интерфейса меняется без отдельного обхода подписей. */
+  function renderFollowups() {
+    const host = $("followupList");
+    host.replaceChildren();
+    for (const item of followups) {
+      const card = makeNode("div", "followup-item");
+      card.dataset.open = String(item.open);
+      const bar = makeNode("div", "result-bar");
+      const meta = makeNode("div", "meta");
+      meta.append(
+        makeNode("span", "chip chip-accent", t("window.range", item.window)),
+        makeNode("span", "chip", t("result.tokens", { n: estimateTokens(item.prompt) })),
+      );
+      if (item.note) meta.append(makeNode("span", "followup-question", item.note));
+      const actions = makeNode("div", "actions");
+      const toggle = makeNode("button", "btn btn-ghost ripple",
+                              t(item.open ? "session.hide" : "session.show"));
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", String(item.open));
+      toggle.addEventListener("click", () => { item.open = !item.open; renderFollowups(); });
+      const copy = makeNode("button", "btn btn-ghost ripple", t("result.copy"));
+      copy.type = "button";
+      const pre = makeNode("pre", "prompt-text", item.prompt);
+      pre.hidden = !item.open;
+      copy.addEventListener("click", copyFrom(pre));
+      actions.append(toggle, copy);
+      bar.append(meta, actions);
+      card.append(bar, pre);
+      host.append(card);
+    }
+  }
 
   $("downloadBtn").addEventListener("click", (e) => {
     const blob = new Blob([promptEl.textContent], { type: "text/plain;charset=utf-8" });
@@ -1652,6 +1859,14 @@
   lang = prefs.lang || (CFG.strings[browserLang] ? browserLang : CFG.defaultLang);
   theme = prefs.theme === "light" ? "light" : "dark";
   mode = MODES.includes(prefs.mode) ? prefs.mode : "match";
+  // Ссылка вида ?match=…&mode=game открывает страницу с этим матчем в поле.
+  // Разбор сам не запускается: он тратит лимит OpenDota, и решать это игроку.
+  const linked = new URLSearchParams(location.search);
+  if (linked.get("mode") === "game") mode = "game";
+  else if (linked.get("match") && mode === "profile") mode = "match";
+  if (parseMatchId(linked.get("match") || "")) {
+    $("matchId").value = parseMatchId(linked.get("match"));
+  }
   setAdvanced(prefs.advOpen === true);
   if (prefs.accountId) $("accountId").value = prefs.accountId;
   if (prefs.matches) $("matches").value = prefs.matches;

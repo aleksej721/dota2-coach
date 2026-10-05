@@ -57,6 +57,10 @@ class Constants:
         """Имя героя -> id. Нужен режиму профиля: OpenDota фильтрует по id."""
         return None
 
+    def hero_names(self) -> Dict[int, str]:
+        """id -> имя всех героев. Нужен странице для списка последних матчей."""
+        return {}
+
     def npc_to_hero(self, npc_name: Optional[str]) -> str:
         return (npc_name or "").replace("npc_dota_hero_", "") or "unknown"
 
@@ -217,6 +221,14 @@ class ConstantsRepo(Constants):
         heroes = self._load("heroes")
         entry = heroes.get(str(hero_id)) if isinstance(heroes, dict) else None
         return entry.get("name") if entry else None
+
+    def hero_names(self) -> Dict[int, str]:
+        heroes = self._load("heroes")
+        if not isinstance(heroes, dict):
+            return {}
+        return {int(key): entry["localized_name"] for key, entry in heroes.items()
+                if str(key).isdigit() and isinstance(entry, dict)
+                and entry.get("localized_name")}
 
     def hero_id_by_name(self, name: Optional[str]) -> Optional[int]:
         """Терпимо к вводу: «pl», «phantom lancer», «Phantom_Lancer» найдут одного героя.

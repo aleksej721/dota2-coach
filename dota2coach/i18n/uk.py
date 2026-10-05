@@ -1107,4 +1107,18 @@ UI = {
     "hint.model":
         "Змінюється лише упаковка промпту, дані ті самі. Claude краще читає структуру "
         "через XML-теги, ChatGPT і Gemini — звичайний markdown.",
+
+    # --- последние игры, метки графика, история уточнений ---
+    "recent.title": "Останні ігри",
+    "recent.win": "перемога",
+    "recent.lose": "поразка",
+    "recent.pick": "Підставити матч {id}",
+    "chart.legend.fights": "бійки",
+    "chart.legend.deaths": "мої смерті",
+    "chart.legend.roshan": "Рошан",
+    "chart.marker.roshan": "Рошана вбито · {time}",
+    "chart.marker.death": "Моя смерть · {time}",
+    "session.show": "Показати",
+    "session.hide": "Сховати",
+    "result.open_chat": "Копіювати й відкрити {model}",
 }
