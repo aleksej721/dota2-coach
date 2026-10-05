@@ -96,7 +96,8 @@ class Pipeline:
         """Прогревает справочники. Сеть трогает, данные матчей — нет."""
         self._constants.warm()
 
-    def overview_items(self, match: Match, me: Player) -> Dict[int, List[Dict[str, Any]]]:
+    def overview_items(self, match: Match, me: Optional[Player]
+                       ) -> Dict[int, List[Dict[str, Any]]]:
         """Собранные предметы для UI: мои ключевые и крупные у остальных.
 
         Match Explorer использует тот же алгоритм поглощения компонентов, что
@@ -105,7 +106,7 @@ class Pipeline:
         """
         return {
             player.player_slot: self._extractor.assembled_purchases(
-                player, KEY_ITEM_COST if player.player_slot == me.player_slot
+                player, KEY_ITEM_COST if me is not None and player.player_slot == me.player_slot
                 else MAJOR_ITEM_COST,
             )
             for player in match.players

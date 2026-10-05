@@ -522,8 +522,8 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
    ============================================================ */
 .modes {
   position: relative;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-  max-width: 520px; margin: 0 auto var(--space-4);
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  max-width: 620px; margin: 0 auto var(--space-4);
   padding: 5px;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
@@ -535,12 +535,13 @@ select.ctl { appearance: none; -webkit-appearance: none; padding-right: 26px;
    режимами, и переключение читается как движение, а не как мгновенная замена. */
 .modes-thumb {
   position: absolute; top: 5px; bottom: 5px; left: 5px;
-  width: calc(50% - 7px); border-radius: var(--r-md);
+  width: calc((100% - 26px) / 3); border-radius: var(--r-md);
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   box-shadow: 0 8px 22px var(--accent-soft), inset 0 1px 0 rgba(255, 255, 255, .22);
   transition: transform .38s var(--spring);
 }
-.modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(100% + 4px)); }
+.modes[data-mode="game"] .modes-thumb { transform: translateX(calc(100% + 8px)); }
+.modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(200% + 16px)); }
 .mode {
   position: relative; z-index: 1;
   display: grid; gap: 1px; justify-items: center;
@@ -628,6 +629,7 @@ form.card { padding: 0; overflow: clip; }
    account_id. Решает режим формы, а не разметка ряда. */
 form[data-mode="match"] .field--match-id { grid-column: span 2; }
 form[data-mode="profile"] .field--account { grid-column: span 2; }
+form[data-mode="game"] .field--match-id { grid-column: 1 / -1; }
 .row + .row, .row + .field, .field + .row { margin-top: var(--space-3); }
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -1280,7 +1282,7 @@ select.fld {
 .chip-accent { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .actions { display: flex; gap: 8px; }
 
-pre#promptText {
+pre.prompt-text {
   margin: 0; max-height: 440px; padding: 15px 17px; overflow: auto;
   background: var(--solid); border: 1px solid var(--field-border);
   border-radius: var(--r-md);
@@ -1288,9 +1290,9 @@ pre#promptText {
   color: var(--code); white-space: pre; tab-size: 2;
   scrollbar-color: var(--scroll) transparent;
 }
-pre#promptText::-webkit-scrollbar { width: 11px; height: 11px; }
-pre#promptText::-webkit-scrollbar-corner { background: transparent; }
-pre#promptText::-webkit-scrollbar-thumb {
+pre.prompt-text::-webkit-scrollbar { width: 11px; height: 11px; }
+pre.prompt-text::-webkit-scrollbar-corner { background: transparent; }
+pre.prompt-text::-webkit-scrollbar-thumb {
   background: var(--scroll); border: 3px solid transparent;
   background-clip: content-box; border-radius: var(--r-full);
 }
@@ -1356,6 +1358,7 @@ pre#promptText::-webkit-scrollbar-thumb {
   .row { grid-template-columns: 1fr; }
   .span-2, .span-3,
   form[data-mode="match"] .field--match-id,
+  form[data-mode="game"] .field--match-id,
   form[data-mode="profile"] .field--account { grid-column: auto; }
   header { text-align: left; }
   .controls { position: static; justify-content: flex-start; margin-top: 12px; }
@@ -1371,7 +1374,7 @@ pre#promptText::-webkit-scrollbar-thumb {
   .result-bar { grid-template-columns: 1fr; }
   .actions { width: 100%; }
   .actions .btn { flex: 1; padding-inline: 12px; }
-  pre#promptText { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55vh; }
+  pre.prompt-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55vh; }
 }
 
 /* Система просит меньше движения — отдаём меньше движения: декоративные
@@ -1509,7 +1512,7 @@ header {
 }
 
 .modes {
-  max-width: 440px;
+  max-width: 600px;
   margin: 0 0 20px;
   padding: 3px;
   gap: 3px;
@@ -1524,13 +1527,14 @@ header {
   top: 3px;
   bottom: 3px;
   left: 3px;
-  width: calc(50% - 4.5px);
+  width: calc((100% - 12px) / 3);
   border: 1px solid var(--glass-border);
   border-radius: calc(var(--r-md) - 3px);
   background: var(--surface-raised);
   box-shadow: var(--elev-1);
 }
-.modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(100% + 3px)); }
+.modes[data-mode="game"] .modes-thumb { transform: translateX(calc(100% + 3px)); }
+.modes[data-mode="profile"] .modes-thumb { transform: translateX(calc(200% + 6px)); }
 .mode { min-height: 50px; padding: 7px 12px; border-radius: calc(var(--r-md) - 3px); }
 .mode[aria-selected="true"], .mode[aria-selected="true"]:hover { color: var(--text); }
 .mode[aria-selected="true"] .mode-sub { color: var(--muted); }
@@ -1619,7 +1623,7 @@ input[type="text"]:focus, textarea:focus, select.fld:focus {
 #result { border-radius: var(--r-lg); }
 #result:hover { transform: none; box-shadow: var(--shadow); }
 .chip, .side-badge { border-radius: var(--r-xs); }
-pre#promptText { border-radius: var(--r-sm); }
+pre.prompt-text { border-radius: var(--r-sm); }
 .feedback { border-color: var(--glass-border); }
 .modal-backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .modal { border-radius: var(--r-lg); }
@@ -1904,4 +1908,76 @@ pre#promptText { border-radius: var(--r-sm); }
 @media (max-width: 430px) {
   .overview-cards { grid-template-columns: 1fr; }
   .workspace-title { font-size: 21px; }
+}
+
+/* Сессия матча ---------------------------------------------------------- */
+/* Заголовок матча стоит над промптом: промпт — первое, за чем приходят, а
+   название матча напоминает, к какой игре он относится. */
+.result-head { margin-bottom: 14px; }
+.result-head[hidden] { display: none; }
+.overview-cards[hidden], .explorer-panel[hidden], .followup-result[hidden] { display: none; }
+
+.workspace .explorer-grid { margin-top: 0; }
+.chart-window {
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 55%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+/* По графику тянут выделение: курсор подсказывает, а системное выделение
+   текста подписей при протягивании только мешает. */
+.overview-chart { cursor: crosshair; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+
+/* Список драк — рядом с графиком и не выше него: длинный матч не должен
+   растягивать всю панель. */
+.fight-list { max-height: 330px; overflow-y: auto; scrollbar-color: var(--scroll) transparent; }
+.event-action[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.followup-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3) 18px;
+  align-items: end;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-sm);
+  background: var(--surface-muted);
+}
+.followup-form .window-field { grid-column: 1 / -1; }
+.followup-actions { display: flex; align-items: center; gap: 12px; }
+.followup-actions .status { text-align: left; }
+.followup-form .panel { grid-column: 1 / -1; margin-top: 0; }
+.followup-result { margin-top: 16px; }
+
+.match-details { margin-top: 16px; border-top: 1px solid var(--glass-border); }
+.match-details > summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 2px 4px;
+  color: var(--text); font-size: 14px; font-weight: 650;
+  list-style: none; cursor: pointer;
+}
+.match-details > summary::-webkit-details-marker { display: none; }
+.match-details > summary:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); border-radius: var(--r-xs); }
+.match-details > summary .more-summary { margin-left: 4px; }
+.match-details[open] > summary .more-chevron { transform: rotate(90deg); color: var(--accent); }
+.match-details[open] > summary .more-summary { opacity: 0; }
+.match-details-body { padding-top: 12px; }
+.match-details-body > .explorer-panel + .explorer-panel { margin-top: 14px; }
+.match-details-body > .overview-cards + .explorer-panel { margin-top: 0; }
+
+@media (max-width: 760px) {
+  .followup-form { grid-template-columns: 1fr; padding: 15px 14px; }
+  .followup-actions { flex-direction: column; align-items: stretch; }
+  .followup-actions .btn { width: 100%; }
+  .followup-actions .status { text-align: center; }
+}
+/* Три режима в ширину телефона: подписи под названиями переносились бы в две
+   строки и раздували переключатель. Объяснение режимов есть в подсказке. */
+@media (max-width: 430px) {
+  .mode-sub { display: none; }
+  .mode { min-height: 42px; }
 }

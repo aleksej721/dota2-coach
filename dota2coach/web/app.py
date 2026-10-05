@@ -417,7 +417,7 @@ class FeedbackRequest(BaseModel):
     """Оценка разбора. account_id намеренно НЕ принимаем — см. feedback.py."""
 
     rating: Literal[1, -1] = Field(..., description="1 — полезно, -1 — нет")
-    mode: Literal["match", "profile"]
+    mode: Literal["match", "game", "profile"]
     lang: Lang = "ru"
     model: Model = "chatgpt"
     comment: Optional[str] = Field(None, max_length=MAX_COMMENT_CHARS,

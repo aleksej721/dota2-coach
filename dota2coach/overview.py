@@ -77,14 +77,14 @@ def _benchmark_signals(me: Player) -> List[Dict[str, Any]]:
     return signals
 
 
-def _player(player: Player, me: Player,
+def _player(player: Player, me: Optional[Player],
             items: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     return {
         "player_slot": player.player_slot,
         "hero_id": player.hero_id,
         "hero": player.hero_name,
         "is_radiant": player.is_radiant,
-        "is_me": player.player_slot == me.player_slot,
+        "is_me": me is not None and player.player_slot == me.player_slot,
         "role": player.position_key,
         "lane": player.lane_key,
         "level": player.level,
@@ -162,9 +162,14 @@ def _teamfights(match: Match, me: Player) -> List[Dict[str, Any]]:
 
 
 def build_match_overview(match: Match, me: Player,
-                         item_timings: Optional[Dict[int, List[Dict[str, Any]]]] = None
-                         ) -> Dict[str, Any]:
-    """Возвращает versioned JSON-ready обзор без UI-строк и AI-выводов."""
+                         item_timings: Optional[Dict[int, List[Dict[str, Any]]]] = None,
+                         neutral: bool = False) -> Dict[str, Any]:
+    """Возвращает versioned JSON-ready обзор без UI-строк и AI-выводов.
+
+    neutral — разбор игры целиком: `me` служит лишь точкой отсчёта (игрок
+    Radiant), поэтому никого не помечаем «мной», перспектива — Radiant, а
+    сигналы по бенчмаркам случайного игрока не показываем.
+    """
     radiant = match.radiant_players()
     dire = match.dire_players()
     my_team = radiant if me.is_radiant else dire
@@ -198,6 +203,7 @@ def build_match_overview(match: Match, me: Player,
             "dire_kills": sum(player.kills for player in dire),
         },
         "perspective": {
+            "neutral": neutral,
             "player_slot": me.player_slot,
             "hero_id": me.hero_id,
             "hero": me.hero_name,
@@ -210,9 +216,10 @@ def build_match_overview(match: Match, me: Player,
                 max(1, sum(player.kills for player in my_team))
             )),
         },
-        "signals": _benchmark_signals(me),
+        "signals": [] if neutral else _benchmark_signals(me),
         "players": [
-            _player(player, me, (item_timings or {}).get(player.player_slot))
+            _player(player, None if neutral else me,
+                    (item_timings or {}).get(player.player_slot))
             for player in match.players
         ],
         "economy": {

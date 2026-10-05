@@ -122,6 +122,11 @@
       <span class="mode-name" data-i18n="mode.match"></span>
       <span class="mode-sub" data-i18n="mode.match.sub"></span>
     </button>
+    <button type="button" class="mode ripple" role="tab" id="modeGame" data-mode="game"
+            aria-selected="false">
+      <span class="mode-name" data-i18n="mode.game"></span>
+      <span class="mode-sub" data-i18n="mode.game.sub"></span>
+    </button>
     <button type="button" class="mode ripple" role="tab" id="modeProfile" data-mode="profile"
             aria-selected="false">
       <span class="mode-name" data-i18n="mode.profile"></span>
@@ -140,13 +145,13 @@
         <span class="section-index" aria-hidden="true">01</span><span id="groupBasicsText"></span>
       </h2>
       <div class="row">
-        <div class="field field--match-id" data-only="match">
+        <div class="field field--match-id" data-only="match game">
           <span class="lbl"><label for="matchId" data-i18n="field.match"></label>
             <button type="button" class="info" data-hint="hint.match" aria-expanded="false">?</button>
           </span>
           <input id="matchId" type="text" data-i18n-ph="field.match.ph">
         </div>
-        <div class="field field--account">
+        <div class="field field--account" data-only="match profile">
           <span class="lbl"><label for="accountId" data-i18n="field.account"></label>
             <button type="button" class="info" data-hint="hint.account" aria-expanded="false">?</button>
           </span>
@@ -205,18 +210,6 @@
                 <select class="fld" id="focus"></select>
                 <span class="field-note" id="focusNote" aria-live="polite" hidden></span>
               </div>
-              <div class="field" data-only="match">
-                <span class="lbl"><span id="depthLabel" data-i18n="field.depth"></span>
-                  <button type="button" class="info" data-hint="hint.depth" aria-expanded="false">?</button>
-                </span>
-                <div class="segment" id="depth" data-value="quick" role="radiogroup"
-                     aria-labelledby="depthLabel">
-                  <div class="thumb" aria-hidden="true"></div>
-                  <label><input type="radio" name="depth" value="quick" checked><span>quick</span></label>
-                  <label><input type="radio" name="depth" value="deep"><span>deep</span></label>
-                </div>
-              </div>
-
               <div class="field" data-only="profile" hidden>
                 <span class="lbl"><label for="heroFilter" data-i18n="field.hero_filter"></label>
                   <span class="opt" data-i18n="field.note.optional"></span>
@@ -240,40 +233,6 @@
               </div>
             </div>
 
-            <div class="field" data-only="match" id="windowField">
-              <span class="lbl">
-                <span data-i18n="field.window"></span>
-                <button type="button" class="info" data-hint="hint.window" aria-expanded="false">?</button>
-                <span class="range-value" id="windowValue"></span>
-              </span>
-              <label class="switch">
-                <input type="checkbox" id="windowOn">
-                <span class="switch-track"><span class="switch-dot"></span></span>
-                <span data-i18n="field.window.enable"></span>
-              </label>
-              <div class="range-wrap" id="rangeWrap" data-off="true">
-                <div class="range">
-                  <div class="range-track"><div class="range-fill" id="rangeFill"></div></div>
-                  <input type="range" id="windowStart" min="0" max="80" step="1" value="25"
-                         data-i18n-title="window.start">
-                  <input type="range" id="windowEnd" min="0" max="80" step="1" value="35"
-                         data-i18n-title="window.end">
-                  <span class="range-lane" aria-hidden="true">
-                    <span class="range-bubble" id="bubbleStart"></span>
-                    <span class="range-bubble" id="bubbleEnd"></span>
-                    <span class="range-bubble range-bubble--merged is-off" id="bubbleBoth"></span>
-                  </span>
-                </div>
-                <!-- --v: доля от шкалы 0–80. Позицию считает CSS по той же
-                     формуле, что и ход ручки, — см. .range-ticks span. -->
-                <div class="range-ticks" aria-hidden="true">
-                  <span style="--v:0">0</span><span style="--v:.25">20</span><span
-                  style="--v:.5">40</span><span style="--v:.75">60</span><span
-                  style="--v:1">80</span>
-                </div>
-              </div>
-            </div>
-
             <div class="row">
               <div class="field span-2">
                 <span class="lbl"><label for="note" data-i18n="field.note"></label>
@@ -282,7 +241,7 @@
                 </span>
                 <textarea id="note" rows="3"></textarea>
               </div>
-              <div class="field">
+              <div class="field" data-only="match profile">
                 <span class="lbl"><label for="mmr" data-i18n="field.mmr"></label>
                   <span class="opt" data-i18n="field.mmr.optional"></span>
                   <button type="button" class="info" data-hint="hint.mmr" aria-expanded="false">?</button>
@@ -306,129 +265,11 @@
   <div class="panel panel-error reveal" id="error" hidden></div>
   <div class="panel panel-warn reveal" id="warning" hidden></div>
 
-  <section class="card workspace" id="workspace" aria-labelledby="workspaceTitle" hidden>
-    <div class="workspace-head">
-      <div>
-        <div class="workspace-kicker">
-          <span class="source-badge" id="workspaceSource"></span>
-          <span class="quality-badge" id="workspaceQuality"></span>
-          <span class="quality-badge" id="workspaceRange"></span>
-        </div>
-        <h2 class="workspace-title" id="workspaceTitle"></h2>
-        <p class="workspace-meta" id="workspaceMeta"></p>
-      </div>
-      <button type="button" class="btn btn-ghost ripple" id="openPromptBtn"
-              data-i18n="explorer.open_prompt"></button>
-    </div>
-
-    <div class="workspace-body">
-      <div class="overview-cards" id="overviewCards"></div>
-
-      <div class="explorer-grid">
-        <article class="explorer-panel" aria-labelledby="chartTitle">
-          <div class="explorer-panel-head">
-            <div>
-              <h3 class="explorer-panel-title" id="chartTitle"
-                  data-i18n="explorer.chart.title"></h3>
-              <p class="explorer-panel-sub" data-i18n="explorer.chart.granularity"></p>
-            </div>
-          </div>
-          <div class="chart-tabs" id="chartTabs" role="group"
-               data-i18n-aria="explorer.chart.title">
-            <button type="button" class="chart-tab" data-series="gold" aria-pressed="true"
-                    data-i18n="explorer.chart.gold"></button>
-            <button type="button" class="chart-tab" data-series="xp" aria-pressed="false"
-                    data-i18n="explorer.chart.xp"></button>
-            <button type="button" class="chart-tab" data-series="networth" aria-pressed="false"
-                    data-i18n="explorer.chart.networth"></button>
-            <button type="button" class="chart-tab" data-series="last_hits" aria-pressed="false"
-                    data-i18n="explorer.chart.last_hits"></button>
-          </div>
-          <div class="chart-stage">
-            <svg class="overview-chart" id="overviewChart" viewBox="0 0 800 250"
-                 role="img" aria-labelledby="chartTitle chartSummary"></svg>
-          </div>
-          <p class="chart-summary" id="chartSummary" aria-live="polite"></p>
-        </article>
-
-        <aside class="explorer-panel" aria-labelledby="signalsTitle">
-          <div class="explorer-panel-head">
-            <div>
-              <h3 class="explorer-panel-title" id="signalsTitle"
-                  data-i18n="explorer.signals.title"></h3>
-              <p class="explorer-panel-sub" data-i18n="explorer.signals.sub"></p>
-            </div>
-          </div>
-          <div class="signal-list" id="signalList"></div>
-          <p class="evidence-note" data-i18n="explorer.signals.note"></p>
-        </aside>
-      </div>
-
-      <article class="explorer-panel scoreboard-panel" aria-labelledby="scoreboardTitle">
-        <div class="explorer-panel-head">
-          <div>
-            <h3 class="explorer-panel-title" id="scoreboardTitle"
-                data-i18n="explorer.scoreboard.title"></h3>
-            <p class="explorer-panel-sub" data-i18n="explorer.scoreboard.sub"></p>
-          </div>
-        </div>
-        <div class="scoreboard-scroll">
-          <table class="scoreboard">
-            <thead><tr>
-              <th data-i18n="explorer.scoreboard.hero"></th>
-              <th data-i18n="explorer.scoreboard.role"></th>
-              <th data-i18n="explorer.scoreboard.kda"></th>
-              <th data-i18n="explorer.scoreboard.lh_dn"></th>
-              <th data-i18n="explorer.scoreboard.gpm_xpm"></th>
-              <th data-i18n="explorer.scoreboard.networth"></th>
-              <th data-i18n="explorer.scoreboard.damage"></th>
-            </tr></thead>
-            <tbody id="scoreboardBody"></tbody>
-          </table>
-        </div>
-      </article>
-
-      <div class="explorer-grid explorer-grid--even">
-        <article class="explorer-panel" aria-labelledby="draftTitle">
-          <div class="explorer-panel-head"><div>
-            <h3 class="explorer-panel-title" id="draftTitle"
-                data-i18n="explorer.draft.title"></h3>
-            <p class="explorer-panel-sub" data-i18n="explorer.draft.sub"></p>
-          </div></div>
-          <div class="event-list" id="draftList"></div>
-        </article>
-        <article class="explorer-panel" aria-labelledby="buildsTitle">
-          <div class="explorer-panel-head"><div>
-            <h3 class="explorer-panel-title" id="buildsTitle"
-                data-i18n="explorer.builds.title"></h3>
-            <p class="explorer-panel-sub" data-i18n="explorer.builds.sub"></p>
-          </div></div>
-          <div class="build-list" id="buildList"></div>
-        </article>
-      </div>
-
-      <div class="explorer-grid explorer-grid--even">
-        <article class="explorer-panel" aria-labelledby="objectivesTitle">
-          <div class="explorer-panel-head"><div>
-            <h3 class="explorer-panel-title" id="objectivesTitle"
-                data-i18n="explorer.objectives.title"></h3>
-            <p class="explorer-panel-sub" data-i18n="explorer.objectives.sub"></p>
-          </div></div>
-          <div class="event-list" id="objectiveList"></div>
-        </article>
-        <article class="explorer-panel" aria-labelledby="fightsTitle">
-          <div class="explorer-panel-head"><div>
-            <h3 class="explorer-panel-title" id="fightsTitle"
-                data-i18n="explorer.fights.title"></h3>
-            <p class="explorer-panel-sub" data-i18n="explorer.fights.sub"></p>
-          </div></div>
-          <div class="event-list" id="fightList"></div>
-        </article>
-      </div>
-    </div>
-  </section>
-
   <section class="card reveal" id="result" hidden>
+    <div class="result-head" id="resultHead" hidden>
+      <h2 class="workspace-title" id="workspaceTitle"></h2>
+      <p class="workspace-meta" id="workspaceMeta"></p>
+    </div>
     <div class="result-bar">
       <div class="meta">
         <span class="side-badge" id="sideBadge" hidden>
@@ -438,13 +279,10 @@
           </svg>
           <span id="sideText"></span>
         </span>
-        <span class="chip" id="chipSize"></span>
         <span class="chip" id="chipTokens"></span>
-        <span class="chip" id="chipDepth"></span>
         <span class="chip" id="chipFocus"></span>
         <span class="chip" id="chipModel"></span>
         <span class="chip chip-accent" id="chipRole"></span>
-        <span class="chip chip-accent" id="chipWindow" hidden></span>
         <span class="chip chip-accent" id="chipMatches" hidden></span>
         <span class="chip" id="chipWinrate" hidden></span>
         <span class="chip" id="chipUnparsed" hidden></span>
@@ -455,7 +293,7 @@
         <button type="button" class="btn btn-ghost ripple" id="downloadBtn"></button>
       </div>
     </div>
-    <pre id="promptText"></pre>
+    <pre class="prompt-text" id="promptText"></pre>
     <div class="feedback" id="feedback">
       <span class="fb-q" data-i18n="feedback.question"></span>
       <button type="button" class="fb-btn ripple" id="fbUp" data-rating="1"
@@ -476,6 +314,176 @@
       </svg>
       <span data-i18n="disclaimer"></span>
     </p>
+  </section>
+
+  <!-- Сессия матча: после первого промпта работа идёт здесь. Выделил отрезок —
+       получил короткое продолжение для того же чата, без повторной роли тренера,
+       драфта и прочего, что модель уже прочитала. -->
+  <section class="card workspace reveal" id="workspace" aria-labelledby="sessionTitle" hidden>
+    <div class="workspace-head">
+      <div>
+        <h2 class="workspace-title" id="sessionTitle" data-i18n="session.title"></h2>
+        <p class="workspace-meta" data-i18n="session.sub"></p>
+      </div>
+    </div>
+
+    <div class="workspace-body">
+      <div class="explorer-grid">
+        <article class="explorer-panel" aria-labelledby="chartTitle">
+          <div class="explorer-panel-head">
+            <div>
+              <h3 class="explorer-panel-title" id="chartTitle"
+                  data-i18n="explorer.chart.title"></h3>
+              <p class="explorer-panel-sub" data-i18n="session.chart.sub"></p>
+            </div>
+          </div>
+          <div class="chart-tabs" id="chartTabs" role="group"
+               data-i18n-aria="explorer.chart.title">
+            <button type="button" class="chart-tab" data-series="gold" aria-pressed="true"></button>
+            <button type="button" class="chart-tab" data-series="xp" aria-pressed="false"></button>
+          </div>
+          <div class="chart-stage">
+            <svg class="overview-chart" id="overviewChart" viewBox="0 0 800 250"
+                 role="img" aria-labelledby="chartTitle chartSummary"></svg>
+          </div>
+          <p class="chart-summary" id="chartSummary" aria-live="polite"></p>
+        </article>
+
+        <aside class="explorer-panel" aria-labelledby="fightsTitle">
+          <div class="explorer-panel-head"><div>
+            <h3 class="explorer-panel-title" id="fightsTitle"
+                data-i18n="explorer.fights.title"></h3>
+            <p class="explorer-panel-sub" data-i18n="explorer.fights.sub"></p>
+          </div></div>
+          <div class="event-list fight-list" id="fightList"></div>
+        </aside>
+      </div>
+
+      <div class="followup-form">
+        <div class="field window-field" id="windowField">
+          <span class="lbl">
+            <span data-i18n="field.window"></span>
+            <button type="button" class="info" data-hint="hint.window" aria-expanded="false">?</button>
+            <span class="range-value" id="windowValue"></span>
+          </span>
+          <div class="range-wrap" id="rangeWrap">
+            <div class="range">
+              <div class="range-track"><div class="range-fill" id="rangeFill"></div></div>
+              <input type="range" id="windowStart" min="0" max="60" step="1" value="25"
+                     data-i18n-title="window.start">
+              <input type="range" id="windowEnd" min="0" max="60" step="1" value="35"
+                     data-i18n-title="window.end">
+              <span class="range-lane" aria-hidden="true">
+                <span class="range-bubble" id="bubbleStart"></span>
+                <span class="range-bubble" id="bubbleEnd"></span>
+                <span class="range-bubble range-bubble--merged is-off" id="bubbleBoth"></span>
+              </span>
+            </div>
+            <div class="range-ticks" id="rangeTicks" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lbl"><label for="followupNote" data-i18n="session.note"></label>
+            <span class="opt" data-i18n="field.note.optional"></span>
+          </span>
+          <input id="followupNote" type="text" data-i18n-ph="session.note.ph">
+        </div>
+        <div class="followup-actions">
+          <button type="button" class="btn ripple" id="followupBtn"></button>
+          <span class="status" id="followupStatus" aria-live="polite"></span>
+        </div>
+        <div class="panel panel-error" id="followupError" hidden></div>
+      </div>
+
+      <div class="followup-result" id="followupResult" hidden>
+        <div class="result-bar">
+          <div class="meta">
+            <span class="chip chip-accent" id="followupWindow"></span>
+            <span class="chip" id="followupTokens"></span>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn btn-ghost ripple" id="followupCopy"></button>
+          </div>
+        </div>
+        <pre class="prompt-text" id="followupText"></pre>
+      </div>
+
+      <details class="match-details" id="matchDetails">
+        <summary>
+          <svg class="more-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 6l6 6-6 6"/>
+          </svg>
+          <span data-i18n="session.details"></span>
+          <span class="more-summary" data-i18n="session.details.sub"></span>
+        </summary>
+        <div class="match-details-body">
+          <div class="overview-cards" id="overviewCards"></div>
+          <article class="explorer-panel" id="signalsPanel" aria-labelledby="signalsTitle">
+            <div class="explorer-panel-head">
+              <div>
+                <h3 class="explorer-panel-title" id="signalsTitle"
+                    data-i18n="explorer.signals.title"></h3>
+                <p class="explorer-panel-sub" data-i18n="explorer.signals.sub"></p>
+              </div>
+            </div>
+            <div class="signal-list" id="signalList"></div>
+            <p class="evidence-note" data-i18n="explorer.signals.note"></p>
+          </article>
+          <article class="explorer-panel scoreboard-panel" aria-labelledby="scoreboardTitle">
+            <div class="explorer-panel-head">
+              <div>
+                <h3 class="explorer-panel-title" id="scoreboardTitle"
+                    data-i18n="explorer.scoreboard.title"></h3>
+                <p class="explorer-panel-sub" data-i18n="explorer.scoreboard.sub"></p>
+              </div>
+            </div>
+            <div class="scoreboard-scroll">
+              <table class="scoreboard">
+                <thead><tr>
+                  <th data-i18n="explorer.scoreboard.hero"></th>
+                  <th data-i18n="explorer.scoreboard.role"></th>
+                  <th data-i18n="explorer.scoreboard.kda"></th>
+                  <th data-i18n="explorer.scoreboard.lh_dn"></th>
+                  <th data-i18n="explorer.scoreboard.gpm_xpm"></th>
+                  <th data-i18n="explorer.scoreboard.networth"></th>
+                  <th data-i18n="explorer.scoreboard.damage"></th>
+                </tr></thead>
+                <tbody id="scoreboardBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <div class="explorer-grid explorer-grid--even">
+            <article class="explorer-panel" aria-labelledby="draftTitle">
+              <div class="explorer-panel-head"><div>
+                <h3 class="explorer-panel-title" id="draftTitle"
+                    data-i18n="explorer.draft.title"></h3>
+                <p class="explorer-panel-sub" data-i18n="explorer.draft.sub"></p>
+              </div></div>
+              <div class="event-list" id="draftList"></div>
+            </article>
+            <article class="explorer-panel" aria-labelledby="buildsTitle">
+              <div class="explorer-panel-head"><div>
+                <h3 class="explorer-panel-title" id="buildsTitle"
+                    data-i18n="explorer.builds.title"></h3>
+                <p class="explorer-panel-sub" data-i18n="explorer.builds.sub"></p>
+              </div></div>
+              <div class="build-list" id="buildList"></div>
+            </article>
+          </div>
+
+          <article class="explorer-panel" aria-labelledby="objectivesTitle">
+            <div class="explorer-panel-head"><div>
+              <h3 class="explorer-panel-title" id="objectivesTitle"
+                  data-i18n="explorer.objectives.title"></h3>
+              <p class="explorer-panel-sub" data-i18n="explorer.objectives.sub"></p>
+            </div></div>
+            <div class="event-list" id="objectiveList"></div>
+          </article>
+        </div>
+      </details>
+    </div>
   </section>
 
   <p class="foot">
@@ -504,8 +512,8 @@
     <p data-i18n="info.important.body"></p>
 
     <!-- Коуч-цикл. Стоит перед советами намеренно: это не совет, а способ
-         пользоваться инструментом, и без него тайм-окно остаётся незамеченной
-         галкой в расширенных настройках. -->
+         пользоваться инструментом, и без него панель уточнения под промптом
+         легко принять за простую статистику. -->
     <h3 data-i18n="info.deep.title"></h3>
     <p data-i18n="info.deep.intro"></p>
     <ol>

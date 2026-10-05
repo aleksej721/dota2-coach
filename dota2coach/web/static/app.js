@@ -12,10 +12,10 @@
   const form = $("form"), statusEl = $("status"), errorEl = $("error"),
         warnEl = $("warning"), resultEl = $("result"), promptEl = $("promptText"),
         workspaceEl = $("workspace"),
-        submitBtn = $("submitBtn"), depthSeg = $("depth"), hintEl = $("hint"),
+        submitBtn = $("submitBtn"), hintEl = $("hint"),
         roleSel = $("roleSelect"), focusNote = $("focusNote"), moreEl = $("more"),
         moreToggle = $("moreToggle"), roleFilter = $("roleFilter"),
-        windowOn = $("windowOn"), wStart = $("windowStart"), wEnd = $("windowEnd");
+        wStart = $("windowStart"), wEnd = $("windowEnd");
 
   const STORE = "dota2coach:prefs";
   // Версия формата настроек. Настройки прошлых версий игнорируем: например,
@@ -23,9 +23,9 @@
   const PREFS_VERSION = 4;
   let lang = CFG.defaultLang;
   let theme = "dark";
-  let mode = "match";           // match | profile
+  let mode = "match";           // match | game | profile
+  const MODES = ["match", "game", "profile"];
   let heroOpen = false;          // раскрыто ли поле «имя моего героя»
-  let depthTouched = false;      // трогал ли пользователь тумблер глубины
   let currentFilename = "prompt.txt";
   let ticker = null;
   let focusNoteTimer = null;
@@ -33,6 +33,10 @@
   let phIndex = 0;
   let currentOverview = null;
   let chartSeries = "gold";
+  // Сессия матча: тело запроса, по которому собран основной промпт, вместе со
+  // скачанным браузером матчем. Промпт по отрезку отправляет его же, меняя
+  // только окно и вопрос, — матч второй раз не качается.
+  let session = null;
   // Контекст последнего разбора — он же контекст отзыва. account_id сюда
   // намеренно НЕ попадает: он опознаёт человека, а для оценки качества не нужен.
   let fbContext = null;
@@ -64,7 +68,6 @@
         advOpen: moreEl.dataset.open === "true",
         accountId: $("accountId").value.trim(),
         matches: $("matches").value.trim(),
-        depth: depthTouched ? depthSeg.dataset.value : null,
         role: roleSel.value || null,
         roleFilter: roleFilter.value || null,
         focus: $("focus").value,
@@ -105,8 +108,10 @@
      Режимы: показываем только поля выбранного режима
      ============================================================ */
   const applyMode = () => {
+    // data-only — список режимов через пробел: ID матча нужен и разбору игрока,
+    // и разбору игры целиком.
     for (const el of document.querySelectorAll("[data-only]")) {
-      el.hidden = el.dataset.only !== mode;
+      el.hidden = !el.dataset.only.split(" ").includes(mode);
     }
     // Положение скользящей шайбы задаётся атрибутом, а не инлайн-стилем:
     // анимацию описывает CSS, скрипт только сообщает состояние. Тем же
@@ -119,15 +124,15 @@
     for (const btn of document.querySelectorAll(".mode")) {
       btn.setAttribute("aria-selected", String(btn.dataset.mode === mode));
     }
-    $("groupBasicsText").textContent =
-      t(mode === "profile" ? "group.profile" : "group.player");
-    // Перечень в свёрнутом виде должен называть поля ТЕКУЩЕГО режима: в профиле
-    // нет ни фокуса, ни глубины, ни промежутка.
-    $("moreSummary").textContent =
-      t(mode === "profile" ? "advanced.summary.profile" : "advanced.summary");
-    $("footCmd").textContent = mode === "profile"
-      ? "python -m dota2coach profile <account_id> -n 10"
-      : "python -m dota2coach analyze <match_id> --me <account_id>";
+    $("groupBasicsText").textContent = t("group." + mode);
+    // Перечень в свёрнутом виде должен называть поля ТЕКУЩЕГО режима: у разбора
+    // игры целиком нет ни роли, ни фокуса.
+    $("moreSummary").textContent = t("advanced.summary." + mode);
+    $("footCmd").textContent = {
+      match: "python -m dota2coach analyze <match_id> --me <account_id>",
+      game: "python -m dota2coach analyze <match_id> --game",
+      profile: "python -m dota2coach profile <account_id> -n 10",
+    }[mode];
     setBusy(false);
   };
 
@@ -138,6 +143,7 @@
       // Результат предыдущего режима к новому отношения не имеет.
       hide(errorEl, warnEl, workspaceEl, resultEl);
       currentOverview = null;
+      session = null;
       closeHint();
       applyMode(); savePrefs();
     });
@@ -152,11 +158,7 @@
   };
 
   moreToggle.addEventListener("click", () => {
-    const open = moreEl.dataset.open !== "true";
-    setAdvanced(open);
-    // У свёрнутого блока ширина дорожки равна нулю, и позиции ручек считались
-    // бы по нулю. Пересчитываем ровно в тот момент, когда дорожку стало видно.
-    if (open) syncRange();
+    setAdvanced(moreEl.dataset.open !== "true");
     savePrefs();
   });
 
@@ -219,10 +221,37 @@
       one.style.left = clamp(posA, halfA) + "px";
       two.style.left = clamp(posB, halfB) + "px";
     }
-    $("windowValue").textContent = windowOn.checked
-      ? t("window.range", { start: a, end: b })
-      : t("window.off");
-    $("rangeWrap").dataset.off = String(!windowOn.checked);
+    $("windowValue").textContent = t("window.range", { start: a, end: b });
+    $("followupBtn").disabled = !session || followupBusy;
+  };
+
+  /* Шкала ползунка — длина этого матча, а не условные 80 минут: иначе в
+     короткой игре половина дорожки вела бы в пустоту. */
+  const setRangeMax = (minutes) => {
+    const max = Math.max(MIN_SPAN + 1, minutes);
+    for (const input of [wStart, wEnd]) input.max = max;
+    const step = max > 60 ? 20 : max > 30 ? 10 : 5;
+    const ticks = $("rangeTicks");
+    ticks.replaceChildren();
+    for (let v = 0; v <= max; v += step) {
+      if (max - v < step / 2 && v !== 0) continue;   // не слипаться с последней
+      const tick = makeNode("span", "", v);
+      tick.style.setProperty("--v", v / max);
+      ticks.append(tick);
+    }
+    const last = makeNode("span", "", max);
+    last.style.setProperty("--v", 1);
+    ticks.append(last);
+  };
+
+  const setWindow = (start, end) => {
+    const max = Number(wEnd.max);
+    start = Math.max(0, Math.min(max - MIN_SPAN, Math.round(start)));
+    end = Math.max(start + MIN_SPAN, Math.min(max, Math.round(end)));
+    wStart.value = start;
+    wEnd.value = end;
+    syncRange();
+    refreshExplorerWindow();
   };
 
   for (const input of [wStart, wEnd]) {
@@ -249,11 +278,6 @@
   for (const ev of ["pointerup", "pointercancel"]) {
     window.addEventListener(ev, () => setDragging(false));
   }
-  windowOn.addEventListener("change", () => {
-    syncRange();
-    refreshExplorerWindow();
-    if (windowOn.checked) wStart.focus({ preventScroll: true });
-  });
 
   /* ============================================================
      Язык: перерисовываем подписи, плейсхолдеры и содержимое селектов
@@ -427,13 +451,13 @@
 
     $("fbSend").textContent = t("feedback.send");
     $("copyBtn").textContent = t("result.copy");
+    $("followupCopy").textContent = t("result.copy");
+    if (!followupBusy) $("followupBtn").textContent = t("session.submit");
+    renderChartTabs();
     $("downloadBtn").textContent = t("result.download");
     $("chipNote").textContent = t("result.with_note");
-    if ($("chipRole").textContent) {
-      const role = roleSel.value;
-      $("chipRole").textContent = t("result.role", {
-        role: role ? t("role." + role) : t("role.auto"),
-      });
+    if ($("chipRole").textContent && roleSel.value) {
+      $("chipRole").textContent = t("result.role", { role: t("role." + roleSel.value) });
     }
     if (currentOverview) renderOverview(currentOverview);
     if (!hintEl.hidden) hintEl.hidden = true;
@@ -555,24 +579,6 @@
   /* ============================================================
      Форма
      ============================================================ */
-  depthSeg.addEventListener("change", (e) => {
-    if (e.target.name !== "depth") return;
-    depthSeg.dataset.value = e.target.value;
-    depthTouched = true;
-  });
-
-  const setDepth = (value) => {
-    depthSeg.dataset.value = value;
-    depthSeg.querySelector(`input[value="${value}"]`).checked = true;
-  };
-
-  // Пока глубину не трогали руками, она следует за дефолтом выбранной модели.
-  $("model").addEventListener("change", () => {
-    if (depthTouched) return;
-    const m = CFG.models.find((x) => x.code === $("model").value);
-    if (m) setDepth(m.defaultDepth);
-  });
-
   roleSel.addEventListener("change", () => { renderFocusOptions(true); savePrefs(); });
 
   $("heroToggle").addEventListener("click", () => {
@@ -609,7 +615,7 @@
 
   const startTicker = () => {
     const t0 = Date.now();
-    const stages = STAGES[mode];
+    const stages = STAGES[mode === "profile" ? "profile" : "match"];
     const tick = () => {
       const sec = Math.round((Date.now() - t0) / 1000);
       let key = stages[0][1];
@@ -776,6 +782,7 @@
     closeHint();
     hide(errorEl, warnEl, workspaceEl, resultEl);
     currentOverview = null;
+    session = null;
 
     const accountId = numOrNull($("accountId").value);
     const request = mode === "profile"
@@ -796,6 +803,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showError(res.status, data); return; }
+      if (request.url === "/api/analyze") session = { body: request.body, mode };
       showResult(data);
     } catch {
       showPanel(errorEl, t("err.offline"), t("err.offline.body"));
@@ -808,6 +816,17 @@
   function buildMatchRequest(accountId) {
     const matchId = parseMatchId($("matchId").value);
     if (!matchId) { showPanel(errorEl, t("err.match"), t("err.match.body")); return null; }
+
+    const note = $("note").value.trim() || null;
+    // Разбор игры целиком: никого не ищем, роль и фокус не нужны. Глубину
+    // не передаём вовсе — сервер возьмёт дефолт выбранной модели.
+    if (mode === "game") {
+      return {
+        url: "/api/analyze",
+        body: { match_id: matchId, whole_game: true, model: $("model").value,
+                lang: lang, note: note },
+      };
+    }
 
     const hero = $("hero").value.trim();
     if (accountId === null && hero === "") {
@@ -823,15 +842,12 @@
         match_id: matchId,
         account_id: accountId,
         hero: hero || null,
-        depth: depthSeg.dataset.value,
         role: roleSel.value || null,
         focus: $("focus").value,
         model: $("model").value,
         lang: lang,
-        note: $("note").value.trim() || null,
+        note: note,
         mmr: $("mmr").value.trim() || null,
-        window_start: windowOn.checked ? Number(wStart.value) : null,
-        window_end: windowOn.checked ? Number(wEnd.value) : null,
       },
     };
   }
@@ -907,15 +923,14 @@
     return role || "—";
   };
 
-  const activeExplorerWindow = () => windowOn.checked
-    ? { start: Number(wStart.value), end: Number(wEnd.value) }
-    : null;
+  const isNeutral = (overview) => Boolean(overview && overview.perspective
+                                          && overview.perspective.neutral);
 
-  const eventInsideWindow = (seconds, windowState) => !windowState
-    || (Number(seconds) / 60 >= windowState.start && Number(seconds) / 60 <= windowState.end);
+  // Выбранный в панели уточнения отрезок, в минутах.
+  const selectedWindow = () => ({ start: Number(wStart.value), end: Number(wEnd.value) });
 
-  const fightInsideWindow = (fight, windowState) => !windowState
-    || (Number(fight.end) / 60 >= windowState.start && Number(fight.start) / 60 <= windowState.end);
+  const fightInsideWindow = (fight, windowState) =>
+    Number(fight.end) / 60 >= windowState.start && Number(fight.start) / 60 <= windowState.end;
 
   function renderOverviewCards(overview, me) {
     const host = $("overviewCards");
@@ -945,6 +960,7 @@
     const host = $("signalList");
     host.replaceChildren();
     const signals = Array.isArray(overview.signals) ? overview.signals : [];
+    $("signalsPanel").hidden = isNeutral(overview);
     if (!signals.length) {
       host.append(makeNode("div", "empty-state", t("explorer.signals.empty")));
       return;
@@ -1077,9 +1093,8 @@
     const host = $("buildList");
     host.replaceChildren();
     let itemCount = 0;
-    const windowState = activeExplorerWindow();
     for (const player of overview.players || []) {
-      const items = (player.items || []).filter((item) => item.key && eventInsideWindow(item.time, windowState));
+      const items = (player.items || []).filter((item) => item.key);
       if (!items.length) continue;
       itemCount += items.length;
       const row = makeNode("div", "build-row");
@@ -1096,15 +1111,14 @@
       row.append(hero, flow);
       host.append(row);
     }
-    if (!itemCount) host.append(makeNode("div", "empty-state",
-      windowState ? t("explorer.empty") : t("explorer.builds.empty")));
+    if (!itemCount) host.append(makeNode("div", "empty-state", t("explorer.builds.empty")));
   }
 
   function renderObjectives(overview) {
     const host = $("objectiveList");
     host.replaceChildren();
     const objectives = (overview.objectives || [])
-      .filter((objective) => !objective.minor && eventInsideWindow(objective.time, activeExplorerWindow()))
+      .filter((objective) => !objective.minor)
       .sort((a, b) => Number(a.time) - Number(b.time));
     if (!objectives.length) { host.append(emptyState()); return; }
 
@@ -1125,25 +1139,28 @@
     }
   }
 
+  /* Драки — главный способ выбрать момент: клик ставит отрезок вокруг драки
+     с запасом в пару минут до и после, чтобы в окно попал и заход в бой. */
   function renderFights(overview) {
     const host = $("fightList");
     host.replaceChildren();
-    const windowState = activeExplorerWindow();
+    const windowState = selectedWindow();
     const fights = [...(overview.teamfights || [])]
-      .filter((fight) => fightInsideWindow(fight, windowState))
       .sort((a, b) => Number(a.start) - Number(b.start));
     if (!fights.length) { host.append(emptyState()); return; }
+    const neutral = isNeutral(overview);
     const radiant = overview.perspective && overview.perspective.side === "radiant";
     for (const fight of fights) {
       const row = makeNode("button", "event-row event-action");
       row.type = "button";
+      row.setAttribute("aria-pressed", String(fightInsideWindow(fight, windowState)));
       const body = makeNode("div");
       const range = `${formatClock(fight.start)}–${formatClock(fight.end)}`;
       row.setAttribute("aria-label", t("explorer.fight.open", { range }));
       const teamGold = radiant ? fight.radiant_gold_delta : fight.dire_gold_delta;
       body.append(
         makeNode("div", "event-main", t("explorer.fight.row", { index: fight.index, range })),
-        makeNode("span", "event-note", t("explorer.fight.note", {
+        makeNode("span", "event-note", t(neutral ? "explorer.fight.note.game" : "explorer.fight.note", {
           damage: formatNumber(fight.me && fight.me.damage),
           gold: formatSigned(teamGold),
           deaths: formatNumber(fight.deaths),
@@ -1151,17 +1168,7 @@
       );
       row.append(makeNode("span", "event-time", formatClock(fight.start)), body);
       row.addEventListener("click", () => {
-        const max = Number(wEnd.max) || 80;
-        const start = Math.max(0, Math.min(max - 1, Math.floor(Number(fight.start) / 60) - 2));
-        const end = Math.max(start + 1, Math.min(max, Math.ceil(Number(fight.end) / 60) + 2));
-        setAdvanced(true);
-        windowOn.checked = true;
-        wStart.value = start;
-        wEnd.value = end;
-        syncRange();
-        refreshExplorerWindow();
-        savePrefs();
-        $("rangeWrap").scrollIntoView({ behavior: "smooth", block: "center" });
+        setWindow(Math.floor(Number(fight.start) / 60) - 2, Math.ceil(Number(fight.end) / 60) + 2);
       });
       host.append(row);
     }
@@ -1181,40 +1188,49 @@
     return formatNumber(Math.round(value));
   };
 
+  /* График всегда показывает матч целиком, а выбранный отрезок — подсветкой
+     поверх. Отрезок можно протянуть прямо по графику: так «выделить момент»
+     и задумано, ползунок под ним — для точной подстройки. */
+  const CHART = { left: 62, right: 18, top: 14, bottom: 34, width: 800 - 62 - 18, height: 250 - 14 - 34 };
+
+  const chartValues = () => {
+    const economy = (currentOverview && currentOverview.economy) || {};
+    const raw = chartSeries === "xp" ? economy.team_xp_adv : economy.team_gold_adv;
+    return (Array.isArray(raw) ? raw : []).map(Number).filter(Number.isFinite);
+  };
+
+  // Минута матча по точке на графике: ось X — минуты, по точке на минуту.
+  const chartMinute = (event) => {
+    const svg = $("overviewChart");
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return 0;
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    const span = Math.max(1, chartValues().length - 1);
+    const ratio = (point.x - CHART.left) / CHART.width;
+    return Math.max(0, Math.min(span, ratio * span));
+  };
+
+  function renderChartTabs() {
+    const neutral = isNeutral(currentOverview);
+    for (const tab of $("chartTabs").querySelectorAll("[data-series]")) {
+      tab.textContent = t((neutral ? "game.chart." : "explorer.chart.") + tab.dataset.series);
+    }
+  }
+
   function renderChart() {
     if (!currentOverview) return;
     const svg = $("overviewChart");
     svg.replaceChildren();
-    const me = (currentOverview.players || []).find((player) => player.is_me) || {};
-    const config = {
-      gold: [currentOverview.economy && currentOverview.economy.team_gold_adv, "explorer.chart.gold", true],
-      xp: [currentOverview.economy && currentOverview.economy.team_xp_adv, "explorer.chart.xp", true],
-      networth: [me.series && me.series.net_worth, "explorer.chart.networth", false],
-      last_hits: [me.series && me.series.last_hits, "explorer.chart.last_hits", false],
-    }[chartSeries];
-    let values = (config && Array.isArray(config[0]) ? config[0] : []).map(Number).filter(Number.isFinite);
-    let minuteOffset = 0;
-    const windowState = activeExplorerWindow();
-    if (windowState) {
-      minuteOffset = Math.max(0, Math.floor(windowState.start));
-      values = values.slice(minuteOffset, Math.floor(windowState.end) + 1);
-    }
+    const values = chartValues();
     if (!values.length) {
       $("chartSummary").textContent = t("explorer.empty");
       svg.append(makeSvg("text", { x: 400, y: 125, "text-anchor": "middle", class: "chart-axis-label" }, t("explorer.empty")));
       return;
     }
 
-    const advantage = config[2];
-    const label = t(config[1]);
-    const left = 62, right = 18, top = 14, bottom = 34, width = 800 - left - right, height = 250 - top - bottom;
-    let min = Math.min(...values), max = Math.max(...values);
-    if (advantage) {
-      const edge = Math.max(1, Math.abs(min), Math.abs(max));
-      min = -edge; max = edge;
-    } else {
-      min = 0; max = Math.max(1, max);
-    }
+    const { left, top, width, height } = CHART;
+    const edge = Math.max(1, ...values.map(Math.abs));
+    const min = -edge, max = edge;
     const xAt = (index) => left + width * index / Math.max(1, values.length - 1);
     const yAt = (value) => top + height * (max - value) / Math.max(1, max - min);
 
@@ -1224,68 +1240,119 @@
       const value = max - (max - min) * ratio;
       svg.append(
         makeSvg("line", { x1: left, y1: y, x2: left + width, y2: y,
-          class: Math.abs(value) < (max - min) / 100 ? "chart-zero-line" : "chart-grid-line" }),
+          class: index === 2 ? "chart-zero-line" : "chart-grid-line" }),
         makeSvg("text", { x: left - 10, y: y + 4, "text-anchor": "end", class: "chart-axis-label" }, formatAxis(value)),
       );
     }
-    const xTicks = [...new Set([0, Math.round((values.length - 1) / 2), values.length - 1])];
-    for (const index of xTicks) {
-      svg.append(makeSvg("text", { x: xAt(index), y: 242, "text-anchor": "middle", class: "chart-axis-label" }, `${index + minuteOffset}m`));
+
+    const windowState = selectedWindow();
+    const last = values.length - 1;
+    const from = Math.min(windowState.start, last), to = Math.min(windowState.end, last);
+    svg.append(makeSvg("rect", {
+      x: xAt(from), y: top, width: Math.max(2, xAt(to) - xAt(from)), height,
+      class: "chart-window",
+    }));
+
+    const step = last > 60 ? 20 : last > 30 ? 10 : 5;
+    for (let minute = 0; minute <= last; minute += step) {
+      svg.append(makeSvg("text", { x: xAt(minute), y: 242, "text-anchor": "middle", class: "chart-axis-label" }, `${minute}m`));
     }
 
     const points = values.map((value, index) => [xAt(index), yAt(value)]);
     const line = points.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
-    const baseline = yAt(advantage ? 0 : min);
+    const baseline = yAt(0);
     const area = `${line} L${points.at(-1)[0].toFixed(2)},${baseline.toFixed(2)} L${points[0][0].toFixed(2)},${baseline.toFixed(2)} Z`;
     svg.append(
       makeSvg("path", { d: area, class: "chart-area" }),
       makeSvg("path", { d: line, class: "chart-path" }),
       makeSvg("circle", { cx: points.at(-1)[0], cy: points.at(-1)[1], r: 4, class: "chart-dot" }),
     );
-    $("chartSummary").textContent = t("explorer.chart.summary", {
-      label,
-      start: formatSigned(values[0]),
-      end: formatSigned(values.at(-1)),
-      min: formatSigned(Math.min(...values)),
-      max: formatSigned(Math.max(...values)),
+    const inside = values.slice(from, to + 1);
+    $("chartSummary").textContent = t("session.chart.summary", {
+      start: windowState.start,
+      end: windowState.end,
+      from: formatSigned(inside[0]),
+      to: formatSigned(inside.at(-1)),
     });
   }
+
+  // Протягивание по графику: нажали — начало отрезка, отпустили — конец.
+  let chartDrag = null;
+  $("overviewChart").addEventListener("pointerdown", (event) => {
+    if (!currentOverview || event.button !== 0) return;
+    event.preventDefault();
+    chartDrag = chartMinute(event);
+    $("overviewChart").setPointerCapture(event.pointerId);
+  });
+  $("overviewChart").addEventListener("pointermove", (event) => {
+    if (chartDrag === null) return;
+    const here = chartMinute(event);
+    // Пока тянут меньше минуты, это ещё клик, а не выделение.
+    if (Math.abs(here - chartDrag) < 1) return;
+    setWindow(Math.floor(Math.min(here, chartDrag)), Math.ceil(Math.max(here, chartDrag)));
+  });
+  const endChartDrag = (event) => {
+    if (chartDrag === null) return;
+    const here = chartMinute(event);
+    // Простой клик ставит отрезок ±2 минуты вокруг точки.
+    if (Math.abs(here - chartDrag) < 1) setWindow(Math.round(here) - 2, Math.round(here) + 2);
+    chartDrag = null;
+  };
+  $("overviewChart").addEventListener("pointerup", endChartDrag);
+  $("overviewChart").addEventListener("pointercancel", () => { chartDrag = null; });
 
   function renderOverview(overview) {
     currentOverview = overview;
     const match = overview.match || {};
     const perspective = overview.perspective || {};
+    const neutral = isNeutral(overview);
     const me = (overview.players || []).find((player) => player.is_me) || {};
-    $("workspaceSource").textContent = t("explorer.source");
-    $("workspaceQuality").textContent = t(overview.quality && overview.quality.parsed
-      ? "explorer.quality.minute" : "explorer.quality.partial");
-    $("workspaceTitle").textContent = t("explorer.title", {
-      hero: perspective.hero || me.hero || "—",
-      match_id: match.match_id || "—",
-    });
-    $("workspaceMeta").textContent = t("explorer.meta", {
-      side: t("result.side." + (perspective.side || "radiant")),
-      result: t(perspective.win ? "result.win" : "result.lose"),
-      duration: formatDuration(match.duration),
-      patch: match.patch || "—",
-    });
-    renderOverviewCards(overview, me);
+    const winner = match.radiant_win ? "radiant" : "dire";
+    $("workspaceTitle").textContent = neutral
+      ? t("game.title", { match_id: match.match_id || "—" })
+      : t("explorer.title", { hero: perspective.hero || me.hero || "—",
+                              match_id: match.match_id || "—" });
+    $("workspaceMeta").textContent = neutral
+      ? t("game.meta", {
+          winner: t("result.side." + winner),
+          score: `${match.radiant_kills || 0}–${match.dire_kills || 0}`,
+          duration: formatDuration(match.duration),
+          patch: match.patch || "—",
+        })
+      : t("explorer.meta", {
+          side: t("result.side." + (perspective.side || "radiant")),
+          result: t(perspective.win ? "result.win" : "result.lose"),
+          duration: formatDuration(match.duration),
+          patch: match.patch || "—",
+        });
+    $("overviewCards").hidden = neutral;
+    if (!neutral) renderOverviewCards(overview, me);
     renderSignals(overview);
     renderScoreboard(overview);
     renderDraft(overview);
+    renderBuilds(overview);
+    renderObjectives(overview);
+    renderChartTabs();
     refreshExplorerWindow();
   }
 
   function refreshExplorerWindow() {
     if (!currentOverview) return;
-    const windowState = activeExplorerWindow();
-    $("workspaceRange").textContent = windowState
-      ? t("explorer.range.active", windowState)
-      : t("explorer.range.all");
-    renderBuilds(currentOverview);
-    renderObjectives(currentOverview);
     renderFights(currentOverview);
     renderChart();
+  }
+
+  /* Отрезок по умолчанию — первая драка: с неё чаще всего и начинают. Если
+     драк нет, берём первые десять минут. */
+  function initWindow(overview) {
+    const minutes = Math.max(2, Math.ceil(Number((overview.match || {}).duration || 0) / 60));
+    setRangeMax(minutes);
+    const fights = [...(overview.teamfights || [])].sort((a, b) => Number(a.start) - Number(b.start));
+    if (fights.length) {
+      setWindow(Math.floor(Number(fights[0].start) / 60) - 2, Math.ceil(Number(fights[0].end) / 60) + 2);
+    } else {
+      setWindow(0, Math.min(10, minutes));
+    }
   }
 
   $("chartTabs").addEventListener("click", (event) => {
@@ -1298,32 +1365,37 @@
     renderChart();
   });
 
-  $("openPromptBtn").addEventListener("click", () => {
-    resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-
   function showResult(data) {
     currentFilename = data.filename || "prompt.txt";
     resetFeedback(data);
     promptEl.textContent = data.prompt;
-    $("chipSize").textContent =
-      (data.size_bytes / 1024).toFixed(1) + " " + (lang === "en" ? "KB" : "КБ");
     $("chipTokens").textContent = t("result.tokens", { n: estimateTokens(data.prompt) });
 
     const m = CFG.models.find((x) => x.code === data.model);
     $("chipModel").textContent = m ? m.label : data.model;
 
     const isProfile = mode === "profile";
+    const isGame = mode === "game";
+    hide($("followupResult"), $("followupError"));
+    $("followupNote").value = "";
+    $("resultHead").hidden = isProfile || !data.overview;
+    // Сессия открывается сразу, а подробности — свёрнутыми: к ним приходят
+    // за конкретной цифрой, а не читают подряд.
+    $("matchDetails").open = false;
     if (!isProfile && data.overview) {
-      renderOverview(data.overview);
+      // Сначала показываем секцию: шкала ползунка меряет ширину дорожки, а у
+      // скрытого блока она нулевая.
       workspaceEl.hidden = false;
+      renderOverview(data.overview);
+      initWindow(data.overview);
     } else {
       currentOverview = null;
       workspaceEl.hidden = true;
     }
-    // Сторона игрока — только у одиночного разбора: у профиля сторон много.
+    // Сторона игрока — только у разбора игрока: у профиля сторон много, а у
+    // игры целиком победитель уже назван в заголовке.
     const badge = $("sideBadge");
-    badge.hidden = isProfile || !data.side;
+    badge.hidden = isProfile || isGame || !data.side;
     if (!badge.hidden) {
       resultEl.dataset.side = data.side;
       $("sideText").textContent = t("result.side." + data.side) + " · "
@@ -1332,34 +1404,29 @@
       delete resultEl.dataset.side;
     }
 
-    $("chipDepth").hidden = isProfile;
-    $("chipFocus").hidden = isProfile;
+    // Фокус показываем, только если он не общий: «focus: full» ничего не сообщает.
+    $("chipFocus").hidden = isProfile || !data.focus || data.focus === "full";
+    $("chipFocus").textContent = data.focus ? t("focus." + data.focus) : "";
     $("chipMatches").hidden = !isProfile;
     $("chipUnparsed").hidden = !(isProfile && data.unparsed);
     $("chipWinrate").hidden = !isProfile;
-    $("chipWindow").hidden = !data.window;
 
-    if (!isProfile) {
-      $("chipDepth").textContent = "depth: " + data.depth;
-      $("chipFocus").textContent = "focus: " + data.focus;
-      if (data.window) {
-        $("chipWindow").textContent = t("result.window", { range: data.window });
-      }
-    } else {
+    if (isProfile) {
       $("chipMatches").textContent = t("result.matches", {
         analyzed: data.analyzed, requested: data.requested,
       });
-      $("chipWinrate").hidden = false;
       $("chipWinrate").textContent = t("result.winrate", { pct: data.winrate });
       if (data.unparsed) {
         $("chipUnparsed").textContent = t("result.unparsed", { n: data.unparsed });
       }
     }
 
-    const selectedRole = data.role || (isProfile ? roleFilter.value : roleSel.value);
-    $("chipRole").textContent = t("result.role", {
-      role: selectedRole ? t("role." + selectedRole) : t(isProfile ? "role.any" : "role.auto"),
-    });
+    // Роль показываем, только если её выбрали: «роль: Auto» ничего не сообщает.
+    const selectedRole = isGame ? null
+      : data.role || (isProfile ? roleFilter.value : roleSel.value);
+    $("chipRole").hidden = !selectedRole;
+    $("chipRole").textContent = selectedRole
+      ? t("result.role", { role: t("role." + selectedRole) }) : "";
     $("chipNote").hidden = !data.has_note;
 
     resultEl.hidden = false;
@@ -1368,11 +1435,10 @@
       showPanel(warnEl, t("err.warn_title"),
                 body.startsWith("warn.") ? t("warn.unparsed") : body);
     }
-    (workspaceEl.hidden ? resultEl : workspaceEl)
-      .scrollIntoView({ behavior: "smooth", block: "nearest" });
+    resultEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  function showError(status, data) {
+  function showError(status, data, target = errorEl) {
     const detail = data && data.detail;
     const kind = detail && typeof detail === "object" ? detail.kind : null;
     const title = t("err." + status) !== "err." + status ? t("err." + status) : t("err.generic");
@@ -1390,8 +1456,62 @@
       body += "\n" + t("err.roster") + detail.message.split("\n").slice(1).join("\n")
                                              .replace(/^[^:]*:/, "");
     }
-    showPanel(errorEl, title, body);
+    showPanel(target, title, body);
   }
+
+  /* ============================================================
+     Промпт по отрезку: короткое продолжение для того же чата
+     ============================================================ */
+  /* Уходит то же тело запроса, что и у основного промпта (с уже скачанным
+     матчем), плюс окно и флаг followup. Сервер отвечает коротким текстом:
+     без роли тренера, драфта и методики — модель их уже прочитала. */
+  let followupBusy = false;
+
+  const setFollowupBusy = (busy) => {
+    followupBusy = busy;
+    const btn = $("followupBtn");
+    btn.disabled = busy || !session;
+    btn.innerHTML = busy
+      ? '<span class="wave" aria-hidden="true"><i></i><i></i><i></i></span>' + t("session.busy")
+      : t("session.submit");
+  };
+
+  $("followupBtn").addEventListener("click", async () => {
+    if (!session || followupBusy) return;
+    const windowState = selectedWindow();
+    hide($("followupError"));
+    setFollowupBusy(true);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...session.body,
+          followup: true,
+          lang: lang,
+          // Вопрос основного разбора модель уже видела; здесь — свой, про отрезок.
+          note: $("followupNote").value.trim() || null,
+          window_start: windowState.start,
+          window_end: windowState.end,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showError(res.status, data, $("followupError")); return; }
+      $("followupText").textContent = data.prompt;
+      $("followupWindow").textContent = t("window.range", windowState);
+      $("followupTokens").textContent = t("result.tokens", { n: estimateTokens(data.prompt) });
+      $("followupResult").hidden = false;
+      $("followupResult").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch {
+      showPanel($("followupError"), t("err.offline"), t("err.offline.body"));
+    } finally {
+      setFollowupBusy(false);
+    }
+  });
+
+  $("followupNote").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); $("followupBtn").click(); }
+  });
 
   /* ============================================================
      Фидбэк: оценка отправляется сразу по клику, комментарий — опционально
@@ -1404,11 +1524,11 @@
       mode: mode,
       lang: lang,
       model: data.model || $("model").value,
-      match_id: mode === "match" ? parseMatchId($("matchId").value) : null,
+      match_id: mode !== "profile" ? parseMatchId($("matchId").value) : null,
       role: mode === "match" ? (data.role || roleSel.value || null)
-                             : (roleFilter.value || null),
-      depth: mode === "match" ? (data.depth || null) : null,
-      focus: mode === "match" ? (data.focus || null) : null,
+                             : mode === "profile" ? (roleFilter.value || null) : null,
+      depth: mode !== "profile" ? (data.depth || null) : null,
+      focus: mode !== "profile" ? (data.focus || null) : null,
       window: data.window || null,
       matches: mode === "profile" ? (data.analyzed || null) : null,
       prompt_bytes: data.size_bytes || null,
@@ -1491,18 +1611,20 @@
     }, 1800);
   };
 
-  $("copyBtn").addEventListener("click", async (e) => {
+  const copyFrom = (pre) => async (e) => {
     const btn = e.currentTarget;
     try {
-      await navigator.clipboard.writeText(promptEl.textContent);
+      await navigator.clipboard.writeText(pre.textContent);
       confirmAction(btn, "result.copied", "result.copy");
     } catch {
       const r = document.createRange();
-      r.selectNodeContents(promptEl);
+      r.selectNodeContents(pre);
       const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
       confirmAction(btn, "result.selected", "result.copy");
     }
-  });
+  };
+  $("copyBtn").addEventListener("click", copyFrom(promptEl));
+  $("followupCopy").addEventListener("click", copyFrom($("followupText")));
 
   $("downloadBtn").addEventListener("click", (e) => {
     const blob = new Blob([promptEl.textContent], { type: "text/plain;charset=utf-8" });
@@ -1529,17 +1651,12 @@
   const browserLang = (navigator.language || "").slice(0, 2);
   lang = prefs.lang || (CFG.strings[browserLang] ? browserLang : CFG.defaultLang);
   theme = prefs.theme === "light" ? "light" : "dark";
-  mode = prefs.mode === "profile" ? "profile" : "match";
+  mode = MODES.includes(prefs.mode) ? prefs.mode : "match";
   setAdvanced(prefs.advOpen === true);
   if (prefs.accountId) $("accountId").value = prefs.accountId;
   if (prefs.matches) $("matches").value = prefs.matches;
   if (prefs.mmr) $("mmr").value = prefs.mmr;
   if (prefs.model && CFG.models.some((m) => m.code === prefs.model)) modelSel.value = prefs.model;
-  if (prefs.depth) { depthTouched = true; setDepth(prefs.depth); }
-  else {
-    const m = CFG.models.find((x) => x.code === modelSel.value);
-    if (m) setDepth(m.defaultDepth);
-  }
 
   langSel.value = lang;
   langSel.addEventListener("change", () => { lang = langSel.value; applyLang(); savePrefs(); });

@@ -769,9 +769,6 @@ UI = {
     "lang_name": "English",
     "title": "dota2coach",
     "tagline": "Dota 2 match → a ready-made prompt for an LLM",
-    "group.player": "Match and player",
-    "group.analysis": "Review setup",
-    "group.request": "Player context",
 
     "field.match": "Match ID or link",
     "field.match.ph": "match ID or link",
@@ -788,7 +785,6 @@ UI = {
     "mode.profile.sub": "patterns across N matches",
     "group.profile": "Player and sample",
     "advanced.toggle": "Advanced settings",
-    "advanced.summary": "role, focus, depth, model, window, question",
     "advanced.summary.profile": "hero, position, model, question, level",
 
     "field.matches": "How many recent matches",
@@ -805,15 +801,11 @@ UI = {
     "pstage.90": "Almost there. Folding the sample into patterns.",
     "result.matches": "matches: {analyzed}/{requested}",
     "result.unparsed": "unparsed: {n}",
-    "result.window": "window: {range} min",
 
     "field.window": "Game window",
-    "field.window.enable": "analyze a specific stretch",
-    "window.off": "whole match",
     "window.range": "{start}–{end} min",
     "window.start": "window start, minutes",
     "window.end": "window end, minutes",
-    "field.depth": "Depth",
     "field.role": "My role",
     "field.focus": "Focus",
     "field.model": "Model",
@@ -868,12 +860,6 @@ UI = {
     "result.winrate": "win rate {pct}%",
     "result.role": "role: {role}",
 
-    "explorer.open_prompt": "Open prompt",
-    "explorer.source": "OpenDota",
-    "explorer.quality.minute": "minute-level data",
-    "explorer.quality.partial": "partial data",
-    "explorer.range.all": "full match",
-    "explorer.range.active": "window {start}–{end} min",
     "explorer.title": "{hero} · match {match_id}",
     "explorer.meta": "{side} · {result} · {duration} · patch {patch}",
     "explorer.metric.kda": "KDA",
@@ -883,12 +869,8 @@ UI = {
     "explorer.metric.team_kills": "{kills} team kills",
     "explorer.metric.level": "level {level}",
     "explorer.chart.title": "Match trajectory",
-    "explorer.chart.granularity": "OpenDota · one point per minute",
     "explorer.chart.gold": "My team's gold advantage",
     "explorer.chart.xp": "My team's XP advantage",
-    "explorer.chart.networth": "My net worth",
-    "explorer.chart.last_hits": "My last hits",
-    "explorer.chart.summary": "{label}: {start} → {end}; low {min}, high {max}.",
     "explorer.signals.title": "Signals to inspect",
     "explorer.signals.sub": "Compared with matches on this hero",
     "explorer.signals.note":
@@ -926,7 +908,6 @@ UI = {
     "explorer.objective.tormentor": "Tormentor",
     "explorer.objective.courier": "Courier",
     "explorer.fights.title": "Teamfights",
-    "explorer.fights.sub": "Windows you can open for a deeper review",
     "explorer.fight.row": "Fight {index} · {range}",
     "explorer.fight.note": "my damage {damage} · Δgold {gold} · deaths {deaths}",
     "explorer.fight.open": "Open window {range}",
@@ -1024,10 +1005,6 @@ UI = {
         "chat — and it breaks your game down like a coach. Far more accurate than "
         "describing the game to an AI from memory.",
     "info.can.title": "What you can do",
-    "info.can.1": "Break down a single match (laning, fights, timings, benchmarks).",
-    "info.can.2": "Build a profile from your last N games and find repeating mistakes.",
-    "info.can.3": "Focus on a role, a stage, or a specific stretch of the game.",
-    "info.can.4": "Add your own question — the analysis will be about it.",
     "info.important.title": "Worth understanding",
     "info.important.body":
         "The tool gives you DATA and a prompt; the quality of the analysis depends on the "
@@ -1039,10 +1016,6 @@ UI = {
     "info.deep.2":
         "The AI will point at the decisive moment itself: a fight, or the stretch where the "
         "advantage slipped away.",
-    "info.deep.3":
-        "Open that window in the advanced settings and regenerate the prompt — inside the "
-        "window the data comes undecimated: all ten heroes per minute, purchases, kills "
-        "and fights.",
     "info.deep.4":
         "Answer the AI's follow-up questions. It asks about what the data does not "
         "contain: whether an ability window was up, whether you engaged or got caught.",
@@ -1076,27 +1049,14 @@ UI = {
         "The selected position overrides automatic detection for your hero only. It changes "
         "the evaluation criteria and which evidence is prioritized. Leave Auto selected when "
         "the match-derived position is correct.",
-    "hint.depth":
-        "quick — the skeleton of the match only: draft, scoreboard, benchmarks, team gold "
-        "advantage, your items and your lane. deep — the same expanded across all ten players: "
-        "per-minute series, per-player fight breakdowns, damage split. Start with quick; reach "
-        "for deep when you want maximum context and the model can take a long prompt.",
     "hint.focus":
         "What the review is tuned for. Focus not only expands its own section but also mutes "
         "the others so the model doesn't spread thin. full — overall review; the rest narrow "
         "down to one topic.",
-    "hint.model":
-        "Only the packaging changes, the data is identical. Claude reads structure better "
-        "through XML tags, ChatGPT and Gemini prefer plain markdown. A sensible default depth "
-        "comes with the model, but your own choice in the Depth field always wins.",
     "hint.note":
         "Your own question for the review. If it is set, the review starts with it and the "
         "generic sections move to the background. Be specific: \"why did I lose the lane "
         "against Pudge and Hoodwink?\" works far better than \"how do I play better?\".",
-    "hint.mode":
-        "\"Single match\" breaks down one game in detail. \"Profile\" takes the last N "
-        "matches and looks for what REPEATS: averages, trends, recurring deviations. Full "
-        "match data is not in the profile — otherwise the prompt would not fit any model.",
     "hint.matches":
         "How many recent matches to fold into the profile. Fewer is faster but the "
         "conclusions are shaky; more is sturdier but slower and risks mixing patches. "
@@ -1109,15 +1069,59 @@ UI = {
         "Optional. Keeps only matches on this position. The position is derived heuristically "
         "from lane and net worth, so some matches may drop out — how many actually made it "
         "is stated in the prompt itself.",
-    "hint.window":
-        "Pick a stretch if you want to examine a specific point of the game in maximum "
-        "detail — the actions of every hero inside that window. Inside the window nothing is "
-        "thinned out: all ten heroes per minute, purchases, kills and fights. The rest of the "
-        "match is compressed to a summary — otherwise the window's detail would drown in it.",
-    "hint.advanced":
-        "Everything you can leave alone. The defaults are tuned for an ordinary review; open "
-        "this when you need a specific slice.",
     "hint.mmr":
         "Optional. Give an MMR or a bracket (Herald, Legend, Ancient…) and the model will "
         "calibrate its advice to that level instead of suggesting moves you can't execute yet.",
+
+    # --- сессия матча и разбор игры целиком ---
+    "mode.game": "Whole game",
+    "mode.game.sub": "who decided it and how",
+    "group.match": "Match and player",
+    "group.game": "Match",
+    "advanced.summary.match": "role, focus, model, question, level",
+    "advanced.summary.game": "model, question",
+    "session.title": "Zoom into a moment",
+    "session.sub":
+        "Select a stretch on the chart or pick a fight to get a short follow-up prompt. "
+        "Paste it into the same chat where the review is going: the model already knows "
+        "the coach role, the draft and the method.",
+    "session.chart.sub": "drag across the chart to select a stretch",
+    "session.chart.summary": "Stretch {start}–{end} min: advantage {from} → {to}.",
+    "session.note": "What to ask about this stretch",
+    "session.note.ph": "e.g. why we lost this fight and what I could have done",
+    "session.submit": "Prompt for this stretch",
+    "session.busy": "Building…",
+    "session.details": "Match details",
+    "session.details.sub": "players, draft, builds, objectives",
+    "explorer.fights.sub": "click to set the stretch around a fight",
+    "explorer.fight.note.game": "Radiant Δgold {gold} · deaths {deaths}",
+    "game.title": "Match {match_id}",
+    "game.meta": "{winner} victory · kills {score} · {duration} · patch {patch}",
+    "game.chart.gold": "Radiant advantage: gold",
+    "game.chart.xp": "Radiant advantage: XP",
+    "info.can.1": "Review your match: what decided the game and what was in your hands.",
+    "info.can.2": "Review a whole match without a player in focus: who decided it and how.",
+    "info.can.3": "Build a profile from your last N games and find repeating mistakes.",
+    "info.can.4":
+        "Zoom into any moment with a short prompt for the same chat and ask your own "
+        "question.",
+    "info.deep.3":
+        "Below the prompt, select that stretch on the chart or click the fight and take "
+        "“Prompt for this stretch”. Paste it into the same chat: inside the window the "
+        "data is not thinned out — all ten heroes minute by minute, purchases, kills "
+        "and fights.",
+    "hint.mode":
+        "“Single match” reviews your game: why it went the way it did and what was in your "
+        "hands. “Whole game” reviews the match without a player in focus: why one side "
+        "won, who actually decided it and what the losers could have done. “Profile” "
+        "takes your last N matches and looks for what REPEATS: averages, trends, "
+        "recurring deviations.",
+    "hint.window":
+        "The stretch of the match to review in detail. Inside it the data is not "
+        "thinned out: all ten heroes minute by minute, purchases, kills and fights. The "
+        "stretch prompt is short — it continues the review already under way and is "
+        "meant for the same chat.",
+    "hint.model":
+        "Only the packaging changes, the data is identical. Claude reads structure "
+        "better through XML tags, ChatGPT and Gemini prefer plain markdown.",
 }

@@ -679,6 +679,11 @@ def main():
     assert overview["objectives"][2]["kind"] == "roshan"
     assert overview["teamfights"][0]["me"]["damage"] == 1500
     assert set(overview["draft"]) == {"chronological", "picks", "bans"}
+    # Разбор игры целиком: никто не «я», сигналов по случайному игроку нет.
+    neutral = build_match_overview(match, me, {}, neutral=True)
+    assert neutral["perspective"]["neutral"] is True
+    assert not any(player["is_me"] for player in neutral["players"])
+    assert neutral["signals"] == []
 
     check_opendota_recovery(constants)
     check_loc_tokens()
